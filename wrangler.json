@@ -4,7 +4,9 @@
 	"name": "durable-chat-template",
 	"migrations": [
 		{
-			"new_sqlite_classes": ["Chat"],
+			"new_sqlite_classes": [
+				"Chat"
+			],
 			"tag": "v1"
 		}
 	],
@@ -27,5 +29,12 @@
 	"observability": {
 		"enabled": true
 	},
-	"upload_source_maps": true
+	"upload_source_maps": true,
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "db0",
+			"database_id": "4d0da6f1-b2a1-4837-a2f5-2b0bfd422c1a"
+		}
+	]
 }

@@ -13,9 +13,14 @@ import { nanoid } from "nanoid";
 import { names, type ChatMessage, type Message } from "../shared";
 
 function App() {
-	const [name] = useState(names[Math.floor(Math.random() * names.length)]);
+	const [loggedInUser, setLoggedInUser] = useState<string | null>(null);
+	const [loginId, setLoginId] = useState("");
+	const [loginPassword, setLoginPassword] = useState("");
+	const [loginError, setLoginError] = useState("");
+
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
-	const { room } = useParams();
+	// Hardcode the room to "general" since there's only one link
+	const room = "general";
 
 	const socket = usePartySocket({
 		party: "chat",
@@ -70,8 +75,71 @@ function App() {
 		},
 	});
 
+	if (!loggedInUser) {
+		return (
+			<div className="container" style={{ marginTop: "50px", maxWidth: "400px" }}>
+				<h2>Login</h2>
+				{loginError && <p style={{ color: "red" }}>{loginError}</p>}
+				<form
+					onSubmit={async (e) => {
+						e.preventDefault();
+						setLoginError("");
+						try {
+							const res = await fetch("/api/login", {
+								method: "POST",
+								headers: { "Content-Type": "application/json" },
+								body: JSON.stringify({ id: loginId, password: loginPassword }),
+							});
+							const data = await res.json();
+							if (res.ok && data.success) {
+								setLoggedInUser(data.id);
+							} else {
+								setLoginError(data.error || "Login failed");
+							}
+						} catch (err) {
+							setLoginError("An error occurred during login.");
+						}
+					}}
+				>
+					<div style={{ marginBottom: "1rem" }}>
+						<label>ID</label>
+						<input
+							type="text"
+							className="u-full-width"
+							value={loginId}
+							onChange={(e) => setLoginId(e.target.value)}
+							required
+						/>
+					</div>
+					<div style={{ marginBottom: "1rem" }}>
+						<label>Password</label>
+						<input
+							type="password"
+							className="u-full-width"
+							value={loginPassword}
+							onChange={(e) => setLoginPassword(e.target.value)}
+							required
+						/>
+					</div>
+					<button type="submit" className="button-primary u-full-width">
+						Login
+					</button>
+				</form>
+			</div>
+		);
+	}
+
 	return (
 		<div className="chat container">
+			<div style={{ marginBottom: "10px", textAlign: "right" }}>
+				Logged in as <strong>{loggedInUser}</strong>
+				<button
+					onClick={() => setLoggedInUser(null)}
+					style={{ marginLeft: "10px" }}
+				>
+					Logout
+				</button>
+			</div>
 			{messages.map((message) => (
 				<div key={message.id} className="row message">
 					<div className="two columns user">{message.user}</div>
@@ -88,7 +156,7 @@ function App() {
 					const chatMessage: ChatMessage = {
 						id: nanoid(8),
 						content: content.value,
-						user: name,
+						user: loggedInUser,
 						role: "user",
 					};
 					setMessages((messages) => [...messages, chatMessage]);
@@ -108,7 +176,7 @@ function App() {
 					type="text"
 					name="content"
 					className="ten columns my-input-text"
-					placeholder={`Hello ${name}! Type a message...`}
+					placeholder={`Hello ${loggedInUser}! Type a message...`}
 					autoComplete="off"
 				/>
 				<button type="submit" className="send-message two columns">
@@ -123,8 +191,7 @@ function App() {
 createRoot(document.getElementById("root")!).render(
 	<BrowserRouter>
 		<Routes>
-			<Route path="/" element={<Navigate to={`/${nanoid()}`} />} />
-			<Route path="/:room" element={<App />} />
+			<Route path="/" element={<App />} />
 			<Route path="*" element={<Navigate to="/" />} />
 		</Routes>
 	</BrowserRouter>,

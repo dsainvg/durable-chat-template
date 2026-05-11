@@ -7,11 +7,10 @@ async function hashPassword(password: string): Promise<string> {
 	return hashHex;
 }
 
-// saipass -> a580882e3f5332f14309a47da2f14eddd70eb1467bdab793a3de3c368ff62283
-// rupspass -> 1c3ebfe1b285dd6898d94943f5ea976dfbb8b15dcb56ec690b2e3e9d89264c78
+// password -> 5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8
 const USERS = {
-	'sai': 'a580882e3f5332f14309a47da2f14eddd70eb1467bdab793a3de3c368ff62283',
-	'rups': '1c3ebfe1b285dd6898d94943f5ea976dfbb8b15dcb56ec690b2e3e9d89264c78'
+	'sai': '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8',
+	'rups': '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8'
 };
 
 const CORS_HEADERS = {

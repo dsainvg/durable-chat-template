@@ -10,6 +10,16 @@
 	"build": {
 		"command": "npm run build"
 	},
+	"migrations": [
+		{
+			"new_sqlite_classes": ["Chat"],
+			"tag": "v1"
+		},
+		{
+			"deleted_classes": ["Chat"],
+			"tag": "v2"
+		}
+	],
 	"d1_databases": [
 		{
 			"binding": "DB",

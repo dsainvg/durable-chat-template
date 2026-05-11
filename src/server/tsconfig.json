@@ -1,7 +1,15 @@
 {
-	"extends": "../../tsconfig.json",
 	"compilerOptions": {
-		"types": ["./worker-configuration.d.ts"]
+		"target": "esnext",
+		"lib": ["esnext"],
+		"module": "esnext",
+		"moduleResolution": "bundler",
+		"noEmit": true,
+		"isolatedModules": true,
+		"forceConsistentCasingInFileNames": true,
+		"skipLibCheck": true,
+		"strict": true,
+		"types": ["@cloudflare/workers-types/2023-07-01", "./worker-configuration.d.ts"]
 	},
 	"include": ["."]
 }

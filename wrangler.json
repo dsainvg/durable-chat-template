@@ -14,12 +14,16 @@
 		{
 			"new_sqlite_classes": ["Chat"],
 			"tag": "v1"
-		},
-		{
-			"deleted_classes": ["Chat"],
-			"tag": "v2"
 		}
 	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"class_name": "Chat",
+				"name": "Chat"
+			}
+		]
+	},
 	"d1_databases": [
 		{
 			"binding": "DB",

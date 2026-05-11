@@ -10817,3 +10817,4 @@ interface Env {
 	DB: D1Database;
 	ASSETS: Fetcher;
 }
+	Chat: DurableObjectNamespace;

@@ -135,3 +135,11 @@ export default {
 		return env.ASSETS.fetch(request);
 	},
 } satisfies ExportedHandler<Env>;
+
+// Dummy Chat class to satisfy Durable Object binding that we cannot migrate away from at this time
+export class Chat {
+	constructor(state: any, env: Env) {}
+	async fetch(request: Request) {
+		return new Response("Not implemented", { status: 501 });
+	}
+}

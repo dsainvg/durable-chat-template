@@ -19,7 +19,10 @@ const CORS_HEADERS = {
 	"Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
+let dbInitialized = false;
+
 async function initDb(db: D1Database) {
+	if (dbInitialized) return;
 	await db.prepare("CREATE TABLE IF NOT EXISTS pass (id TEXT PRIMARY KEY, hash TEXT NOT NULL, active INTEGER DEFAULT 0, last_seen INTEGER DEFAULT 0)").run();
 	try { await db.prepare("ALTER TABLE pass ADD COLUMN active INTEGER DEFAULT 0").run(); } catch(e) {}
 	try { await db.prepare("ALTER TABLE pass ADD COLUMN last_seen INTEGER DEFAULT 0").run(); } catch(e) {}
@@ -52,6 +55,8 @@ async function initDb(db: D1Database) {
 	if (results && results[0] && (results[0] as any).count === 0) {
 		await db.prepare("INSERT INTO tasks (id, title, status, task_type, custom_task_id, due_date, start, duration, space_id) VALUES (1, 'Setup Postgres Schema', 'Done', 'Task', 'ENG-1', '2026-05-15', 2, 4, 1), (2, 'Implement Next.js Views', 'In Progress', 'Task', 'ENG-2', '2026-05-18', 6, 5, 1), (3, 'Configure MCP Server', 'To Do', 'Task', 'ENG-3', '2026-05-20', 10, 3, 1), (4, 'Write E2E Tests', 'To Do', 'Bug', 'ENG-4', null, 12, 4, 1)").run();
 	}
+
+	dbInitialized = true;
 }
 
 export default {

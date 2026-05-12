@@ -4,6 +4,9 @@ import ListView from "./components/views/ListView";
 import BoardView from "./components/views/BoardView";
 import CalendarView from "./components/views/CalendarView";
 import GanttView from "./components/views/GanttView";
+import ChatView from "./components/views/ChatView";
+import SettingsView from "./components/views/SettingsView";
+import usePartySocket from "partysocket/react";
 
 function Login({ onLogin }: { onLogin: (token: string) => void }) {
 	const [selectedUser, setSelectedUser] = useState<string | null>(null);
@@ -125,6 +128,68 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
 	const [spaces, setSpaces] = useState<{id: number, name: string}[]>([]);
 	const [activeSpaceId, setActiveSpaceId] = useState<number>(1);
 	const [newSpaceName, setNewSpaceName] = useState("");
+	const [spacesOpen, setSpacesOpen] = useState(true);
+	const [usersStatus, setUsersStatus] = useState<any[]>([]);
+
+	// Setup task update listener
+	usePartySocket({
+		room: activeSpaceId.toString(),
+		party: "chat",
+		onMessage(evt) {
+			try {
+				const data = JSON.parse(evt.data);
+				if (data.type === "task_updated") {
+					setRefreshTrigger(prev => prev + 1);
+				}
+			} catch(e) {}
+		}
+	});
+
+	useEffect(() => {
+		const updateActiveView = () => {
+			const savedView = localStorage.getItem(`activeView_${activeSpaceId}`);
+			if (savedView && savedView !== "Settings") {
+				setActiveView(savedView);
+			} else {
+				setActiveView("List");
+			}
+		};
+		updateActiveView();
+	}, [activeSpaceId]);
+
+	const handleSetView = (view: string) => {
+		setActiveView(view);
+		if (view !== "Settings") {
+			localStorage.setItem(`activeView_${activeSpaceId}`, view);
+		}
+	};
+
+	useEffect(() => {
+		const pollUserStatus = async () => {
+			try {
+				const token = localStorage.getItem('token');
+				if (!token) return;
+
+				// Heartbeat
+				await fetch('/api/heartbeat', {
+					method: 'POST',
+					headers: { 'Authorization': `Bearer ${token}` }
+				});
+
+				// Get status
+				const res = await fetch('/api/users/status', {
+					headers: { 'Authorization': `Bearer ${token}` }
+				});
+				const data = await res.json();
+				if (Array.isArray(data)) {
+					setUsersStatus(data);
+				}
+			} catch (e) {}
+		};
+		pollUserStatus();
+		const interval = setInterval(pollUserStatus, 10000);
+		return () => clearInterval(interval);
+	}, []);
 
 	useEffect(() => {
 		fetch('/api/spaces', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
@@ -220,72 +285,87 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
 	return (
 		<div className="flex h-screen bg-[var(--bg-main)]">
 			{/* Sidebar */}
-			<div className="w-64 bg-[var(--bg-sidebar)] border-r border-[var(--border-color)] flex flex-col">
-				<div className="p-4 border-b border-[var(--border-color)] font-bold text-[var(--text-sidebar)]">
-					Spaces
+			<div className="w-64 bg-[var(--bg-sidebar)] border-r border-[var(--border-color)] flex flex-col p-4">
+				<button onClick={() => setShowTaskModal(true)} className="w-full px-4 py-2 mb-6 text-sm bg-[var(--accent)] text-white rounded font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+					<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+					Add Task
+				</button>
+
+				<div className="flex items-center justify-between font-bold text-[var(--text-sidebar)] mb-2 px-2">
+					<span>Spaces</span>
+					<button onClick={() => setSpacesOpen(!spacesOpen)} className="text-[var(--text-muted)] hover:text-[var(--text-sidebar)]">
+						{spacesOpen ? '▼' : '▶'}
+					</button>
 				</div>
-				<div className="flex-1 overflow-auto p-2">
-					{spaces.map(space => (
-						<button
-							key={space.id}
-							onClick={() => setActiveSpaceId(space.id)}
-							className={`w-full text-left px-3 py-2 rounded mb-1 ${activeSpaceId === space.id ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-sidebar)] hover:bg-[var(--bg-card)] hover:text-[var(--text-main)]'}`}
-						>
-							{space.name}
-						</button>
+
+				{spacesOpen && (
+					<div className="flex flex-col gap-1 mb-4 overflow-y-auto max-h-60">
+						{spaces.map(space => (
+							<button
+								key={space.id}
+								onClick={() => setActiveSpaceId(space.id)}
+								className={`w-full text-left px-3 py-2 rounded text-sm ${activeSpaceId === space.id && activeView !== 'Settings' ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-sidebar)] hover:bg-[var(--bg-card)] hover:text-[var(--text-main)]'}`}
+							>
+								# {space.name}
+							</button>
+						))}
+						<form onSubmit={handleAddSpace} className="mt-2">
+							<input
+								type="text"
+								placeholder="+ New Space"
+								value={newSpaceName}
+								onChange={(e) => setNewSpaceName(e.target.value)}
+								className="w-full bg-[var(--bg-card)] border border-[var(--border-color)] rounded px-3 py-1.5 text-xs text-[var(--text-main)] focus:outline-none"
+							/>
+						</form>
+					</div>
+				)}
+
+				<div className="mt-auto flex flex-col gap-1 pt-4 border-t border-[var(--border-color)]">
+					{usersStatus.map((u: any) => (
+						<div key={u.id} className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--text-sidebar)]">
+							<div className={`w-2 h-2 rounded-full ${u.active ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+							<span className="capitalize">{u.id}</span> {u.active ? '(Online)' : ''}
+						</div>
 					))}
+
+					<button onClick={() => handleSetView('Settings')} className={`w-full text-left px-3 py-2 rounded text-sm mt-4 ${activeView === 'Settings' ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-sidebar)] hover:bg-[var(--bg-card)] hover:text-[var(--text-main)]'}`}>
+						⚙️ Settings
+					</button>
+					<button onClick={onLogout} className="w-full text-left px-3 py-2 rounded text-sm text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors">
+						🚪 Logout
+					</button>
 				</div>
-				<form onSubmit={handleAddSpace} className="p-4 border-t border-[var(--border-color)]">
-					<input
-						type="text"
-						placeholder="New Space"
-						value={newSpaceName}
-						onChange={(e) => setNewSpaceName(e.target.value)}
-						className="w-full bg-[var(--bg-card)] border border-[var(--border-color)] rounded p-2 text-sm text-[var(--text-main)] focus:outline-none"
-					/>
-				</form>
 			</div>
 
 			{/* Main Content */}
-			<div className="flex flex-col flex-1">
-				<header className="bg-[var(--bg-header)] border-b border-[var(--border-color)] p-4 flex gap-4 items-center justify-between shadow-sm">
-					<div className="flex gap-4">
-						{['List', 'Board', 'Calendar', 'Gantt'].map(view => (
-							<button
-								key={view}
-								onClick={() => setActiveView(view)}
-								className={`px-4 py-2 font-medium rounded transition-colors ${activeView === view ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-muted)] hover:bg-[var(--bg-card)] hover:text-[var(--text-main)]'}`}
-							>
-								{view}
-							</button>
-						))}
-					</div>
-					<div className="flex items-center gap-4">
-						<select
-							className="bg-[var(--bg-card)] text-[var(--text-main)] border border-[var(--border-color)] rounded p-1 text-sm focus:outline-none"
-							onChange={(e) => document.documentElement.setAttribute('data-theme', e.target.value)}
-							defaultValue="default"
-						>
-							<option value="default">Light</option>
-							<option value="dark-default">Dark Default</option>
-							<option value="dark-midnight">Dark Midnight</option>
-							<option value="dark-purple">Dark Purple</option>
-							<option value="dark-forest">Dark Forest</option>
-							<option value="neon">Neon</option>
-						</select>
-						<button onClick={() => setShowTaskModal(true)} className="px-4 py-2 text-sm bg-[var(--accent)] text-white rounded hover:opacity-90 transition-opacity">
-							+ Add Task
-						</button>
-						<button onClick={onLogout} className="px-4 py-2 text-sm text-red-600 border border-red-600 rounded hover:bg-red-50">
-							Logout
-						</button>
-					</div>
-				</header>
+			<div className="flex flex-col flex-1 bg-[var(--bg-main)]">
+				{activeView !== "Settings" && (
+					<header className="bg-[var(--bg-header)] border-b border-[var(--border-color)] p-4 flex gap-4 items-center justify-between shadow-sm">
+						<div className="flex gap-4">
+							{['List', 'Board', 'Calendar', 'Gantt', 'Chat'].map(view => (
+								<button
+									key={view}
+									onClick={() => handleSetView(view)}
+									className={`px-4 py-2 text-sm font-medium rounded transition-colors ${activeView === view ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-muted)] hover:bg-[var(--bg-card)] hover:text-[var(--text-main)]'}`}
+								>
+									{view}
+								</button>
+							))}
+						</div>
+						<div className="text-[var(--text-main)] font-semibold px-4">
+							{spaces.find(s => s.id === activeSpaceId)?.name || ''}
+						</div>
+					</header>
+				)}
+
 				<div className="flex-1 overflow-auto p-4">
 					{activeView === 'List' && <ListView refreshTrigger={refreshTrigger} activeSpaceId={activeSpaceId} />}
 					{activeView === 'Board' && <BoardView refreshTrigger={refreshTrigger} activeSpaceId={activeSpaceId} />}
 					{activeView === 'Calendar' && <CalendarView refreshTrigger={refreshTrigger} activeSpaceId={activeSpaceId} />}
 					{activeView === 'Gantt' && <GanttView refreshTrigger={refreshTrigger} activeSpaceId={activeSpaceId} />}
+					{activeView === 'Chat' && <ChatView refreshTrigger={refreshTrigger} activeSpaceId={activeSpaceId} />}
+					{activeView === 'Settings' && <SettingsView />}
 				</div>
 
 			{showTaskModal && (

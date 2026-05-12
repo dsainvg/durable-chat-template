@@ -1,3 +1,7 @@
+import { Server, routePartykitRequest } from "partyserver";
+import type { Connection } from "partyserver";
+import { Message, ChatMessage } from "../shared";
+
 // Helper to generate a SHA-256 hash
 async function hashPassword(password: string): Promise<string> {
 	const msgUint8 = new TextEncoder().encode(password);
@@ -16,7 +20,9 @@ const CORS_HEADERS = {
 };
 
 async function initDb(db: D1Database) {
-	await db.prepare("CREATE TABLE IF NOT EXISTS pass (id TEXT PRIMARY KEY, hash TEXT NOT NULL)").run();
+	await db.prepare("CREATE TABLE IF NOT EXISTS pass (id TEXT PRIMARY KEY, hash TEXT NOT NULL, active INTEGER DEFAULT 0, last_seen INTEGER DEFAULT 0)").run();
+	try { await db.prepare("ALTER TABLE pass ADD COLUMN active INTEGER DEFAULT 0").run(); } catch(e) {}
+	try { await db.prepare("ALTER TABLE pass ADD COLUMN last_seen INTEGER DEFAULT 0").run(); } catch(e) {}
 
 	// Create spaces table
 	await db.prepare("CREATE TABLE IF NOT EXISTS spaces (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)").run();
@@ -79,7 +85,7 @@ export default {
 				return new Response(JSON.stringify({ error: "Missing password" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 			}
 			const hashed = await hashPassword(password);
-			await env.DB.prepare("INSERT INTO pass (id, hash) VALUES (?, ?)").bind(id, hashed).run();
+			await env.DB.prepare("INSERT INTO pass (id, hash, active, last_seen) VALUES (?, ?, 1, ?)").bind(id, hashed, Date.now()).run();
 			const token = btoa(`${id}:${hashed}`);
 			return new Response(JSON.stringify({ token }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 		}
@@ -96,6 +102,7 @@ export default {
 				await initDb(env.DB);
 				const { results } = await env.DB.prepare("SELECT hash FROM pass WHERE id = ?").bind(id).all();
 				if (results.length > 0 && (results[0] as any).hash === hashed) {
+					await env.DB.prepare("UPDATE pass SET active = 1, last_seen = ? WHERE id = ?").bind(Date.now(), id).run();
 					const token = btoa(`${id}:${hashed}`);
 					return new Response(JSON.stringify({ token }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 				}
@@ -106,6 +113,10 @@ export default {
 			}
 		}
 
+		if (url.pathname.startsWith('/parties/')) {
+			return routePartykitRequest(request, env);
+		}
+
 		if (url.pathname.startsWith('/api/')) {
 			const authHeader = request.headers.get('Authorization');
 			if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -113,9 +124,11 @@ export default {
 			}
 
 			const token = authHeader.substring(7);
+			let currentUserId = "";
 			try {
 				const decoded = atob(token);
 				const [id, hashed] = decoded.split(':');
+				currentUserId = id;
 				await initDb(env.DB);
 				const { results } = await env.DB.prepare("SELECT hash FROM pass WHERE id = ?").bind(id).all();
 				if (results.length === 0 || (results[0] as any).hash !== hashed) {
@@ -127,6 +140,18 @@ export default {
 
 			await initDb(env.DB);
 
+			if (url.pathname === '/api/heartbeat' && request.method === 'POST') {
+				await env.DB.prepare("UPDATE pass SET active = 1, last_seen = ? WHERE id = ?").bind(Date.now(), currentUserId).run();
+				return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+			}
+
+			if (url.pathname === '/api/users/status' && request.method === 'GET') {
+				const cutoff = Date.now() - 30000; // 30 seconds
+				// Update active status for users who haven't sent a heartbeat in 30s
+				await env.DB.prepare("UPDATE pass SET active = 0 WHERE last_seen < ? AND active = 1").bind(cutoff).run();
+				const { results } = await env.DB.prepare("SELECT id, active, last_seen FROM pass WHERE id != ?").bind(currentUserId).all();
+				return new Response(JSON.stringify(results), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+			}
 
 			if (url.pathname === '/api/spaces' && request.method === 'GET') {
 				const { results } = await env.DB.prepare("SELECT * FROM spaces").all();
@@ -226,7 +251,18 @@ export default {
 						await env.DB.prepare(`UPDATE tasks SET ${updates.join(', ')} WHERE id = ?${index}`).bind(...values).run();
 
 						const { results } = await env.DB.prepare("SELECT * FROM tasks WHERE id = ?1").bind(id).all();
-						return new Response(JSON.stringify(results[0]), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+						const updatedTask = results[0] as any;
+
+						// Broadcast update to the space's Chat Durable Object to notify clients
+						const spaceId = updatedTask.space_id || 1;
+						const idStr = env.Chat.idFromName(spaceId.toString());
+						const chatStub = env.Chat.get(idStr);
+						await chatStub.fetch(new Request("http://internal/broadcast_task", {
+							method: "POST",
+							body: JSON.stringify({ type: "task_updated", task: updatedTask })
+						}));
+
+						return new Response(JSON.stringify(updatedTask), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 					} else {
 						return new Response(JSON.stringify({ error: "No valid fields to update" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 					}
@@ -242,10 +278,49 @@ export default {
 	},
 } satisfies ExportedHandler<Env>;
 
-// Dummy Chat class to satisfy Durable Object binding that we cannot migrate away from at this time
-export class Chat {
-	constructor(state: any, env: Env) {}
-	async fetch(request: Request) {
-		return new Response("Not implemented", { status: 501 });
+// Realtime Chat & Task Updates using PartyServer
+export class Chat extends Server<Env> {
+	messages: ChatMessage[] = [];
+
+	async onStart() {
+		// Load existing messages from Durable Object storage
+		const stored = await this.ctx.storage.get<ChatMessage[]>("messages");
+		if (stored) {
+			this.messages = stored;
+		}
+	}
+
+	async fetch(request: Request): Promise<Response> {
+		const url = new URL(request.url);
+		if (url.pathname === "/broadcast_task" && request.method === "POST") {
+			const body = await request.json() as any;
+			// Broadcast task updates to all connected clients in this space
+			this.broadcast(JSON.stringify(body));
+			return new Response("OK", { status: 200 });
+		}
+		// otherwise, handle as websocket or normal fetch
+		return super.fetch(request);
+	}
+
+	onConnect(conn: Connection, ctx: any) {
+		// Send existing chat messages to the new connection
+		conn.send(JSON.stringify({ type: "all", messages: this.messages }));
+	}
+
+	async onMessage(conn: Connection, message: string | ArrayBuffer) {
+		const data = JSON.parse(message as string) as Message;
+		if (data.type === "add") {
+			const newMsg: ChatMessage = {
+				id: data.id,
+				content: data.content,
+				user: data.user,
+				role: data.role,
+			};
+			this.messages.push(newMsg);
+			if (this.messages.length > 100) this.messages.shift(); // Keep last 100
+
+			await this.ctx.storage.put("messages", this.messages);
+			this.broadcast(JSON.stringify(data));
+		}
 	}
 }

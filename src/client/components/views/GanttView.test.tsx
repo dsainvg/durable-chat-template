@@ -27,6 +27,10 @@ describe('GanttView Component', () => {
 
     render(<GanttView />);
 
+    await waitFor(() => {
+        expect(screen.getByText('Setup Postgres Schema')).toBeInTheDocument();
+    });
+
     // Verify day columns 1 to 20 are rendered
     for (let i = 1; i <= 20; i++) {
       expect(screen.getByText(`May ${i}`)).toBeInTheDocument();

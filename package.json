@@ -48,6 +48,7 @@
     "check": "tsc --project src/client && tsc --project src/server && wrangler deploy --dry-run",
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
-    "build": "npx @tailwindcss/cli -i ./globals.css -o ./public/dist/globals.css && esbuild src/client/index.tsx --bundle --splitting --format=esm --platform=browser --outdir=public/dist"
+    "build": "npx @tailwindcss/cli -i ./globals.css -o ./public/dist/globals.css && esbuild src/client/index.tsx --bundle --splitting --format=esm --platform=browser --outdir=public/dist",
+    "test": "vitest run"
   }
 }

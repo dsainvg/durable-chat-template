@@ -1,0 +1,172 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-panel: var(--panel);
+  --color-surface: var(--surface);
+  --color-brand: var(--brand);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --font-sans: 'Inter', sans-serif;
+}
+
+/* Default theme: Graphite (teal accent) */
+:root,
+:root[data-theme="graphite"] {
+  --radius: 0.5rem;
+  --surface: oklch(0.145 0 0);
+  --panel: oklch(0.19 0 0);
+  --brand: oklch(0.72 0.13 180);
+  --background: var(--surface);
+  --foreground: oklch(0.92 0.005 250);
+  --card: var(--panel);
+  --card-foreground: var(--foreground);
+  --popover: var(--panel);
+  --popover-foreground: var(--foreground);
+  --primary: var(--brand);
+  --primary-foreground: oklch(0.15 0 0);
+  --secondary: oklch(0.25 0 0);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.23 0 0);
+  --muted-foreground: oklch(0.62 0.005 250);
+  --accent: oklch(0.27 0 0);
+  --accent-foreground: var(--foreground);
+  --destructive: oklch(0.65 0.2 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 10%);
+  --ring: var(--brand);
+  --sidebar: var(--panel);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: oklch(0.15 0 0);
+  --sidebar-accent: oklch(0.27 0 0);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: var(--brand);
+}
+
+/* Theme: Midnight (indigo accent) */
+:root[data-theme="midnight"] {
+  --surface: oklch(0.16 0.02 265);
+  --panel: oklch(0.21 0.025 265);
+  --brand: oklch(0.7 0.18 265);
+  --background: var(--surface);
+  --foreground: oklch(0.95 0.01 250);
+  --card: var(--panel);
+  --card-foreground: var(--foreground);
+  --popover: var(--panel);
+  --popover-foreground: var(--foreground);
+  --primary: var(--brand);
+  --primary-foreground: oklch(0.15 0.02 265);
+  --secondary: oklch(0.27 0.03 265);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.25 0.025 265);
+  --muted-foreground: oklch(0.65 0.02 260);
+  --accent: oklch(0.3 0.04 265);
+  --accent-foreground: var(--foreground);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 10%);
+  --ring: var(--brand);
+  --sidebar: var(--panel);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-accent: oklch(0.3 0.04 265);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: oklch(1 0 0 / 8%);
+}
+
+/* Theme: Crimson (warm rose accent) */
+:root[data-theme="crimson"] {
+  --surface: oklch(0.15 0.01 25);
+  --panel: oklch(0.2 0.015 25);
+  --brand: oklch(0.7 0.2 20);
+  --background: var(--surface);
+  --foreground: oklch(0.94 0.01 30);
+  --card: var(--panel);
+  --card-foreground: var(--foreground);
+  --popover: var(--panel);
+  --popover-foreground: var(--foreground);
+  --primary: var(--brand);
+  --primary-foreground: oklch(0.15 0 0);
+  --secondary: oklch(0.27 0.02 25);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.24 0.015 25);
+  --muted-foreground: oklch(0.64 0.02 25);
+  --accent: oklch(0.3 0.03 25);
+  --accent-foreground: var(--foreground);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 10%);
+  --ring: var(--brand);
+  --sidebar: var(--panel);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-accent: oklch(0.3 0.03 25);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: oklch(1 0 0 / 8%);
+}
+
+/* Theme: Forest (green accent) */
+:root[data-theme="forest"] {
+  --surface: oklch(0.15 0.015 160);
+  --panel: oklch(0.2 0.02 160);
+  --brand: oklch(0.72 0.16 155);
+  --background: var(--surface);
+  --foreground: oklch(0.93 0.01 160);
+  --card: var(--panel);
+  --card-foreground: var(--foreground);
+  --popover: var(--panel);
+  --popover-foreground: var(--foreground);
+  --primary: var(--brand);
+  --primary-foreground: oklch(0.15 0 0);
+  --secondary: oklch(0.27 0.02 160);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.24 0.02 160);
+  --muted-foreground: oklch(0.64 0.02 160);
+  --accent: oklch(0.3 0.03 160);
+  --accent-foreground: var(--foreground);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 10%);
+  --ring: var(--brand);
+  --sidebar: var(--panel);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-accent: oklch(0.3 0.03 160);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: oklch(1 0 0 / 8%);
+}
+
+@layer base {
+  * { border-color: var(--color-border); }
+  html, body { background-color: var(--color-background); color: var(--color-foreground); }
+  body { font-family: 'Inter', sans-serif; font-feature-settings: 'cv02','cv03','cv11','ss01'; }
+}

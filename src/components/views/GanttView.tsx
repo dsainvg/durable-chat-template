@@ -1,0 +1,72 @@
+import type { Space, Task } from "@/lib/store";
+
+export function GanttView({ space, onOpen }: { space: Space; onOpen: (t: Task) => void }) {
+  const tasks = space.tasks;
+  if (tasks.length === 0) {
+    return <div className="p-8 text-sm text-muted-foreground italic">No tasks to chart yet.</div>;
+  }
+
+  const starts = tasks.map((t) => new Date(t.startDate).getTime());
+  const ends = tasks.map((t) => new Date(t.dueDate).getTime());
+  const min = Math.min(...starts);
+  const max = Math.max(...ends);
+  const totalDays = Math.max(7, Math.ceil((max - min) / 86400_000) + 1);
+  const colWidth = 32;
+
+  const days = Array.from({ length: totalDays }, (_, i) => {
+    const d = new Date(min + i * 86400_000);
+    return d;
+  });
+
+  return (
+    <div className="p-6">
+      <div className="rounded-lg border border-border bg-card overflow-auto">
+        <div className="min-w-full" style={{ width: `${260 + totalDays * colWidth}px` }}>
+          {/* Header */}
+          <div className="flex border-b border-border sticky top-0 bg-card z-10">
+            <div className="w-[260px] flex-shrink-0 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Task</div>
+            <div className="flex">
+              {days.map((d, i) => {
+                const isMonthStart = d.getDate() === 1 || i === 0;
+                return (
+                  <div key={i} style={{ width: colWidth }} className="text-center py-2 text-[10px] text-muted-foreground border-l border-border">
+                    {isMonthStart && (
+                      <div className="text-[9px] uppercase font-semibold text-foreground">{d.toLocaleDateString(undefined, { month: "short" })}</div>
+                    )}
+                    <div>{d.getDate()}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          {/* Rows */}
+          {tasks.map((t) => {
+            const s = new Date(t.startDate).getTime();
+            const e = new Date(t.dueDate).getTime();
+            const offset = Math.round((s - min) / 86400_000) * colWidth;
+            const width = Math.max(colWidth, (Math.round((e - s) / 86400_000) + 1) * colWidth);
+            return (
+              <button
+                key={t.id}
+                onClick={() => onOpen(t)}
+                className="w-full flex border-b border-border hover:bg-accent/30 transition-colors text-left"
+              >
+                <div className="w-[260px] flex-shrink-0 px-3 py-2.5 text-xs truncate">{t.title}</div>
+                <div className="relative flex-1 h-10">
+                  <div
+                    className={`absolute top-2 h-6 rounded ${
+                      t.priority === "high" ? "bg-destructive/70" : t.priority === "medium" ? "bg-primary/70" : "bg-muted-foreground/40"
+                    } flex items-center px-2`}
+                    style={{ left: offset, width }}
+                  >
+                    <span className="text-[10px] truncate text-primary-foreground">{t.title}</span>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,93 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState, useRef, useEffect } from "react";
+import { useStore, uid } from "@/lib/store";
+import { Send } from "lucide-react";
+
+export const Route = createFileRoute("/chat/$userId")({
+  component: ChatPage,
+});
+
+function ChatPage() {
+  const { userId } = Route.useParams();
+  const { state, update } = useStore();
+  const other = state.users.find((u) => u.id === userId);
+  const me = state.currentUserId;
+  const messages = state.dms[userId] ?? [];
+  const [text, setText] = useState("");
+  const endRef = useRef<HTMLDivElement>(null);
+  const userMap = Object.fromEntries(state.users.map((u) => [u.id, u]));
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length]);
+
+  if (!other) return <div className="p-8">User not found. <Link to="/">Home</Link></div>;
+
+  const send = () => {
+    const t = text.trim();
+    if (!t) return;
+    update((s) => ({
+      ...s,
+      dms: { ...s.dms, [userId]: [...(s.dms[userId] ?? []), { id: uid(), userId: me, text: t, ts: Date.now() }] },
+    }));
+    setText("");
+  };
+
+  return (
+    <>
+      <header className="h-14 flex items-center gap-3 px-6 border-b border-border bg-card/30">
+        <div className="size-8 rounded-full bg-muted ring-1 ring-border grid place-items-center text-xs font-medium">{other.initials}</div>
+        <div>
+          <p className="text-sm font-semibold">{other.name}</p>
+          <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+            <span className="size-1.5 rounded-full bg-primary inline-block" /> Online
+          </p>
+        </div>
+      </header>
+
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="max-w-2xl mx-auto space-y-4">
+          {messages.length === 0 && (
+            <p className="text-center text-xs text-muted-foreground italic py-12">Say hi to {other.name}.</p>
+          )}
+          {messages.map((m) => {
+            const mine = m.userId === me;
+            return (
+              <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"} gap-2`}>
+                {!mine && (
+                  <div className="size-7 rounded-full bg-muted ring-1 ring-border grid place-items-center text-[10px] flex-shrink-0">
+                    {userMap[m.userId]?.initials}
+                  </div>
+                )}
+                <div className={`max-w-[70%] px-3 py-2 rounded-2xl text-sm ${
+                  mine ? "bg-primary text-primary-foreground rounded-br-sm" : "bg-card border border-border rounded-bl-sm"
+                }`}>
+                  {m.text}
+                  <div className={`text-[9px] mt-1 ${mine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                    {new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          <div ref={endRef} />
+        </div>
+      </div>
+
+      <div className="p-4 border-t border-border bg-card/30">
+        <div className="max-w-2xl mx-auto flex items-center gap-2 bg-background border border-border rounded-lg px-3">
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") send(); }}
+            placeholder={`Message ${other.name}…`}
+            className="flex-1 bg-transparent py-3 text-sm outline-none"
+          />
+          <button onClick={send} className="text-primary hover:text-primary/80 p-1">
+            <Send className="size-4" />
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}

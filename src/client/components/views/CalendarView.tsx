@@ -89,7 +89,7 @@ export default function CalendarView({ refreshTrigger, activeSpaceId }: { refres
     if (overId.startsWith('cal-task-')) {
        const targetId = parseInt(overId.replace('cal-task-', ''));
        const targetTask = tasks.find(t => t.id === targetId);
-       if (targetTask) newDateStr = targetTask.due_date;
+       if (targetTask && targetTask.due_date) newDateStr = targetTask.due_date;
     } else {
        // we dropped on the day background
        newDateStr = overId;

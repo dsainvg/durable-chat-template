@@ -114,7 +114,8 @@ export default {
 		}
 
 		if (url.pathname.startsWith('/parties/')) {
-			return routePartykitRequest(request, env);
+			const partyRes = await routePartykitRequest(request, env as any);
+			return partyRes || new Response("Not found", { status: 404 });
 		}
 
 		if (url.pathname.startsWith('/api/')) {

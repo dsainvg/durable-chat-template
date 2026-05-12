@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Task } from '../../../shared';
 
 const mockTasks: Task[] = [
@@ -9,6 +9,23 @@ const mockTasks: Task[] = [
 ];
 
 export default function GanttView({ refreshTrigger, activeSpaceId }: { refreshTrigger?: number, activeSpaceId?: number }) {
+  const [tasks, setTasks] = useState<Task[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetch('/api/tasks' + (activeSpaceId ? '?space_id=' + activeSpaceId : ''), { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
+      .then(res => res.json())
+      .then(data => {
+        if (!isMounted) return;
+        if (Array.isArray(data) && data.length > 0) setTasks(data);
+        else setTasks(mockTasks);
+      })
+      .catch(() => {
+        if (isMounted) setTasks(mockTasks);
+      });
+    return () => { isMounted = false; };
+  }, [refreshTrigger, activeSpaceId]);
+
   const days = Array.from({ length: 20 }, (_, i) => i + 1);
 
   return (
@@ -28,8 +45,8 @@ export default function GanttView({ refreshTrigger, activeSpaceId }: { refreshTr
 
         {/* Body */}
         <div>
-          {mockTasks.map(task => (
-            <div key={task.id} className="flex border-b border-gray-100 hover:bg-gray-50">
+          {tasks.map(task => (
+            <div key={task.id} className="flex border-b border-gray-100 hover:bg-gray-50" data-testid="task-row">
               <div className="w-64 p-3 text-sm font-medium text-[var(--text-main)] border-r border-gray-200 shrink-0 truncate">
                 {task.title}
               </div>

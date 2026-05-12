@@ -155,13 +155,6 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
 	const [newTaskTitle, setNewTaskTitle] = useState("New Task");
 	const [selectedTemplateId, setSelectedTemplateId] = useState<number | "">("");
 
-	const [newTaskStatus, setNewTaskStatus] = useState("To Do");
-	const [newTaskType, setNewTaskType] = useState("Task");
-	const [newTaskCustomId, setNewTaskCustomId] = useState("");
-	const [newTaskDueDate, setNewTaskDueDate] = useState("");
-	const [newTaskStart, setNewTaskStart] = useState(1);
-	const [newTaskDuration, setNewTaskDuration] = useState(1);
-
 	useEffect(() => {
 		fetch('/api/templates', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
 			.then(res => res.json())
@@ -169,19 +162,9 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
 			.catch(console.error);
 	}, []);
 
-	const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-		const tempId = e.target.value ? Number(e.target.value) : "";
-		setSelectedTemplateId(tempId);
-		const template = templates.find(t => t.id === tempId);
-		if (template) {
-			setNewTaskStatus(template.default_status || "To Do");
-			setNewTaskType(template.default_type || "Task");
-			setNewTaskDuration(template.duration || 1);
-		}
-	};
-
 	const submitNewTask = async (e: React.FormEvent) => {
 		e.preventDefault();
+		const template = templates.find(t => t.id === selectedTemplateId);
 		try {
 			await fetch('/api/tasks', {
 				method: 'POST',
@@ -192,26 +175,15 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
 				body: JSON.stringify({
 					title: newTaskTitle,
 					space_id: activeSpaceId,
-					status: newTaskStatus,
-					task_type: newTaskType,
-					custom_task_id: newTaskCustomId || undefined,
-					due_date: newTaskDueDate || undefined,
-					start: newTaskStart,
-					duration: newTaskDuration
+					status: template?.default_status || 'To Do',
+					task_type: template?.default_type || 'Task',
+					duration: template?.duration || 1
 				})
 			});
 			setRefreshTrigger(prev => prev + 1);
 			setShowTaskModal(false);
-
-			// Reset form state
 			setNewTaskTitle("New Task");
 			setSelectedTemplateId("");
-			setNewTaskStatus("To Do");
-			setNewTaskType("Task");
-			setNewTaskCustomId("");
-			setNewTaskDueDate("");
-			setNewTaskStart(1);
-			setNewTaskDuration(1);
 		} catch (e) {
 			console.error("Failed to add task", e);
 		}
@@ -291,7 +263,7 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
 
 			{showTaskModal && (
 				<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-					<form onSubmit={submitNewTask} className="bg-[var(--bg-card)] border border-[var(--border-color)] p-6 rounded-lg shadow-xl w-96 max-h-[90vh] overflow-y-auto flex flex-col gap-4">
+					<form onSubmit={submitNewTask} className="bg-[var(--bg-card)] border border-[var(--border-color)] p-6 rounded-lg shadow-xl w-96 flex flex-col gap-4">
 						<h2 className="text-xl font-bold text-[var(--text-main)]">Add New Task</h2>
 						<div>
 							<label className="block text-sm text-[var(--text-muted)] mb-1">Task Title</label>
@@ -307,7 +279,7 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
 							<label className="block text-sm text-[var(--text-muted)] mb-1">Use Template (Optional)</label>
 							<select
 								value={selectedTemplateId}
-								onChange={handleTemplateChange}
+								onChange={e => setSelectedTemplateId(e.target.value ? Number(e.target.value) : "")}
 								className="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded p-2 text-[var(--text-main)] focus:outline-none"
 							>
 								<option value="">-- No Template --</option>
@@ -315,73 +287,6 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
 									<option key={t.id} value={t.id}>{t.name}</option>
 								))}
 							</select>
-						</div>
-						<div className="grid grid-cols-2 gap-4">
-							<div>
-								<label className="block text-sm text-[var(--text-muted)] mb-1">Status</label>
-								<select
-									value={newTaskStatus}
-									onChange={e => setNewTaskStatus(e.target.value)}
-									className="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded p-2 text-[var(--text-main)] focus:outline-none"
-								>
-									<option value="To Do">To Do</option>
-									<option value="In Progress">In Progress</option>
-									<option value="Done">Done</option>
-								</select>
-							</div>
-							<div>
-								<label className="block text-sm text-[var(--text-muted)] mb-1">Type</label>
-								<select
-									value={newTaskType}
-									onChange={e => setNewTaskType(e.target.value)}
-									className="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded p-2 text-[var(--text-main)] focus:outline-none"
-								>
-									<option value="Task">Task</option>
-									<option value="Bug">Bug</option>
-									<option value="Feature">Feature</option>
-								</select>
-							</div>
-						</div>
-						<div>
-							<label className="block text-sm text-[var(--text-muted)] mb-1">Custom Task ID</label>
-							<input
-								type="text"
-								placeholder="e.g. ENG-123"
-								value={newTaskCustomId}
-								onChange={e => setNewTaskCustomId(e.target.value)}
-								className="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded p-2 text-[var(--text-main)] focus:outline-none"
-							/>
-						</div>
-						<div>
-							<label className="block text-sm text-[var(--text-muted)] mb-1">Due Date</label>
-							<input
-								type="date"
-								value={newTaskDueDate}
-								onChange={e => setNewTaskDueDate(e.target.value)}
-								className="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded p-2 text-[var(--text-main)] focus:outline-none"
-							/>
-						</div>
-						<div className="grid grid-cols-2 gap-4">
-							<div>
-								<label className="block text-sm text-[var(--text-muted)] mb-1">Start Day</label>
-								<input
-									type="number"
-									min="1"
-									value={newTaskStart}
-									onChange={e => setNewTaskStart(parseInt(e.target.value) || 1)}
-									className="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded p-2 text-[var(--text-main)] focus:outline-none"
-								/>
-							</div>
-							<div>
-								<label className="block text-sm text-[var(--text-muted)] mb-1">Duration (days)</label>
-								<input
-									type="number"
-									min="1"
-									value={newTaskDuration}
-									onChange={e => setNewTaskDuration(parseInt(e.target.value) || 1)}
-									className="w-full bg-[var(--bg-main)] border border-[var(--border-color)] rounded p-2 text-[var(--text-main)] focus:outline-none"
-								/>
-							</div>
 						</div>
 						<div className="flex justify-end gap-2 mt-4">
 							<button type="button" onClick={() => setShowTaskModal(false)} className="px-4 py-2 text-[var(--text-muted)] hover:text-[var(--text-main)]">Cancel</button>

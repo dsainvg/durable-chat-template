@@ -119,7 +119,8 @@ export default {
 		}
 
 		if (url.pathname.startsWith('/parties/')) {
-			return routePartykitRequest(request, env);
+			const res = await routePartykitRequest(request, env as any);
+			if (res) return res;
 		}
 
 		if (url.pathname.startsWith('/api/')) {
@@ -146,8 +147,19 @@ export default {
 			await initDb(env.DB);
 
 			if (url.pathname === '/api/heartbeat' && request.method === 'POST') {
-				await env.DB.prepare("UPDATE pass SET active = 1, last_seen = ? WHERE id = ?").bind(Date.now(), currentUserId).run();
-				return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				const now = Date.now();
+				const cutoff = now - 30000; // 30 seconds
+
+				// Batch operations: Update current user's heartbeat, then update stale users
+				await env.DB.batch([
+					env.DB.prepare("UPDATE pass SET active = 1, last_seen = ? WHERE id = ?").bind(now, currentUserId),
+					env.DB.prepare("UPDATE pass SET active = 0 WHERE last_seen < ? AND active = 1").bind(cutoff)
+				]);
+
+				// Fetch updated statuses
+				const { results } = await env.DB.prepare("SELECT id, active, last_seen FROM pass WHERE id != ?").bind(currentUserId).all();
+
+				return new Response(JSON.stringify(results), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 			}
 
 			if (url.pathname === '/api/users/status' && request.method === 'GET') {

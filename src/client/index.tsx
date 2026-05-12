@@ -170,16 +170,12 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
 				const token = localStorage.getItem('token');
 				if (!token) return;
 
-				// Heartbeat
-				await fetch('/api/heartbeat', {
+				// Heartbeat and get status combined
+				const res = await fetch('/api/heartbeat', {
 					method: 'POST',
 					headers: { 'Authorization': `Bearer ${token}` }
 				});
 
-				// Get status
-				const res = await fetch('/api/users/status', {
-					headers: { 'Authorization': `Bearer ${token}` }
-				});
 				const data = await res.json();
 				if (Array.isArray(data)) {
 					setUsersStatus(data);

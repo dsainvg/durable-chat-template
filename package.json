@@ -26,14 +26,19 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260511.1",
     "@tailwindcss/cli": "^4.3.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
+    "@types/testing-library__jest-dom": "^5.14.9",
     "autoprefixer": "^10.5.0",
     "esbuild": "0.27.0",
+    "jsdom": "^29.1.1",
     "postcss": "^8.5.14",
     "postcss-cli": "^11.0.1",
     "tailwindcss": "^4.3.0",
     "typescript": "^5.9.3",
+    "vitest": "^4.1.6",
     "wrangler": "4.56.0"
   },
   "private": true,
@@ -42,6 +47,7 @@
     "check": "tsc --project src/client && tsc --project src/server && wrangler deploy --dry-run",
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
-    "build": "npx @tailwindcss/cli -i ./globals.css -o ./public/dist/globals.css && esbuild src/client/index.tsx --bundle --splitting --format=esm --platform=browser --outdir=public/dist"
+    "build": "npx @tailwindcss/cli -i ./globals.css -o ./public/dist/globals.css && esbuild src/client/index.tsx --bundle --splitting --format=esm --platform=browser --outdir=public/dist",
+    "test": "vitest run"
   }
 }

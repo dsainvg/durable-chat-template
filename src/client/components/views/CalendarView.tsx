@@ -62,7 +62,7 @@ function CalendarDay({ day, tasks, dateStr }: { day: number, tasks: any[], dateS
   );
 }
 
-export default function CalendarView() {
+export default function CalendarView({ refreshTrigger, activeSpaceId }: { refreshTrigger?: number, activeSpaceId?: number }) {
   const [tasks, setTasks] = useState<any[]>(mockTasks);
   const [activeTask, setActiveTask] = useState<any | null>(null);
 

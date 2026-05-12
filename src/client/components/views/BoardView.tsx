@@ -65,12 +65,12 @@ function SortableTask({ task }: { task: any }) {
   );
 }
 
-export default function BoardView() {
+export default function BoardView({ refreshTrigger, activeSpaceId }: { refreshTrigger?: number, activeSpaceId?: number }) {
   const [tasks, setTasks] = useState<any[]>([]);
   const [activeTask, setActiveTask] = useState<any | null>(null);
 
   useEffect(() => {
-    fetch('/api/tasks', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
+    fetch('/api/tasks' + (activeSpaceId ? '?space_id=' + activeSpaceId : ''), { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data) && data.length > 0) setTasks(data);
@@ -80,7 +80,7 @@ export default function BoardView() {
         console.log('Using mock data due to error', e);
         setTasks(mockTasks);
       });
-  }, []);
+  }, [refreshTrigger, activeSpaceId]);
 
   const statuses = ['To Do', 'In Progress', 'Done'];
 

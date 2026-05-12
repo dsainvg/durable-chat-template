@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
+import { Task, TaskStatus, TaskType } from '../../../shared';
 
-const mockTasks = [
-  { id: 1, title: 'Setup Postgres Schema', status: 'Done', task_type: 'Task', custom_task_id: 'ENG-1' },
-  { id: 2, title: 'Implement Next.js Views', status: 'In Progress', task_type: 'Task', custom_task_id: 'ENG-2' },
-  { id: 3, title: 'Configure MCP Server', status: 'To Do', task_type: 'Task', custom_task_id: 'ENG-3' },
-  { id: 4, title: 'Write E2E Tests', status: 'To Do', task_type: 'Bug', custom_task_id: 'ENG-4' },
+const mockTasks: Task[] = [
+  { id: 1, title: 'Setup Postgres Schema', status: 'Done', task_type: 'Task', custom_task_id: 'ENG-1', start: 1, duration: 1, space_id: 1 },
+  { id: 2, title: 'Implement Next.js Views', status: 'In Progress', task_type: 'Task', custom_task_id: 'ENG-2', start: 1, duration: 1, space_id: 1 },
+  { id: 3, title: 'Configure MCP Server', status: 'To Do', task_type: 'Task', custom_task_id: 'ENG-3', start: 1, duration: 1, space_id: 1 },
+  { id: 4, title: 'Write E2E Tests', status: 'To Do', task_type: 'Bug', custom_task_id: 'ENG-4', start: 1, duration: 1, space_id: 1 },
 ];
 
 export default function ListView({ refreshTrigger, activeSpaceId }: { refreshTrigger?: number, activeSpaceId?: number }) {
-  const [tasks, setTasks] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
 
   useEffect(() => {
     fetch('/api/tasks' + (activeSpaceId ? '?space_id=' + activeSpaceId : ''), { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
@@ -35,7 +36,7 @@ export default function ListView({ refreshTrigger, activeSpaceId }: { refreshTri
           </tr>
         </thead>
         <tbody>
-          {tasks.map((task: any) => (
+          {tasks.map((task: Task) => (
             <tr key={task.id} className="border-b border-gray-100 hover:bg-gray-50">
               <td className="p-3">
                 <input
@@ -58,7 +59,7 @@ export default function ListView({ refreshTrigger, activeSpaceId }: { refreshTri
                   defaultValue={task.status}
                   className={`px-2 py-1 rounded text-xs focus:outline-none appearance-none ${task.status === 'Done' ? 'bg-green-100 text-green-800' : task.status === 'In Progress' ? 'bg-blue-100 text-blue-800' : 'bg-[var(--bg-main)] text-[var(--text-main)]'}`}
                   onChange={(e) => {
-                    const newStatus = e.target.value;
+                    const newStatus = e.target.value as TaskStatus;
                     e.target.className = `px-2 py-1 rounded text-xs focus:outline-none appearance-none ${newStatus === 'Done' ? 'bg-green-100 text-green-800' : newStatus === 'In Progress' ? 'bg-blue-100 text-blue-800' : 'bg-[var(--bg-main)] text-[var(--text-main)]'}`;
                     fetch(`/api/tasks/${task.id}`, {
                       method: 'PUT',
@@ -77,10 +78,11 @@ export default function ListView({ refreshTrigger, activeSpaceId }: { refreshTri
                   defaultValue={task.task_type}
                   className="bg-transparent focus:outline-none appearance-none"
                   onChange={(e) => {
+                    const newTaskType = e.target.value as TaskType;
                     fetch(`/api/tasks/${task.id}`, {
                       method: 'PUT',
                       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-                      body: JSON.stringify({ task_type: e.target.value })
+                      body: JSON.stringify({ task_type: newTaskType })
                     });
                   }}
                 >

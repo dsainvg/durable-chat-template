@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { Task } from '../../../shared';
 import {
   DndContext,
   closestCenter,
@@ -14,13 +15,13 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-const mockTasks = [
-  { id: 1, title: 'Setup Postgres Schema', due_date: '2026-05-15' },
-  { id: 2, title: 'Implement Next.js Views', due_date: '2026-05-18' },
-  { id: 3, title: 'Configure MCP Server', due_date: '2026-05-20' },
+const mockTasks: Task[] = [
+  { id: 1, title: 'Setup Postgres Schema', status: 'Done', task_type: 'Task', due_date: '2026-05-15', start: 1, duration: 1, space_id: 1 },
+  { id: 2, title: 'Implement Next.js Views', status: 'In Progress', task_type: 'Task', due_date: '2026-05-18', start: 1, duration: 1, space_id: 1 },
+  { id: 3, title: 'Configure MCP Server', status: 'To Do', task_type: 'Task', due_date: '2026-05-20', start: 1, duration: 1, space_id: 1 },
 ];
 
-function SortableCalTask({ task }: { task: any }) {
+function SortableCalTask({ task }: { task: Task }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `cal-task-${task.id}`,
     data: { task }
@@ -46,7 +47,7 @@ function SortableCalTask({ task }: { task: any }) {
   );
 }
 
-function CalendarDay({ day, tasks, dateStr }: { day: number, tasks: any[], dateStr: string }) {
+function CalendarDay({ day, tasks, dateStr }: { day: number, tasks: Task[], dateStr: string }) {
   const { setNodeRef } = useDroppable({ id: dateStr });
   return (
     <div ref={setNodeRef} className="bg-bg-card p-2 min-h-[100px] border-r border-b border-border flex flex-col">
@@ -63,8 +64,8 @@ function CalendarDay({ day, tasks, dateStr }: { day: number, tasks: any[], dateS
 }
 
 export default function CalendarView({ refreshTrigger, activeSpaceId }: { refreshTrigger?: number, activeSpaceId?: number }) {
-  const [tasks, setTasks] = useState<any[]>(mockTasks);
-  const [activeTask, setActiveTask] = useState<any | null>(null);
+  const [tasks, setTasks] = useState<Task[]>(mockTasks);
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
 
   const days = Array.from({ length: 31 }, (_, i) => i + 1);
 

@@ -85,4 +85,46 @@
     color: var(--text-main);
     transition: background-color 0.3s ease, color 0.3s ease;
   }
+
+  body.compact-mode * {
+    padding-top: max(0px, calc(0.5em - 4px)) !important;
+    padding-bottom: max(0px, calc(0.5em - 4px)) !important;
+    margin-top: max(0px, calc(0.5em - 4px)) !important;
+    margin-bottom: max(0px, calc(0.5em - 4px)) !important;
+  }
+
+  body.compact-mode .p-8 {
+    padding: 1rem !important;
+  }
+
+  body.compact-mode .p-6 {
+    padding: 0.75rem !important;
+  }
+
+  body.compact-mode .p-4 {
+    padding: 0.5rem !important;
+  }
+
+  body.compact-mode .p-3 {
+    padding: 0.25rem !important;
+  }
+
+  body.compact-mode .p-2 {
+    padding: 0.125rem !important;
+  }
+
+  body.compact-mode .gap-6,
+  body.compact-mode .gap-8 {
+    gap: 0.75rem !important;
+  }
+
+  body.compact-mode .gap-4,
+  body.compact-mode .gap-5 {
+    gap: 0.5rem !important;
+  }
+
+  body.compact-mode .gap-2,
+  body.compact-mode .gap-3 {
+    gap: 0.25rem !important;
+  }
 }

@@ -4,6 +4,7 @@ import ListView from "./components/views/ListView";
 import BoardView from "./components/views/BoardView";
 import CalendarView from "./components/views/CalendarView";
 import GanttView from "./components/views/GanttView";
+import SettingsView from "./components/views/SettingsView";
 
 function Login({ onLogin }: { onLogin: (token: string) => void }) {
 	const [selectedUser, setSelectedUser] = useState<string | null>(null);
@@ -122,6 +123,23 @@ function Login({ onLogin }: { onLogin: (token: string) => void }) {
 function MainApp({ onLogout }: { onLogout: () => void }) {
 	const [activeView, setActiveView] = useState("List");
 	const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+	useEffect(() => {
+		const defaultView = localStorage.getItem("defaultView");
+		if (defaultView) {
+			setActiveView(defaultView);
+		}
+
+		const theme = localStorage.getItem("theme");
+		if (theme) {
+			document.documentElement.setAttribute("data-theme", theme);
+		}
+
+		const compactMode = localStorage.getItem("compactMode") === "true";
+		if (compactMode) {
+			document.body.classList.add("compact-mode");
+		}
+	}, []);
 	const [spaces, setSpaces] = useState<{id: number, name: string}[]>([]);
 	const [activeSpaceId, setActiveSpaceId] = useState<number>(1);
 	const [newSpaceName, setNewSpaceName] = useState("");
@@ -223,7 +241,7 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
 			<div className="flex flex-col flex-1">
 				<header className="bg-[var(--bg-header)] border-b border-[var(--border-color)] p-4 flex gap-4 items-center justify-between shadow-sm">
 					<div className="flex gap-4">
-						{['List', 'Board', 'Calendar', 'Gantt'].map(view => (
+						{['List', 'Board', 'Calendar', 'Gantt', 'Settings'].map(view => (
 							<button
 								key={view}
 								onClick={() => setActiveView(view)}
@@ -234,18 +252,6 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
 						))}
 					</div>
 					<div className="flex items-center gap-4">
-						<select
-							className="bg-[var(--bg-card)] text-[var(--text-main)] border border-[var(--border-color)] rounded p-1 text-sm focus:outline-none"
-							onChange={(e) => document.documentElement.setAttribute('data-theme', e.target.value)}
-							defaultValue="default"
-						>
-							<option value="default">Light</option>
-							<option value="dark-default">Dark Default</option>
-							<option value="dark-midnight">Dark Midnight</option>
-							<option value="dark-purple">Dark Purple</option>
-							<option value="dark-forest">Dark Forest</option>
-							<option value="neon">Neon</option>
-						</select>
 						<button onClick={() => setShowTaskModal(true)} className="px-4 py-2 text-sm bg-[var(--accent)] text-white rounded hover:opacity-90 transition-opacity">
 							+ Add Task
 						</button>
@@ -259,6 +265,7 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
 					{activeView === 'Board' && <BoardView refreshTrigger={refreshTrigger} activeSpaceId={activeSpaceId} />}
 					{activeView === 'Calendar' && <CalendarView refreshTrigger={refreshTrigger} activeSpaceId={activeSpaceId} />}
 					{activeView === 'Gantt' && <GanttView refreshTrigger={refreshTrigger} activeSpaceId={activeSpaceId} />}
+					{activeView === 'Settings' && <SettingsView />}
 				</div>
 
 			{showTaskModal && (

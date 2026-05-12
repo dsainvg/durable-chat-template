@@ -1,6 +1,11 @@
+import { defineConfig } from 'vitest/config';
 import { defineWorkersConfig } from '@cloudflare/vitest-pool-workers/config';
 
-export default defineWorkersConfig({
+// Determine if we're running worker tests or client tests
+// By default we'll return client config unless an env variable indicates we're running worker tests
+const isWorkerTest = process.env.WORKER_TEST === 'true';
+
+export default isWorkerTest ? defineWorkersConfig({
   test: {
     poolOptions: {
       workers: {
@@ -20,5 +25,11 @@ export default defineWorkersConfig({
         }
       },
     },
+  },
+}) : defineConfig({
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/client/setupTests.ts'],
+    globals: true,
   },
 });

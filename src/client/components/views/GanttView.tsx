@@ -1,10 +1,11 @@
 import React from 'react';
+import { Task } from '../../../shared';
 
-const mockTasks = [
-  { id: 1, title: 'Setup Postgres Schema', start: 2, duration: 4 },
-  { id: 2, title: 'Implement Next.js Views', start: 6, duration: 5 },
-  { id: 3, title: 'Configure MCP Server', start: 10, duration: 3 },
-  { id: 4, title: 'Write E2E Tests', start: 12, duration: 4 },
+const mockTasks: Task[] = [
+  { id: 1, title: 'Setup Postgres Schema', status: 'Done', task_type: 'Task', start: 2, duration: 4, space_id: 1 },
+  { id: 2, title: 'Implement Next.js Views', status: 'In Progress', task_type: 'Task', start: 6, duration: 5, space_id: 1 },
+  { id: 3, title: 'Configure MCP Server', status: 'To Do', task_type: 'Task', start: 10, duration: 3, space_id: 1 },
+  { id: 4, title: 'Write E2E Tests', status: 'To Do', task_type: 'Bug', start: 12, duration: 4, space_id: 1 },
 ];
 
 export default function GanttView({ refreshTrigger, activeSpaceId }: { refreshTrigger?: number, activeSpaceId?: number }) {

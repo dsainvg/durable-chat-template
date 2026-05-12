@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { Task, TaskStatus } from '../../../shared';
 import {
   DndContext,
   closestCorners,
@@ -14,11 +15,11 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-const mockTasks = [
-  { id: 1, title: 'Setup Postgres Schema', status: 'Done', task_type: 'Task', custom_task_id: 'ENG-1' },
-  { id: 2, title: 'Implement Next.js Views', status: 'In Progress', task_type: 'Task', custom_task_id: 'ENG-2' },
-  { id: 3, title: 'Configure MCP Server', status: 'To Do', task_type: 'Task', custom_task_id: 'ENG-3' },
-  { id: 4, title: 'Write E2E Tests', status: 'To Do', task_type: 'Bug', custom_task_id: 'ENG-4' },
+const mockTasks: Task[] = [
+  { id: 1, title: 'Setup Postgres Schema', status: 'Done', task_type: 'Task', custom_task_id: 'ENG-1', start: 1, duration: 1, space_id: 1 },
+  { id: 2, title: 'Implement Next.js Views', status: 'In Progress', task_type: 'Task', custom_task_id: 'ENG-2', start: 1, duration: 1, space_id: 1 },
+  { id: 3, title: 'Configure MCP Server', status: 'To Do', task_type: 'Task', custom_task_id: 'ENG-3', start: 1, duration: 1, space_id: 1 },
+  { id: 4, title: 'Write E2E Tests', status: 'To Do', task_type: 'Bug', custom_task_id: 'ENG-4', start: 1, duration: 1, space_id: 1 },
 ];
 
 function DroppableColumn({ id, children }: { id: string, children: React.ReactNode }) {
@@ -30,7 +31,7 @@ function DroppableColumn({ id, children }: { id: string, children: React.ReactNo
   );
 }
 
-function SortableTask({ task }: { task: any }) {
+function SortableTask({ task }: { task: Task }) {
   const {
     attributes,
     listeners,
@@ -66,8 +67,8 @@ function SortableTask({ task }: { task: any }) {
 }
 
 export default function BoardView({ refreshTrigger, activeSpaceId }: { refreshTrigger?: number, activeSpaceId?: number }) {
-  const [tasks, setTasks] = useState<any[]>([]);
-  const [activeTask, setActiveTask] = useState<any | null>(null);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
 
   useEffect(() => {
     fetch('/api/tasks' + (activeSpaceId ? '?space_id=' + activeSpaceId : ''), { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
@@ -82,7 +83,7 @@ export default function BoardView({ refreshTrigger, activeSpaceId }: { refreshTr
       });
   }, [refreshTrigger, activeSpaceId]);
 
-  const statuses = ['To Do', 'In Progress', 'Done'];
+  const statuses: TaskStatus[] = ['To Do', 'In Progress', 'Done'];
 
   const handleDragStart = (event: any) => {
     const { active } = event;
@@ -97,11 +98,11 @@ export default function BoardView({ refreshTrigger, activeSpaceId }: { refreshTr
     if (!over) return;
 
     // Is it dropping over another task or a column?
-    let newStatus = '';
+    let newStatus: TaskStatus | '' = '';
     const overId = over.id.toString();
 
-    if (statuses.includes(overId)) {
-      newStatus = overId;
+    if (statuses.includes(overId as TaskStatus)) {
+      newStatus = overId as TaskStatus;
     } else {
       const overTask = tasks.find(t => t.id.toString() === overId);
       if (overTask) newStatus = overTask.status;

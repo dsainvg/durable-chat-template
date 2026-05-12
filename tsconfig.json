@@ -2,20 +2,24 @@
   "compilerOptions": {
     "target": "esnext",
     "lib": [
-      "esnext"
+      "esnext",
+      "dom"
     ],
     "module": "esnext",
     "moduleResolution": "bundler",
+    "jsx": "react",
     "noEmit": true,
     "isolatedModules": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "strict": true,
     "types": [
-      "@cloudflare/workers-types/2023-07-01"
+      "@cloudflare/workers-types/2023-07-01",
+      "vitest/globals", "@testing-library/jest-dom"
     ]
   },
   "include": [
-    "src/shared.ts"
+    "src/**/*.ts",
+    "src/**/*.tsx"
   ]
 }

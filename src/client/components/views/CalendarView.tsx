@@ -14,12 +14,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-
-const mockTasks: Task[] = [
-  { id: 1, title: 'Setup Postgres Schema', status: 'Done', task_type: 'Task', due_date: '2026-05-15', start: 1, duration: 1, space_id: 1 },
-  { id: 2, title: 'Implement Next.js Views', status: 'In Progress', task_type: 'Task', due_date: '2026-05-18', start: 1, duration: 1, space_id: 1 },
-  { id: 3, title: 'Configure MCP Server', status: 'To Do', task_type: 'Task', due_date: '2026-05-20', start: 1, duration: 1, space_id: 1 },
-];
+import { mockTasks } from './mockTasks';
 
 function SortableCalTask({ task }: { task: Task }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -89,7 +84,7 @@ export default function CalendarView({ refreshTrigger, activeSpaceId }: { refres
     if (overId.startsWith('cal-task-')) {
        const targetId = parseInt(overId.replace('cal-task-', ''));
        const targetTask = tasks.find(t => t.id === targetId);
-       if (targetTask) newDateStr = targetTask.due_date;
+       if (targetTask && targetTask.due_date) newDateStr = targetTask.due_date;
     } else {
        // we dropped on the day background
        newDateStr = overId;

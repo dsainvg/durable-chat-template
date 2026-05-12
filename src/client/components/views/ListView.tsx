@@ -1,12 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Task, TaskStatus, TaskType } from '../../../shared';
-
-const mockTasks: Task[] = [
-  { id: 1, title: 'Setup Postgres Schema', status: 'Done', task_type: 'Task', custom_task_id: 'ENG-1', start: 1, duration: 1, space_id: 1 },
-  { id: 2, title: 'Implement Next.js Views', status: 'In Progress', task_type: 'Task', custom_task_id: 'ENG-2', start: 1, duration: 1, space_id: 1 },
-  { id: 3, title: 'Configure MCP Server', status: 'To Do', task_type: 'Task', custom_task_id: 'ENG-3', start: 1, duration: 1, space_id: 1 },
-  { id: 4, title: 'Write E2E Tests', status: 'To Do', task_type: 'Bug', custom_task_id: 'ENG-4', start: 1, duration: 1, space_id: 1 },
-];
+import { mockTasks } from './mockTasks';
 
 export default function ListView({ refreshTrigger, activeSpaceId }: { refreshTrigger?: number, activeSpaceId?: number }) {
   const [tasks, setTasks] = useState<Task[]>([]);

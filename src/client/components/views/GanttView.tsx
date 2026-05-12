@@ -7,11 +7,11 @@ const mockTasks = [
   { id: 4, title: 'Write E2E Tests', start: 12, duration: 4 },
 ];
 
-export default function GanttView() {
+export default function GanttView({ refreshTrigger, activeSpaceId }: { refreshTrigger?: number, activeSpaceId?: number }) {
   const days = Array.from({ length: 20 }, (_, i) => i + 1);
 
   return (
-    <div className="bg-white rounded-lg shadow border border-gray-200 overflow-x-auto">
+    <div className="bg-[var(--bg-card)] rounded-lg shadow border border-gray-200 overflow-x-auto">
       <div className="min-w-[800px]">
         {/* Header */}
         <div className="flex border-b border-gray-200 bg-gray-50">
@@ -29,7 +29,7 @@ export default function GanttView() {
         <div>
           {mockTasks.map(task => (
             <div key={task.id} className="flex border-b border-gray-100 hover:bg-gray-50">
-              <div className="w-64 p-3 text-sm font-medium text-gray-800 border-r border-gray-200 shrink-0 truncate">
+              <div className="w-64 p-3 text-sm font-medium text-[var(--text-main)] border-r border-gray-200 shrink-0 truncate">
                 {task.title}
               </div>
               <div className="flex-1 relative bg-gray-50/50">
@@ -49,9 +49,9 @@ export default function GanttView() {
                   title={`${task.title} (${task.duration} days)`}
                 >
                    {/* Left resize handle */}
-                   <div className="w-1.5 h-4 bg-white/50 rounded-full cursor-col-resize hover:bg-white transition-colors" />
+                   <div className="w-1.5 h-4 bg-[var(--bg-card)]/50 rounded-full cursor-col-resize hover:bg-[var(--bg-card)] transition-colors" />
                    {/* Right resize handle */}
-                   <div className="w-1.5 h-4 bg-white/50 rounded-full cursor-col-resize hover:bg-white transition-colors" />
+                   <div className="w-1.5 h-4 bg-[var(--bg-card)]/50 rounded-full cursor-col-resize hover:bg-[var(--bg-card)] transition-colors" />
                 </div>
               </div>
             </div>

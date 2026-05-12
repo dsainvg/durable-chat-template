@@ -66,6 +66,20 @@
     --accent-light: #022c22;
   }
 
+
+  [data-theme="neon"] {
+    --bg-main: #000000;
+    --bg-sidebar: #09090b;
+    --bg-card: #0c0c0e;
+    --bg-header: #000000;
+    --text-main: #39ff14;
+    --text-muted: #1f9e0a;
+    --text-sidebar: #39ff14;
+    --border-color: #39ff14;
+    --accent: #ff00ff;
+    --accent-light: #5e005e;
+  }
+
   body {
     background-color: var(--bg-main);
     color: var(--text-main);

@@ -14,13 +14,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-
-const mockTasks: Task[] = [
-  { id: 1, title: 'Setup Postgres Schema', status: 'Done', task_type: 'Task', custom_task_id: 'ENG-1', start: 1, duration: 1, space_id: 1 },
-  { id: 2, title: 'Implement Next.js Views', status: 'In Progress', task_type: 'Task', custom_task_id: 'ENG-2', start: 1, duration: 1, space_id: 1 },
-  { id: 3, title: 'Configure MCP Server', status: 'To Do', task_type: 'Task', custom_task_id: 'ENG-3', start: 1, duration: 1, space_id: 1 },
-  { id: 4, title: 'Write E2E Tests', status: 'To Do', task_type: 'Bug', custom_task_id: 'ENG-4', start: 1, duration: 1, space_id: 1 },
-];
+import { mockTasks } from './mockTasks';
 
 function DroppableColumn({ id, children }: { id: string, children: React.ReactNode }) {
   const { setNodeRef } = useDroppable({ id });

@@ -9,7 +9,7 @@ describe('ListView Component', () => {
 
   beforeEach(() => {
     globalFetchMock = vi.fn();
-    global.fetch = globalFetchMock;
+    globalThis.fetch = globalFetchMock as any;
     vi.spyOn(Storage.prototype, 'getItem').mockReturnValue('mock-token');
   });
 

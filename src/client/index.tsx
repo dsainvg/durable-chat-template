@@ -286,14 +286,19 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
 		<div className="flex h-screen bg-[var(--bg-main)]">
 			{/* Sidebar */}
 			<div className="w-64 bg-[var(--bg-sidebar)] border-r border-[var(--border-color)] flex flex-col p-4">
-				<button onClick={() => setShowTaskModal(true)} className="w-full px-4 py-2 mb-6 text-sm bg-[var(--accent)] text-white rounded font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+				<button onClick={() => setShowTaskModal(true)} className="w-full px-4 py-2 mb-6 text-sm bg-[var(--accent)] text-white rounded font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-sidebar)]">
 					<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
 					Add Task
 				</button>
 
 				<div className="flex items-center justify-between font-bold text-[var(--text-sidebar)] mb-2 px-2">
 					<span>Spaces</span>
-					<button onClick={() => setSpacesOpen(!spacesOpen)} className="text-[var(--text-muted)] hover:text-[var(--text-sidebar)]">
+					<button
+						onClick={() => setSpacesOpen(!spacesOpen)}
+						aria-label={spacesOpen ? "Collapse spaces" : "Expand spaces"}
+						aria-expanded={spacesOpen}
+						className="text-[var(--text-muted)] hover:text-[var(--text-sidebar)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] rounded"
+					>
 						{spacesOpen ? '▼' : '▶'}
 					</button>
 				</div>
@@ -313,9 +318,10 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
 							<input
 								type="text"
 								placeholder="+ New Space"
+								aria-label="New space name"
 								value={newSpaceName}
 								onChange={(e) => setNewSpaceName(e.target.value)}
-								className="w-full bg-[var(--bg-card)] border border-[var(--border-color)] rounded px-3 py-1.5 text-xs text-[var(--text-main)] focus:outline-none"
+								className="w-full bg-[var(--bg-card)] border border-[var(--border-color)] rounded px-3 py-1.5 text-xs text-[var(--text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
 							/>
 						</form>
 					</div>

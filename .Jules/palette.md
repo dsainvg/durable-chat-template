@@ -1,0 +1,3 @@
+## 2025-02-24 - Missing accessibility attributes on interactive elements
+**Learning:** Icon-only toggle buttons (like the Spaces expand/collapse toggle) frequently lack `aria-label` and `aria-expanded` attributes. Interactive elements like inputs also often lack labels if placeholders are used instead. This causes screen readers to misinterpret the elements. Additionally, focus outlines are sometimes hidden or missing (`focus:outline-none`) causing a poor experience for keyboard navigation users.
+**Action:** Consistently add `aria-label` to icon-only buttons, `aria-expanded` to toggle buttons, and visual focus states using utility classes like `focus-visible:ring-2` to restore keyboard accessibility when default outlines are removed.

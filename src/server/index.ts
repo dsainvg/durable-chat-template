@@ -168,12 +168,13 @@ export default {
 					const status = body.status || 'To Do';
 					const task_type = body.task_type || 'Task';
 					const custom_task_id = body.custom_task_id || `ENG-${Math.floor(Math.random() * 1000)}`;
+					const due_date = body.due_date || null;
 					const start = body.start || 1;
 					const duration = body.duration || 1;
 					const space_id = body.space_id || 1;
 
-					const { meta } = await env.DB.prepare("INSERT INTO tasks (title, status, task_type, custom_task_id, start, duration, space_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)")
-						.bind(title, status, task_type, custom_task_id, start, duration, space_id)
+					const { meta } = await env.DB.prepare("INSERT INTO tasks (title, status, task_type, custom_task_id, due_date, start, duration, space_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)")
+						.bind(title, status, task_type, custom_task_id, due_date, start, duration, space_id)
 						.run();
 
 					return new Response(JSON.stringify({ id: meta.last_row_id }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });

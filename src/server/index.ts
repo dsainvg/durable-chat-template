@@ -119,7 +119,7 @@ export default {
 		}
 
 		if (url.pathname.startsWith('/parties/')) {
-			return routePartykitRequest(request, env);
+			return routePartykitRequest(request, env as any) as unknown as Response;
 		}
 
 		if (url.pathname.startsWith('/api/')) {
@@ -279,7 +279,7 @@ export default {
 			return new Response("Not Implemented", { status: 501, headers: CORS_HEADERS });
 		}
 
-		return env.ASSETS.fetch(request);
+		return env.ASSETS ? env.ASSETS.fetch(request) : new Response("Not found", { status: 404 });
 	},
 } satisfies ExportedHandler<Env>;
 

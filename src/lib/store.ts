@@ -66,8 +66,8 @@ const seed = (): AppState => ({
   theme: "graphite",
   notificationsEmail: "you@example.com",
   users: [
-    { id: "u1", name: "Sam Miller", initials: "SM", email: "sam@example.com" },
-    { id: "u2", name: "Alex Carter", initials: "AC", email: "alex@example.com" },
+    { id: "u1", name: "SAI", initials: "SA", email: "sam@example.com" },
+    { id: "u2", name: "RUPS", initials: "RU", email: "alex@example.com" },
   ],
   spaces: [
     {
@@ -139,6 +139,20 @@ function addDays(n: number): string {
 
 let cache: AppState | null = null;
 const listeners = new Set<() => void>();
+
+
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => {
+    if (e.key === STORAGE_KEY && e.newValue) {
+      try {
+        cache = JSON.parse(e.newValue);
+        listeners.forEach((l) => l());
+      } catch (err) {
+        console.error("Failed to parse synced state", err);
+      }
+    }
+  });
+}
 
 function load(): AppState {
   if (cache) return cache;

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import type { Space, Task } from "@/lib/store";
 
 export function GanttView({ space, onOpen }: { space: Space; onOpen: (t: Task) => void }) {
@@ -6,17 +7,21 @@ export function GanttView({ space, onOpen }: { space: Space; onOpen: (t: Task) =
     return <div className="p-8 text-sm text-muted-foreground italic">No tasks to chart yet.</div>;
   }
 
-  const starts = tasks.map((t) => new Date(t.startDate).getTime());
-  const ends = tasks.map((t) => new Date(t.dueDate).getTime());
-  const min = Math.min(...starts);
-  const max = Math.max(...ends);
-  const totalDays = Math.max(7, Math.ceil((max - min) / 86400_000) + 1);
-  const colWidth = 32;
+  const { min, totalDays, days } = useMemo(() => {
+    const starts = tasks.map((t) => new Date(t.startDate).getTime());
+    const ends = tasks.map((t) => new Date(t.dueDate).getTime());
+    const min = Math.min(...starts);
+    const max = Math.max(...ends);
+    const totalDays = Math.max(7, Math.ceil((max - min) / 86400_000) + 1);
 
-  const days = Array.from({ length: totalDays }, (_, i) => {
-    const d = new Date(min + i * 86400_000);
-    return d;
-  });
+    const days = Array.from({ length: totalDays }, (_, i) => {
+      return new Date(min + i * 86400_000);
+    });
+
+    return { min, totalDays, days };
+  }, [tasks]);
+
+  const colWidth = 32;
 
   return (
     <div className="p-6">

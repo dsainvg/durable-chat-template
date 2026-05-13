@@ -1,0 +1,3 @@
+## 2024-10-24 - SyncDuo Real-time Re-renders
+**Learning:** The application's core data model relies on a real-time `useStore` pattern that broadcasts updates globally to trigger React re-renders. As a result, views mapped directly to these state changes execute render functions frequently. Any O(N) operations inside these renders (like parsing dates, creating hashmaps for `users`, or iterating through tasks to compute timeline bounds) cause noticeable performance penalties.
+**Action:** Always wrap derived state calculations—especially those involving date parsing, array mapping, or hashmap generation—inside `useMemo` hooks with strict dependency arrays to ensure they are only recalculated when the specific underlying data (`tasks` or `users`) actually changes.

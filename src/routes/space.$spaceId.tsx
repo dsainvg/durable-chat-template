@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useStore, uid, type Task, type ViewType } from "@/lib/store";
+import usePartySocket from "partysocket/react";
 import { Button } from "@/components/ui/button";
 import { Settings, Plus, MessageSquare } from "lucide-react";
 import { ListView } from "@/components/views/ListView";
@@ -28,6 +29,83 @@ function SpacePage() {
   const navigate = useNavigate();
   const space = state.spaces.find((s) => s.id === spaceId);
 
+  useEffect(() => {
+    async function fetchTasks() {
+      const token = localStorage.getItem("syncduo_token");
+      if (!token) return;
+      try {
+        const res = await fetch(`/api/tasks?space_id=${spaceId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const tasks = (await res.json()) as Task[];
+          update(s => ({
+            ...s,
+            spaces: s.spaces.map(sp => sp.id === spaceId ? { ...sp, tasks } : sp)
+          }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch tasks", err);
+      }
+    }
+    fetchTasks();
+  }, [spaceId, update]);
+
+  const socket = usePartySocket({
+    room: spaceId,
+    onMessage: (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === "task_updated") {
+          update((s) => ({
+            ...s,
+            spaces: s.spaces.map((sp) =>
+              sp.id === spaceId
+                ? {
+                    ...sp,
+                    tasks: sp.tasks.some((t) => t.id === msg.task.id)
+                      ? sp.tasks.map((t) => (t.id === msg.task.id ? msg.task : t))
+                      : [...sp.tasks, msg.task],
+                  }
+                : sp
+            ),
+          }));
+        } else if (msg.type === "task_deleted") {
+          update((s) => ({
+            ...s,
+            spaces: s.spaces.map((sp) =>
+              sp.id === spaceId
+                ? { ...sp, tasks: sp.tasks.filter((t) => t.id !== msg.id) }
+                : sp
+            ),
+          }));
+        } else if (msg.type === "add") {
+          update((s) => ({
+            ...s,
+            spaces: s.spaces.map((sp) =>
+              sp.id === spaceId
+                ? { ...sp, channel: [...sp.channel, msg].slice(-100) }
+                : sp
+            ),
+          }));
+        } else if (msg.type === "all") {
+          update((s) => ({
+            ...s,
+            spaces: s.spaces.map((sp) =>
+              sp.id === spaceId ? { ...sp, channel: msg.messages } : sp
+            ),
+          }));
+        }
+      } catch (err) {
+        console.error("Failed to parse party socket message", err);
+      }
+    },
+  });
+
+  const sendChatMessage = (text: string) => {
+    socket.send(JSON.stringify({ type: "add", id: uid(), text, userId: state.currentUserId, ts: Date.now() }));
+  };
+
   const enabled = useMemo(
     () => VIEW_LABELS.filter((v) => space?.enabledViews[v.id]),
     [space]
@@ -47,29 +125,61 @@ function SpacePage() {
 
   const activeView = space.enabledViews[view] ? view : enabled[0]?.id;
 
-  const updateTask = (t: Task) => {
-    update((s) => ({
-      ...s,
-      spaces: s.spaces.map((sp) =>
-        sp.id === spaceId
-          ? { ...sp, tasks: sp.tasks.some((x) => x.id === t.id) ? sp.tasks.map((x) => (x.id === t.id ? t : x)) : [...sp.tasks, t] }
-          : sp
-      ),
-    }));
-    if (space.emailReminders && state.notificationsEmail) {
-      toast.success(`Reminder queued`, {
-        description: `Email will be sent to ${state.notificationsEmail} at ${space.emailDigestTime}`,
+  const updateTask = async (t: Task) => {
+    const token = localStorage.getItem("syncduo_token");
+    if (!token) return;
+
+    try {
+      const payload = { ...t, space_id: spaceId };
+      await fetch(`/api/tasks`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
       });
+
+      // Optimistic update
+      update((s) => ({
+        ...s,
+        spaces: s.spaces.map((sp) =>
+          sp.id === spaceId
+            ? { ...sp, tasks: sp.tasks.some((x) => x.id === t.id) ? sp.tasks.map((x) => (x.id === t.id ? t : x)) : [...sp.tasks, t] }
+            : sp
+        ),
+      }));
+
+      if (space.emailReminders && state.notificationsEmail) {
+        toast.success(`Reminder queued`, {
+          description: `Email will be sent to ${state.notificationsEmail} at ${space.emailDigestTime}`,
+        });
+      }
+    } catch (e) {
+      console.error("Failed to update task", e);
     }
   };
 
-  const deleteTask = (id: string) => {
-    update((s) => ({
-      ...s,
-      spaces: s.spaces.map((sp) =>
-        sp.id === spaceId ? { ...sp, tasks: sp.tasks.filter((t) => t.id !== id) } : sp
-      ),
-    }));
+  const deleteTask = async (id: string) => {
+    const token = localStorage.getItem("syncduo_token");
+    if (!token) return;
+
+    try {
+      await fetch(`/api/tasks/${id}?space_id=${spaceId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      // Optimistic update
+      update((s) => ({
+        ...s,
+        spaces: s.spaces.map((sp) =>
+          sp.id === spaceId ? { ...sp, tasks: sp.tasks.filter((t) => t.id !== id) } : sp
+        ),
+      }));
+    } catch (e) {
+      console.error("Failed to delete task", e);
+    }
   };
 
   const newTask = (): Task => ({
@@ -139,7 +249,7 @@ function SpacePage() {
         </div>
 
         {channelOpen && (
-          <ChannelPanel space={space} onClose={() => setChannelOpen(false)} />
+          <ChannelPanel space={space} onClose={() => setChannelOpen(false)} onSend={sendChatMessage} />
         )}
       </div>
 

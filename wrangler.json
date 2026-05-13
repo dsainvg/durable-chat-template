@@ -1,11 +1,12 @@
 {
 	"compatibility_date": "2024-11-01",
+	"compatibility_flags": ["nodejs_compat"],
 	"main": "src/server/index.ts",
 	"name": "durable-chat-template",
 	"assets": {
-		"directory": "./public",
+		"directory": "./dist/client",
 		"binding": "ASSETS",
-		"not_found_handling": "single-page-application"
+		"not_found_handling": "none"
 	},
 	"build": {
 		"command": "npm run build"

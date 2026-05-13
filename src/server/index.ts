@@ -2,6 +2,9 @@ import { Server, routePartykitRequest } from "partyserver";
 import type { Connection } from "partyserver";
 import { Message, ChatMessage } from "../shared";
 
+// @ts-ignore
+import ssrHandler from "../../dist/server/server.mjs";
+
 // Helper to generate a SHA-256 hash
 async function hashPassword(password: string): Promise<string> {
 	const msgUint8 = new TextEncoder().encode(password);
@@ -279,7 +282,17 @@ export default {
 			return new Response("Not Implemented", { status: 501, headers: CORS_HEADERS });
 		}
 
-		return env.ASSETS ? env.ASSETS.fetch(request) : new Response("Not found", { status: 404 });
+		// Fallback to ASSETS (for static files like /assets/... inside dist/client)
+		// If it's not an asset, pass to TanStack Start SSR
+		let assetResponse;
+		if (env.ASSETS) {
+			assetResponse = await env.ASSETS.fetch(request);
+		}
+		if (assetResponse && assetResponse.status < 400) {
+			return assetResponse;
+		}
+
+		return ssrHandler.fetch(request, env, {});
 	},
 } satisfies ExportedHandler<Env>;
 

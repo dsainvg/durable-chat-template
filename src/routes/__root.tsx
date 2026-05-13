@@ -7,13 +7,14 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import appCss from "../styles.css?url";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useStore } from "@/lib/store";
 import { applyTheme } from "@/lib/theme";
 import { Toaster } from "@/components/ui/sonner";
+import { LoginDialog } from "@/components/LoginDialog";
 
 function NotFoundComponent() {
   return (
@@ -80,15 +81,65 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function ThemedLayout() {
-  const { state } = useStore();
+  const { state, update } = useStore();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(true);
+
   useEffect(() => { applyTheme(state.theme); }, [state.theme]);
+
+  useEffect(() => {
+    const verifyToken = async () => {
+      const token = localStorage.getItem("syncduo_token");
+      if (!token) {
+        setIsVerifying(false);
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/heartbeat", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
+        });
+
+        if (res.ok) {
+          setIsAuthenticated(true);
+        } else {
+          localStorage.removeItem("syncduo_token");
+        }
+      } catch (e) {
+        console.error("Failed to verify token", e);
+      } finally {
+        setIsVerifying(false);
+      }
+    };
+
+    verifyToken();
+  }, []);
+
+  const handleLogin = (token: string, userId: string) => {
+    localStorage.setItem("syncduo_token", token);
+    update(s => ({ ...s, currentUserId: userId }));
+    setIsAuthenticated(true);
+  };
+
+  if (isVerifying) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background text-foreground">
+        <p className="text-muted-foreground text-sm animate-pulse">Loading workspace...</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
+    <div className="flex h-screen w-full overflow-hidden bg-background text-foreground relative">
       <AppSidebar />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Outlet />
       </div>
       <Toaster />
+      <LoginDialog isOpen={!isAuthenticated} onLogin={handleLogin} />
     </div>
   );
 }

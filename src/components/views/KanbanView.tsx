@@ -2,6 +2,8 @@ import { useState, useMemo } from "react";
 import type { Space, Task } from "@/lib/store";
 import { useStore } from "@/lib/store";
 
+const dateFormatter = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+
 export function KanbanView({
   space,
   onOpen,
@@ -15,10 +17,19 @@ export function KanbanView({
   const userMap = useMemo(() => Object.fromEntries(state.users.map((u) => [u.id, u])), [state.users]);
   const [dragId, setDragId] = useState<string | null>(null);
 
+  const tasksByColumn = useMemo(() => {
+    const map: Record<string, Task[]> = {};
+    for (const t of space.tasks) {
+      if (!map[t.status]) map[t.status] = [];
+      map[t.status].push(t);
+    }
+    return map;
+  }, [space.tasks]);
+
   return (
     <div className="p-6 flex gap-6 overflow-x-auto h-full">
       {space.columns.map((col) => {
-        const tasks = space.tasks.filter((t) => t.status === col.id);
+        const tasks = tasksByColumn[col.id] || [];
         return (
           <div
             key={col.id}
@@ -51,7 +62,7 @@ export function KanbanView({
                   <p className="text-sm leading-snug">{t.title}</p>
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] text-muted-foreground">
-                      {new Date(t.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                      {dateFormatter.format(new Date(t.dueDate))}
                     </span>
                     <div className="size-5 rounded-full bg-muted ring-1 ring-border grid place-items-center text-[9px]">
                       {userMap[t.assignee]?.initials ?? "?"}

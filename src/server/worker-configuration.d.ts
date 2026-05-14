@@ -10,6 +10,10 @@ declare namespace Cloudflare {
 		Chat: DurableObjectNamespace<import("./index").Chat>;
 		DB: D1Database;
 		ASSETS: Fetcher;
+		SMTP_HOST?: string;
+		SMTP_PORT?: string;
+		SMTP_USER?: string;
+		SMTP_PASS?: string;
 	}
 }
 interface Env extends Cloudflare.Env {}

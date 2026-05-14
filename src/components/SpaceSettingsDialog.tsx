@@ -240,7 +240,27 @@ export function SpaceSettingsDialog({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => toast.success("Test reminder queued", { description: `→ ${state.notificationsEmail}` })}
+              onClick={async () => {
+                toast.loading("Sending test reminder...", { id: "test-email" });
+                try {
+                  const token = localStorage.getItem("syncduo_token");
+                  const res = await fetch(`/api/spaces/${spaceId}/test-email`, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      ...(token ? { Authorization: `Bearer ${token}` } : {})
+                    },
+                    body: JSON.stringify({ email: state.notificationsEmail })
+                  });
+                  if (!res.ok) {
+                    const err = await res.json().catch(() => ({ error: "Failed to send email" })) as any;
+                    throw new Error(err.error || "Failed to send email");
+                  }
+                  toast.success("Test reminder sent", { id: "test-email", description: `→ ${state.notificationsEmail}` });
+                } catch (e: any) {
+                  toast.error("Failed to send test reminder", { id: "test-email", description: e.message });
+                }
+              }}
             >
               Send test reminder
             </Button>

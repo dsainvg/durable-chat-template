@@ -59,15 +59,15 @@ export interface AppState {
   notificationsEmail: string;
 }
 
-const STORAGE_KEY = "syncduo:v1";
+const STORAGE_KEY = "syncduo:v2";
 
 const seed = (): AppState => ({
-  currentUserId: "u1",
+  currentUserId: "sai",
   theme: "graphite",
   notificationsEmail: "you@example.com",
   users: [
-    { id: "u1", name: "SAI", initials: "SA", email: "sam@example.com" },
-    { id: "u2", name: "RUPS", initials: "RU", email: "alex@example.com" },
+    { id: "sai", name: "SAI", initials: "SA", email: "sam@example.com" },
+    { id: "rups", name: "RUPS", initials: "RU", email: "alex@example.com" },
   ],
   spaces: [
     {
@@ -89,15 +89,15 @@ const seed = (): AppState => ({
       emailReminders: true,
       emailDigestTime: "09:00",
       tasks: [
-        { id: "t1", title: "Implement auth flow for spaces", description: "JWT + refresh tokens", status: "backlog", assignee: "u1", dueDate: addDays(2), startDate: addDays(0), priority: "high", custom: { f1: "8", f2: "feat/auth" } },
-        { id: "t2", title: "Define custom field schema", description: "Per-space task fields", status: "backlog", assignee: "u2", dueDate: addDays(4), startDate: addDays(1), priority: "medium", custom: {} },
-        { id: "t3", title: "Refactor sidebar routing", description: "Dynamic space ids", status: "progress", assignee: "u1", dueDate: addDays(1), startDate: addDays(-1), priority: "high", custom: { f1: "4" } },
-        { id: "t4", title: "Initial wireframes", description: "Done", status: "done", assignee: "u2", dueDate: addDays(-3), startDate: addDays(-5), priority: "low", custom: {} },
-        { id: "t5", title: "Polish kanban drag zones", description: "", status: "review", assignee: "u1", dueDate: addDays(3), startDate: addDays(0), priority: "medium", custom: {} },
+        { id: "t1", title: "Implement auth flow for spaces", description: "JWT + refresh tokens", status: "backlog", assignee: "sai", dueDate: addDays(2), startDate: addDays(0), priority: "high", custom: { f1: "8", f2: "feat/auth" } },
+        { id: "t2", title: "Define custom field schema", description: "Per-space task fields", status: "backlog", assignee: "rups", dueDate: addDays(4), startDate: addDays(1), priority: "medium", custom: {} },
+        { id: "t3", title: "Refactor sidebar routing", description: "Dynamic space ids", status: "progress", assignee: "sai", dueDate: addDays(1), startDate: addDays(-1), priority: "high", custom: { f1: "4" } },
+        { id: "t4", title: "Initial wireframes", description: "Done", status: "done", assignee: "rups", dueDate: addDays(-3), startDate: addDays(-5), priority: "low", custom: {} },
+        { id: "t5", title: "Polish kanban drag zones", description: "", status: "review", assignee: "sai", dueDate: addDays(3), startDate: addDays(0), priority: "medium", custom: {} },
       ],
       channel: [
-        { id: "c1", userId: "u2", text: "Pushed the auth scaffolding to main.", ts: Date.now() - 3600_000 },
-        { id: "c2", userId: "u1", text: "Reviewing now — looks solid.", ts: Date.now() - 1800_000 },
+        { id: "c1", userId: "rups", text: "Pushed the auth scaffolding to main.", ts: Date.now() - 3600_000 },
+        { id: "c2", userId: "sai", text: "Reviewing now — looks solid.", ts: Date.now() - 1800_000 },
       ],
     },
     {
@@ -117,16 +117,16 @@ const seed = (): AppState => ({
       emailReminders: false,
       emailDigestTime: "08:00",
       tasks: [
-        { id: "t1", title: "Launch announcement post", description: "Long-form blog", status: "drafting", assignee: "u2", dueDate: addDays(5), startDate: addDays(2), priority: "high", custom: { f1: "Blog" } },
-        { id: "t2", title: "Twitter thread on architecture", description: "", status: "ideas", assignee: "u1", dueDate: addDays(7), startDate: addDays(3), priority: "low", custom: { f1: "Twitter" } },
+        { id: "t1", title: "Launch announcement post", description: "Long-form blog", status: "drafting", assignee: "rups", dueDate: addDays(5), startDate: addDays(2), priority: "high", custom: { f1: "Blog" } },
+        { id: "t2", title: "Twitter thread on architecture", description: "", status: "ideas", assignee: "sai", dueDate: addDays(7), startDate: addDays(3), priority: "low", custom: { f1: "Twitter" } },
       ],
       channel: [],
     },
   ],
   dms: {
-    u2: [
-      { id: "d1", userId: "u2", text: "Hey, ready for stand-up?", ts: Date.now() - 7200_000 },
-      { id: "d2", userId: "u1", text: "Yep — joining now.", ts: Date.now() - 7100_000 },
+    rups: [
+      { id: "d1", userId: "rups", text: "Hey, ready for stand-up?", ts: Date.now() - 7200_000 },
+      { id: "d2", userId: "sai", text: "Yep — joining now.", ts: Date.now() - 7100_000 },
     ],
   },
 });

@@ -103,7 +103,7 @@ function SpaceSettings() {
           </div>
         </Section>
 
-        <Section title="Task statuses" subtitle="Columns shown in Kanban / List.">
+        <Section title="Columns" subtitle="Columns shown in Kanban / List.">
           <div className="space-y-2">
             {space.columns.map((c, i) => (
               <div key={c.id} className="flex gap-2">
@@ -121,8 +121,8 @@ function SpaceSettings() {
                 </Button>
               </div>
             ))}
-            <Button variant="outline" size="sm" onClick={() => patch((sp) => ({ ...sp, columns: [...sp.columns, { id: uid(), name: "New status" }] }))}>
-              <Plus className="size-3.5 mr-1" /> Add status
+            <Button variant="outline" size="sm" onClick={() => patch((sp) => ({ ...sp, columns: [...sp.columns, { id: uid(), name: "New Column" }] }))}>
+              <Plus className="size-3.5 mr-1" /> Add Column
             </Button>
           </div>
         </Section>
@@ -163,12 +163,12 @@ function SpaceSettings() {
                   <Input
                     className="w-48"
                     placeholder="Options (comma-separated)"
-                    value={(f.options ?? []).join(", ")}
+                    value={(f.options ?? []).join(",")}
                     onChange={(e) =>
                       patch((sp) => ({
                         ...sp,
                         customFields: sp.customFields.map((x, j) =>
-                          j === i ? { ...x, options: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) } : x
+                          j === i ? { ...x, options: e.target.value.split(",") } : x
                         ),
                       }))
                     }
@@ -193,7 +193,7 @@ function SpaceSettings() {
                 }))
               }
             >
-              <Plus className="size-3.5 mr-1" /> Add field
+              <Plus className="size-3.5 mr-1" /> Add Custom Field
             </Button>
           </div>
         </Section>

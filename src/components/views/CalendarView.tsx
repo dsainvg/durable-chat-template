@@ -33,11 +33,11 @@ export function CalendarView({ space, onOpen }: { space: Space; onOpen: (t: Task
           {cursor.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
         </h2>
         <div className="flex gap-1">
-          <button onClick={() => setCursor(new Date(year, month - 1, 1))} className="p-1.5 rounded hover:bg-accent text-muted-foreground">
+          <button onClick={() => setCursor(new Date(year, month - 1, 1))} aria-label="Previous month" className="p-1.5 rounded hover:bg-accent text-muted-foreground">
             <ChevronLeft className="size-4" />
           </button>
           <button onClick={() => setCursor(new Date())} className="px-2 text-xs rounded hover:bg-accent text-muted-foreground">Today</button>
-          <button onClick={() => setCursor(new Date(year, month + 1, 1))} className="p-1.5 rounded hover:bg-accent text-muted-foreground">
+          <button onClick={() => setCursor(new Date(year, month + 1, 1))} aria-label="Next month" className="p-1.5 rounded hover:bg-accent text-muted-foreground">
             <ChevronRight className="size-4" />
           </button>
         </div>

@@ -50,7 +50,7 @@ export function AppSidebar() {
         <div>
           <div className="px-2 mb-2 flex items-center justify-between">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Spaces</p>
-            <button onClick={addSpace} className="text-muted-foreground hover:text-foreground">
+            <button onClick={addSpace} aria-label="Add space" className="text-muted-foreground hover:text-foreground">
               <Plus className="size-3.5" />
             </button>
           </div>

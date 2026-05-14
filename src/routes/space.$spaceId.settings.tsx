@@ -28,8 +28,34 @@ function SpaceSettings() {
   const space = state.spaces.find((s) => s.id === spaceId);
   if (!space) return <div className="p-8">Not found.</div>;
 
-  const patch = (fn: (sp: import("@/lib/store").Space) => import("@/lib/store").Space) => {
-    update((s) => ({ ...s, spaces: s.spaces.map((sp) => (sp.id === spaceId ? fn(sp) : sp)) }));
+  const patch = async (fn: (sp: import("@/lib/store").Space) => import("@/lib/store").Space) => {
+    const updatedSpace = fn(space);
+    update((s) => ({ ...s, spaces: s.spaces.map((sp) => (sp.id === spaceId ? updatedSpace : sp)) }));
+
+    const token = localStorage.getItem("syncduo_token");
+    if (token) {
+      try {
+        await fetch(`/api/spaces/${spaceId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            name: updatedSpace.name,
+            color: updatedSpace.color,
+            emoji: updatedSpace.emoji,
+            enabledViews: updatedSpace.enabledViews,
+            columns: updatedSpace.columns,
+            customFields: updatedSpace.customFields,
+            emailReminders: updatedSpace.emailReminders,
+            emailDigestTime: updatedSpace.emailDigestTime,
+          })
+        });
+      } catch (e) {
+        console.error("Failed to sync space settings to server", e);
+      }
+    }
   };
 
   const removeSpace = () => {

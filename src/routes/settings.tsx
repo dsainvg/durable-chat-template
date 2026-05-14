@@ -22,11 +22,31 @@ function SettingsPage() {
   const [pw, setPw] = useState({ cur: "", next: "", confirm: "" });
   const [emailNotif, setEmailNotif] = useState(true);
 
-  const saveProfile = () => {
+  const saveProfile = async () => {
+    const initials = name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+
+    // Save to backend
+    const token = localStorage.getItem("syncduo_token");
+    if (token) {
+      try {
+        await fetch(`/api/user/${me.id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({ name, email, initials })
+        });
+      } catch (e) {
+        console.error("Failed to update profile on server", e);
+      }
+    }
+
+    // Update local store
     update((s) => ({
       ...s,
       notificationsEmail: notifEmail,
-      users: s.users.map((u) => (u.id === me.id ? { ...u, name, email, initials: name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase() } : u)),
+      users: s.users.map((u) => (u.id === me.id ? { ...u, name, email, initials } : u)),
     }));
     toast.success("Profile saved");
   };

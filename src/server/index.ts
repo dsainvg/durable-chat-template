@@ -26,39 +26,9 @@ let dbInitialized = false;
 
 async function initDb(db: D1Database) {
 	if (dbInitialized) return;
-	await db.prepare("CREATE TABLE IF NOT EXISTS pass (id TEXT PRIMARY KEY, hash TEXT NOT NULL, active INTEGER DEFAULT 0, last_seen INTEGER DEFAULT 0)").run();
-	try { await db.prepare("ALTER TABLE pass ADD COLUMN active INTEGER DEFAULT 0").run(); } catch(e) {}
-	try { await db.prepare("ALTER TABLE pass ADD COLUMN last_seen INTEGER DEFAULT 0").run(); } catch(e) {}
 
-	// Create spaces table
-	await db.prepare("CREATE TABLE IF NOT EXISTS spaces (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)").run();
-
-	// Create templates table
-	await db.prepare("CREATE TABLE IF NOT EXISTS templates (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, default_status TEXT, default_type TEXT, duration INTEGER)").run();
-
-	// Create tasks table with space_id
-	await db.prepare("CREATE TABLE IF NOT EXISTS tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, status TEXT DEFAULT 'To Do', task_type TEXT DEFAULT 'Task', custom_task_id TEXT, due_date TEXT, start INTEGER, duration INTEGER, space_id INTEGER)").run();
-	await db.prepare("CREATE TABLE IF NOT EXISTS tasks_v2 (id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT, status TEXT NOT NULL, assignee TEXT, due_date TEXT, start_date TEXT, priority TEXT, custom TEXT, space_id TEXT NOT NULL)").run();
-
-	// Add space_id to existing tasks if needed (sqlite doesn't fail if column exists using catch)
-	try {
-		await db.prepare("ALTER TABLE tasks ADD COLUMN space_id INTEGER DEFAULT 1").run();
-	} catch(e) {}
-
-	const { results: spaces } = await db.prepare("SELECT count(*) as count FROM spaces").all();
-	if (spaces && spaces[0] && (spaces[0] as any).count === 0) {
-		await db.prepare("INSERT INTO spaces (name) VALUES ('General Development'), ('Design'), ('Marketing')").run();
-	}
-
-	const { results: templates } = await db.prepare("SELECT count(*) as count FROM templates").all();
-	if (templates && templates[0] && (templates[0] as any).count === 0) {
-		await db.prepare("INSERT INTO templates (name, default_status, default_type, duration) VALUES ('Standard Bug', 'To Do', 'Bug', 2), ('Quick Feature', 'To Do', 'Feature', 5)").run();
-	}
-
-	const { results } = await db.prepare("SELECT count(*) as count FROM tasks").all();
-	if (results && results[0] && (results[0] as any).count === 0) {
-		await db.prepare("INSERT INTO tasks (id, title, status, task_type, custom_task_id, due_date, start, duration, space_id) VALUES (1, 'Setup Postgres Schema', 'Done', 'Task', 'ENG-1', '2026-05-15', 2, 4, 1), (2, 'Implement Next.js Views', 'In Progress', 'Task', 'ENG-2', '2026-05-18', 6, 5, 1), (3, 'Configure MCP Server', 'To Do', 'Task', 'ENG-3', '2026-05-20', 10, 3, 1), (4, 'Write E2E Tests', 'To Do', 'Bug', 'ENG-4', null, 12, 4, 1)").run();
-	}
+	await db.prepare("CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, initials TEXT NOT NULL, hash TEXT NOT NULL, active INTEGER DEFAULT 0, last_seen INTEGER DEFAULT 0)").run();
+	await db.prepare("CREATE TABLE IF NOT EXISTS spaces_v2 (id TEXT PRIMARY KEY, name TEXT NOT NULL, color TEXT, emoji TEXT, enabledViews TEXT, columns TEXT, customFields TEXT, emailReminders INTEGER, emailDigestTime TEXT)").run();
 
 	dbInitialized = true;
 }
@@ -75,7 +45,7 @@ export default {
 		if (userMatch && request.method === 'GET') {
 			await initDb(env.DB);
 			const id = userMatch[1];
-			const { results } = await env.DB.prepare("SELECT hash FROM pass WHERE id = ?").bind(id).all();
+			const { results } = await env.DB.prepare("SELECT hash FROM users WHERE id = ?").bind(id).all();
 			return new Response(JSON.stringify({ exists: results.length > 0 }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 		}
 
@@ -84,21 +54,45 @@ export default {
 			await initDb(env.DB);
 			const id = userPassMatch[1];
 
-			const { results: existing } = await env.DB.prepare("SELECT hash FROM pass WHERE id = ?").bind(id).all();
-			if (existing.length > 0) {
+			const { results: existing } = await env.DB.prepare("SELECT hash FROM users WHERE id = ?").bind(id).all();
+			if (existing.length > 0 && existing[0].hash) {
 				return new Response(JSON.stringify({ error: "User already has a password" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 			}
 
-			const { password } = await request.json() as any;
+			const { password, name, email, initials } = await request.json() as any;
 			if (!password) {
 				return new Response(JSON.stringify({ error: "Missing password" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 			}
 			const hashed = await hashPassword(password);
-			await env.DB.prepare("INSERT INTO pass (id, hash, active, last_seen) VALUES (?, ?, 1, ?)").bind(id, hashed, Date.now()).run();
+
+			if (existing.length > 0) {
+				await env.DB.prepare("UPDATE users SET hash = ?, active = 1, last_seen = ? WHERE id = ?").bind(hashed, Date.now(), id).run();
+			} else {
+				await env.DB.prepare("INSERT INTO users (id, name, email, initials, hash, active, last_seen) VALUES (?, ?, ?, ?, ?, 1, ?)").bind(id, name || id, email || '', initials || id.substring(0,2).toUpperCase(), hashed, Date.now()).run();
+			}
+
 			const token = btoa(`${id}:${hashed}`);
 			return new Response(JSON.stringify({ token }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 		}
 
+
+		if (url.pathname === '/api/users' && request.method === 'POST') {
+			try {
+				const { name, email, password } = await request.json() as any;
+				if (!name || !password) {
+					return new Response(JSON.stringify({ error: "Missing name or password" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				}
+				const id = name.toLowerCase().replace(/[^a-z0-9]/g, '') + Math.floor(Math.random() * 1000);
+				const initials = name.substring(0, 2).toUpperCase();
+				const hashed = await hashPassword(password);
+				await initDb(env.DB);
+				await env.DB.prepare("INSERT INTO users (id, name, email, initials, hash, active, last_seen) VALUES (?, ?, ?, ?, ?, 1, ?)").bind(id, name, email || '', initials, hashed, Date.now()).run();
+				const token = btoa(`${id}:${hashed}`);
+				return new Response(JSON.stringify({ id, token, name, email, initials }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+			} catch (e) {
+				return new Response(JSON.stringify({ error: "Bad request" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+			}
+		}
 
 		if (url.pathname === '/api/login' && request.method === 'POST') {
 			try {
@@ -109,9 +103,9 @@ export default {
 
 				const hashed = await hashPassword(password);
 				await initDb(env.DB);
-				const { results } = await env.DB.prepare("SELECT hash FROM pass WHERE id = ?").bind(id).all();
+				const { results } = await env.DB.prepare("SELECT hash FROM users WHERE id = ?").bind(id).all();
 				if (results.length > 0 && (results[0] as any).hash === hashed) {
-					await env.DB.prepare("UPDATE pass SET active = 1, last_seen = ? WHERE id = ?").bind(Date.now(), id).run();
+					await env.DB.prepare("UPDATE users SET active = 1, last_seen = ? WHERE id = ?").bind(Date.now(), id).run();
 					const token = btoa(`${id}:${hashed}`);
 					return new Response(JSON.stringify({ token }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 				}
@@ -139,7 +133,7 @@ export default {
 				const [id, hashed] = decoded.split(':');
 				currentUserId = id;
 				await initDb(env.DB);
-				const { results } = await env.DB.prepare("SELECT hash FROM pass WHERE id = ?").bind(id).all();
+				const { results } = await env.DB.prepare("SELECT hash FROM users WHERE id = ?").bind(id).all();
 				if (results.length === 0 || (results[0] as any).hash !== hashed) {
 					throw new Error("Invalid token");
 				}
@@ -150,26 +144,98 @@ export default {
 			await initDb(env.DB);
 
 			if (url.pathname === '/api/heartbeat' && request.method === 'POST') {
-				await env.DB.prepare("UPDATE pass SET active = 1, last_seen = ? WHERE id = ?").bind(Date.now(), currentUserId).run();
+				await env.DB.prepare("UPDATE users SET active = 1, last_seen = ? WHERE id = ?").bind(Date.now(), currentUserId).run();
 				return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+			}
+
+			const userPutMatch = url.pathname.match(/^\/api\/user\/([^/]+)$/);
+			if (userPutMatch && request.method === 'PUT') {
+				const id = userPutMatch[1];
+				// Only allow users to update their own profile
+				if (currentUserId !== id) {
+					return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				}
+				try {
+					const body = await request.json() as any;
+					const name = body.name || '';
+					const email = body.email || '';
+					const initials = body.initials || '';
+
+					await env.DB.prepare("UPDATE users SET name = ?, email = ?, initials = ? WHERE id = ?").bind(name, email, initials, id).run();
+					return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				} catch (e) {
+					return new Response(JSON.stringify({ error: "Bad request" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				}
+			}
+
+			if (url.pathname === '/api/users' && request.method === 'GET') {
+				const { results } = await env.DB.prepare("SELECT id, name, email, initials, active, last_seen FROM users").all();
+				return new Response(JSON.stringify(results), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 			}
 
 			if (url.pathname === '/api/users/status' && request.method === 'GET') {
 				const cutoff = Date.now() - 30000; // 30 seconds
 				// Update active status for users who haven't sent a heartbeat in 30s
-				await env.DB.prepare("UPDATE pass SET active = 0 WHERE last_seen < ? AND active = 1").bind(cutoff).run();
-				const { results } = await env.DB.prepare("SELECT id, active, last_seen FROM pass WHERE id != ?").bind(currentUserId).all();
+				await env.DB.prepare("UPDATE users SET active = 0 WHERE last_seen < ? AND active = 1").bind(cutoff).run();
+				const { results } = await env.DB.prepare("SELECT id, active, last_seen FROM users WHERE id != ?").bind(currentUserId).all();
 				return new Response(JSON.stringify(results), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 			}
 
 			if (url.pathname === '/api/spaces' && request.method === 'GET') {
-				const { results } = await env.DB.prepare("SELECT * FROM spaces").all();
-				return new Response(JSON.stringify(results), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				const { results } = await env.DB.prepare("SELECT * FROM spaces_v2").all();
+				const parsed = results.map((r: any) => ({
+					...r,
+					enabledViews: r.enabledViews ? JSON.parse(r.enabledViews) : { list: true, kanban: true, calendar: true, gantt: true },
+					columns: r.columns ? JSON.parse(r.columns) : [{ id: "todo", name: "To Do" }, { id: "doing", name: "Doing" }, { id: "done", name: "Done" }],
+					customFields: r.customFields ? JSON.parse(r.customFields) : [],
+					emailReminders: Boolean(r.emailReminders),
+					tasks: [], // fetched separately
+					channel: [] // fetched separately or handled by party socket
+				}));
+				return new Response(JSON.stringify(parsed), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 			}
 			if (url.pathname === '/api/spaces' && request.method === 'POST') {
 				const body = await request.json() as any;
-				const { meta } = await env.DB.prepare("INSERT INTO spaces (name) VALUES (?)").bind(body.name).run();
-				return new Response(JSON.stringify({ id: meta.last_row_id }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				const id = body.id || Math.random().toString(36).substring(2, 10);
+				const name = body.name || 'New Space';
+				const color = body.color || 'brand';
+				const emoji = body.emoji || '✨';
+				const enabledViews = JSON.stringify(body.enabledViews || { list: true, kanban: true, calendar: true, gantt: true });
+				const columns = JSON.stringify(body.columns || [{ id: "todo", name: "To Do" }, { id: "doing", name: "Doing" }, { id: "done", name: "Done" }]);
+				const customFields = JSON.stringify(body.customFields || []);
+				const emailReminders = body.emailReminders ? 1 : 0;
+				const emailDigestTime = body.emailDigestTime || '09:00';
+
+				await env.DB.prepare("INSERT INTO spaces_v2 (id, name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+					.bind(id, name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime).run();
+
+				const safeId = id.replace(/[^a-zA-Z0-9_]/g, '');
+				await env.DB.prepare(`CREATE TABLE IF NOT EXISTS tasks_${safeId} (id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT, status TEXT NOT NULL, assignee TEXT, due_date TEXT, start_date TEXT, priority TEXT, custom TEXT)`).run();
+
+				return new Response(JSON.stringify({ id }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+			}
+
+			const spacePutMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)$/);
+			if (spacePutMatch && request.method === 'PUT') {
+				const id = spacePutMatch[1];
+				try {
+					const body = await request.json() as any;
+					const name = body.name;
+					const color = body.color;
+					const emoji = body.emoji;
+					const enabledViews = JSON.stringify(body.enabledViews);
+					const columns = JSON.stringify(body.columns);
+					const customFields = JSON.stringify(body.customFields);
+					const emailReminders = body.emailReminders ? 1 : 0;
+					const emailDigestTime = body.emailDigestTime;
+
+					await env.DB.prepare("UPDATE spaces_v2 SET name = ?, color = ?, emoji = ?, enabledViews = ?, columns = ?, customFields = ?, emailReminders = ?, emailDigestTime = ? WHERE id = ?")
+						.bind(name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime, id).run();
+
+					return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				} catch (e) {
+					return new Response(JSON.stringify({ error: "Bad request" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				}
 			}
 
 			if (url.pathname === '/api/templates' && request.method === 'GET') {
@@ -186,19 +252,23 @@ export default {
 
 			if (url.pathname === '/api/tasks' && request.method === 'GET') {
 				const spaceId = url.searchParams.get('space_id');
-				let results;
-				if (spaceId) {
-					results = (await env.DB.prepare("SELECT * FROM tasks_v2 WHERE space_id = ?").bind(spaceId).all()).results;
-				} else {
-					results = (await env.DB.prepare("SELECT * FROM tasks_v2").all()).results;
+				if (!spaceId) {
+					return new Response(JSON.stringify([]), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 				}
-				const parsedResults = results.map((r: any) => ({
-					...r,
-					dueDate: r.due_date,
-					startDate: r.start_date,
-					custom: r.custom ? JSON.parse(r.custom) : {}
-				}));
-				return new Response(JSON.stringify(parsedResults), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				const safeId = spaceId.replace(/[^a-zA-Z0-9_]/g, '');
+				try {
+					const { results } = await env.DB.prepare(`SELECT * FROM tasks_${safeId}`).all();
+					const parsedResults = results.map((r: any) => ({
+						...r,
+						dueDate: r.due_date,
+						startDate: r.start_date,
+						custom: r.custom ? JSON.parse(r.custom) : {}
+					}));
+					return new Response(JSON.stringify(parsedResults), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				} catch (e) {
+					// Table might not exist yet
+					return new Response(JSON.stringify([]), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				}
 			}
 
 			if (url.pathname === '/api/tasks' && request.method === 'POST') {
@@ -219,8 +289,10 @@ export default {
 						return new Response(JSON.stringify({ error: "space_id is required" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 					}
 
-					await env.DB.prepare("INSERT OR REPLACE INTO tasks_v2 (id, title, description, status, assignee, due_date, start_date, priority, custom, space_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)")
-						.bind(id, title, description, status, assignee, due_date, start_date, priority, custom, space_id)
+					const safeId = space_id.replace(/[^a-zA-Z0-9_]/g, '');
+
+					await env.DB.prepare(`INSERT OR REPLACE INTO tasks_${safeId} (id, title, description, status, assignee, due_date, start_date, priority, custom) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`)
+						.bind(id, title, description, status, assignee, due_date, start_date, priority, custom)
 						.run();
 
 					const task = {
@@ -250,7 +322,8 @@ export default {
 					if (!space_id) {
 						return new Response(JSON.stringify({ error: "space_id required" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 					}
-					await env.DB.prepare(`DELETE FROM tasks_v2 WHERE id = ?`).bind(id).run();
+					const safeId = space_id.replace(/[^a-zA-Z0-9_]/g, '');
+					await env.DB.prepare(`DELETE FROM tasks_${safeId} WHERE id = ?`).bind(id).run();
 
 					// Broadcast delete
 					const idStr = env.Chat.idFromName(space_id);

@@ -4,9 +4,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "@tanstack/react-router";
@@ -33,9 +42,14 @@ export function SpaceSettingsDialog({
 
   if (!space) return null;
 
-  const patch = async (fn: (sp: import("@/lib/store").Space) => import("@/lib/store").Space) => {
+  const patch = async (
+    fn: (sp: import("@/lib/store").Space) => import("@/lib/store").Space,
+  ) => {
     const updatedSpace = fn(space);
-    update((s) => ({ ...s, spaces: s.spaces.map((sp) => (sp.id === spaceId ? updatedSpace : sp)) }));
+    update((s) => ({
+      ...s,
+      spaces: s.spaces.map((sp) => (sp.id === spaceId ? updatedSpace : sp)),
+    }));
 
     const token = localStorage.getItem("syncduo_token");
     if (token) {
@@ -44,7 +58,7 @@ export function SpaceSettingsDialog({
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             name: updatedSpace.name,
@@ -55,7 +69,7 @@ export function SpaceSettingsDialog({
             customFields: updatedSpace.customFields,
             emailReminders: updatedSpace.emailReminders,
             emailDigestTime: updatedSpace.emailDigestTime,
-          })
+          }),
         });
       } catch (e) {
         console.error("Failed to sync space settings to server", e);
@@ -65,7 +79,10 @@ export function SpaceSettingsDialog({
 
   const removeSpace = () => {
     if (!confirm(`Delete "${space.name}"?`)) return;
-    update((s) => ({ ...s, spaces: s.spaces.filter((sp) => sp.id !== spaceId) }));
+    update((s) => ({
+      ...s,
+      spaces: s.spaces.filter((sp) => sp.id !== spaceId),
+    }));
     onOpenChange(false);
     navigate({ to: "/" });
   };
@@ -74,7 +91,9 @@ export function SpaceSettingsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{space.emoji} {space.name} — Settings</DialogTitle>
+          <DialogTitle>
+            {space.emoji} {space.name} — Settings
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-8 py-4">
@@ -82,24 +101,44 @@ export function SpaceSettingsDialog({
             <div className="grid grid-cols-[80px_1fr] gap-3">
               <div>
                 <Label className="text-xs">Emoji</Label>
-                <Input value={space.emoji} onChange={(e) => patch((sp) => ({ ...sp, emoji: e.target.value }))} maxLength={2} />
+                <Input
+                  value={space.emoji}
+                  onChange={(e) =>
+                    patch((sp) => ({ ...sp, emoji: e.target.value }))
+                  }
+                  maxLength={2}
+                />
               </div>
               <div>
                 <Label className="text-xs">Name</Label>
-                <Input value={space.name} onChange={(e) => patch((sp) => ({ ...sp, name: e.target.value }))} />
+                <Input
+                  value={space.name}
+                  onChange={(e) =>
+                    patch((sp) => ({ ...sp, name: e.target.value }))
+                  }
+                />
               </div>
             </div>
           </Section>
 
-          <Section title="Views" subtitle="Toggle which views are available in this space.">
+          <Section
+            title="Views"
+            subtitle="Toggle which views are available in this space."
+          >
             <div className="grid grid-cols-2 gap-3">
               {VIEWS.map((v) => (
-                <label key={v.id} className="flex items-center justify-between bg-card border border-border rounded-lg p-3 cursor-pointer">
+                <label
+                  key={v.id}
+                  className="flex items-center justify-between bg-card border border-border rounded-lg p-3 cursor-pointer"
+                >
                   <span className="text-sm">{v.label}</span>
                   <Switch
                     checked={space.enabledViews[v.id]}
                     onCheckedChange={(c) =>
-                      patch((sp) => ({ ...sp, enabledViews: { ...sp.enabledViews, [v.id]: c } }))
+                      patch((sp) => ({
+                        ...sp,
+                        enabledViews: { ...sp.enabledViews, [v.id]: c },
+                      }))
                     }
                   />
                 </label>
@@ -116,22 +155,47 @@ export function SpaceSettingsDialog({
                     onChange={(e) =>
                       patch((sp) => ({
                         ...sp,
-                        columns: sp.columns.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)),
+                        columns: sp.columns.map((x, j) =>
+                          j === i ? { ...x, name: e.target.value } : x,
+                        ),
                       }))
                     }
                   />
-                  <Button variant="ghost" size="icon" onClick={() => patch((sp) => ({ ...sp, columns: sp.columns.filter((_, j) => j !== i) }))}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Remove column"
+                    title="Remove column"
+                    onClick={() =>
+                      patch((sp) => ({
+                        ...sp,
+                        columns: sp.columns.filter((_, j) => j !== i),
+                      }))
+                    }
+                  >
                     <Trash2 className="size-4" />
                   </Button>
                 </div>
               ))}
-              <Button variant="outline" size="sm" onClick={() => patch((sp) => ({ ...sp, columns: [...sp.columns, { id: uid(), name: "New Column" }] }))}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  patch((sp) => ({
+                    ...sp,
+                    columns: [...sp.columns, { id: uid(), name: "New Column" }],
+                  }))
+                }
+              >
                 <Plus className="size-3.5 mr-1" /> Add Column
               </Button>
             </div>
           </Section>
 
-          <Section title="Custom task fields" subtitle="Extra fields displayed when editing tasks.">
+          <Section
+            title="Custom task fields"
+            subtitle="Extra fields displayed when editing tasks."
+          >
             <div className="space-y-2">
               {space.customFields.map((f, i) => (
                 <div key={f.id} className="flex gap-2 items-start">
@@ -143,7 +207,9 @@ export function SpaceSettingsDialog({
                       onChange={(e) =>
                         patch((sp) => ({
                           ...sp,
-                          customFields: sp.customFields.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)),
+                          customFields: sp.customFields.map((x, j) =>
+                            j === i ? { ...x, name: e.target.value } : x,
+                          ),
                         }))
                       }
                     />
@@ -154,7 +220,9 @@ export function SpaceSettingsDialog({
                         onCheckedChange={(c) =>
                           patch((sp) => ({
                             ...sp,
-                            customFields: sp.customFields.map((x, j) => (j === i ? { ...x, required: c } : x)),
+                            customFields: sp.customFields.map((x, j) =>
+                              j === i ? { ...x, required: c } : x,
+                            ),
                           }))
                         }
                       />
@@ -166,11 +234,15 @@ export function SpaceSettingsDialog({
                     onValueChange={(v) =>
                       patch((sp) => ({
                         ...sp,
-                        customFields: sp.customFields.map((x, j) => (j === i ? { ...x, type: v as FieldType } : x)),
+                        customFields: sp.customFields.map((x, j) =>
+                          j === i ? { ...x, type: v as FieldType } : x,
+                        ),
                       }))
                     }
                   >
-                    <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="text">Text</SelectItem>
                       <SelectItem value="number">Number</SelectItem>
@@ -187,7 +259,9 @@ export function SpaceSettingsDialog({
                         patch((sp) => ({
                           ...sp,
                           customFields: sp.customFields.map((x, j) =>
-                            j === i ? { ...x, options: e.target.value.split(",") } : x
+                            j === i
+                              ? { ...x, options: e.target.value.split(",") }
+                              : x,
                           ),
                         }))
                       }
@@ -196,7 +270,14 @@ export function SpaceSettingsDialog({
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => patch((sp) => ({ ...sp, customFields: sp.customFields.filter((_, j) => j !== i) }))}
+                    aria-label="Remove field"
+                    title="Remove field"
+                    onClick={() =>
+                      patch((sp) => ({
+                        ...sp,
+                        customFields: sp.customFields.filter((_, j) => j !== i),
+                      }))
+                    }
                   >
                     <Trash2 className="size-4" />
                   </Button>
@@ -208,7 +289,10 @@ export function SpaceSettingsDialog({
                 onClick={() =>
                   patch((sp) => ({
                     ...sp,
-                    customFields: [...sp.customFields, { id: uid(), name: "", type: "text", required: false }],
+                    customFields: [
+                      ...sp.customFields,
+                      { id: uid(), name: "", type: "text", required: false },
+                    ],
                   }))
                 }
               >
@@ -217,15 +301,22 @@ export function SpaceSettingsDialog({
             </div>
           </Section>
 
-          <Section title="Email reminders" subtitle="Reminders for due tasks are mailed (no backend needed in this prototype).">
+          <Section
+            title="Email reminders"
+            subtitle="Reminders for due tasks are mailed (no backend needed in this prototype)."
+          >
             <div className="flex items-center justify-between bg-card border border-border rounded-lg p-3">
               <div>
                 <p className="text-sm">Daily digest</p>
-                <p className="text-xs text-muted-foreground">Sent to {state.notificationsEmail}</p>
+                <p className="text-xs text-muted-foreground">
+                  Sent to {state.notificationsEmail}
+                </p>
               </div>
               <Switch
                 checked={space.emailReminders}
-                onCheckedChange={(c) => patch((sp) => ({ ...sp, emailReminders: c }))}
+                onCheckedChange={(c) =>
+                  patch((sp) => ({ ...sp, emailReminders: c }))
+                }
               />
             </div>
             <div>
@@ -233,21 +324,29 @@ export function SpaceSettingsDialog({
               <Input
                 type="time"
                 value={space.emailDigestTime}
-                onChange={(e) => patch((sp) => ({ ...sp, emailDigestTime: e.target.value }))}
+                onChange={(e) =>
+                  patch((sp) => ({ ...sp, emailDigestTime: e.target.value }))
+                }
                 className="w-40"
               />
             </div>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => toast.success("Test reminder queued", { description: `→ ${state.notificationsEmail}` })}
+              onClick={() =>
+                toast.success("Test reminder queued", {
+                  description: `→ ${state.notificationsEmail}`,
+                })
+              }
             >
               Send test reminder
             </Button>
           </Section>
 
           <Section title="Danger zone">
-            <Button variant="destructive" onClick={removeSpace}>Delete space</Button>
+            <Button variant="destructive" onClick={removeSpace}>
+              Delete space
+            </Button>
           </Section>
         </div>
       </DialogContent>
@@ -255,12 +354,22 @@ export function SpaceSettingsDialog({
   );
 }
 
-function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+function Section({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
   return (
     <section className="space-y-3">
       <div>
         <h2 className="text-sm font-semibold">{title}</h2>
-        {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
+        {subtitle && (
+          <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
+        )}
       </div>
       <div className="space-y-3">{children}</div>
     </section>

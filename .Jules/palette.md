@@ -1,0 +1,3 @@
+## 2024-05-14 - Icon-Only Delete Buttons in Dynamic Lists
+**Learning:** Icon-only action buttons (like Trash icons for removing items) within dynamic lists or settings dialogs often lack accessible names, making them difficult for screen reader users to identify or differentiate when tabbing through. Adding `aria-label` and `title` attributes significantly improves both accessibility and visual usability (via native tooltips) without cluttering the UI.
+**Action:** Always ensure any icon-only button, especially those dynamically generated in a list or settings context, has a descriptive `aria-label` and `title` (e.g., "Remove column" or "Remove custom field").

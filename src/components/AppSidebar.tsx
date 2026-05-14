@@ -5,11 +5,21 @@ import { useStore, uid, type CustomField, type FieldType } from "@/lib/store";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 export function AppSidebar() {
   const { state, update } = useStore();
@@ -19,19 +29,27 @@ export function AppSidebar() {
 
   const [isSpaceDialogOpen, setIsSpaceDialogOpen] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState("");
-  const [columns, setColumns] = useState([{ id: "todo", name: "To Do" }, { id: "doing", name: "Doing" }, { id: "done", name: "Done" }]);
+  const [columns, setColumns] = useState([
+    { id: "todo", name: "To Do" },
+    { id: "doing", name: "Doing" },
+    { id: "done", name: "Done" },
+  ]);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
 
   const resetForm = () => {
     setNewSpaceName("");
-    setColumns([{ id: "todo", name: "To Do" }, { id: "doing", name: "Doing" }, { id: "done", name: "Done" }]);
+    setColumns([
+      { id: "todo", name: "To Do" },
+      { id: "doing", name: "Doing" },
+      { id: "done", name: "Done" },
+    ]);
     setCustomFields([]);
   };
 
   const handleAddSpace = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSpaceName.trim()) return;
-    
+
     const token = localStorage.getItem("syncduo_token");
     if (!token) {
       console.error("No token found");
@@ -56,7 +74,7 @@ export function AppSidebar() {
         throw new Error("Failed to create space");
       }
 
-      const data = await res.json() as any;
+      const data = (await res.json()) as any;
 
       update((s) => ({
         ...s,
@@ -67,7 +85,12 @@ export function AppSidebar() {
             name: newSpaceName.trim(),
             color: "brand",
             emoji: "✨",
-            enabledViews: { list: true, kanban: true, calendar: true, gantt: true },
+            enabledViews: {
+              list: true,
+              kanban: true,
+              calendar: true,
+              gantt: true,
+            },
             columns,
             customFields,
             emailReminders: false,
@@ -87,10 +110,13 @@ export function AppSidebar() {
 
   return (
     <>
-      <Dialog open={isSpaceDialogOpen} onOpenChange={(open) => {
-        setIsSpaceDialogOpen(open);
-        if (!open) resetForm();
-      }}>
+      <Dialog
+        open={isSpaceDialogOpen}
+        onOpenChange={(open) => {
+          setIsSpaceDialogOpen(open);
+          if (!open) resetForm();
+        }}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Create New Space</DialogTitle>
@@ -111,7 +137,17 @@ export function AppSidebar() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-semibold">Columns</Label>
-                  <Button type="button" variant="outline" size="sm" onClick={() => setColumns([...columns, { id: uid(), name: "New Column" }])}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setColumns([
+                        ...columns,
+                        { id: uid(), name: "New Column" },
+                      ])
+                    }
+                  >
                     <Plus className="size-3.5 mr-1" /> Add
                   </Button>
                 </div>
@@ -120,10 +156,25 @@ export function AppSidebar() {
                     <div key={c.id} className="flex gap-2">
                       <Input
                         value={c.name}
-                        onChange={(e) => setColumns(columns.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
+                        onChange={(e) =>
+                          setColumns(
+                            columns.map((x, j) =>
+                              j === i ? { ...x, name: e.target.value } : x,
+                            ),
+                          )
+                        }
                         placeholder="Column name"
                       />
-                      <Button type="button" variant="ghost" size="icon" onClick={() => setColumns(columns.filter((_, j) => j !== i))}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Remove column"
+                        title="Remove column"
+                        onClick={() =>
+                          setColumns(columns.filter((_, j) => j !== i))
+                        }
+                      >
                         <Trash2 className="size-4" />
                       </Button>
                     </div>
@@ -134,7 +185,17 @@ export function AppSidebar() {
               <div className="space-y-3 mt-6">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-semibold">Custom Fields</Label>
-                  <Button type="button" variant="outline" size="sm" onClick={() => setCustomFields([...customFields, { id: uid(), name: "", type: "text" }])}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setCustomFields([
+                        ...customFields,
+                        { id: uid(), name: "", type: "text" },
+                      ])
+                    }
+                  >
                     <Plus className="size-3.5 mr-1" /> Add
                   </Button>
                 </div>
@@ -145,13 +206,27 @@ export function AppSidebar() {
                         className="flex-1"
                         value={f.name}
                         placeholder="Field name"
-                        onChange={(e) => setCustomFields(customFields.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
+                        onChange={(e) =>
+                          setCustomFields(
+                            customFields.map((x, j) =>
+                              j === i ? { ...x, name: e.target.value } : x,
+                            ),
+                          )
+                        }
                       />
                       <Select
                         value={f.type}
-                        onValueChange={(v) => setCustomFields(customFields.map((x, j) => (j === i ? { ...x, type: v as FieldType } : x)))}
+                        onValueChange={(v) =>
+                          setCustomFields(
+                            customFields.map((x, j) =>
+                              j === i ? { ...x, type: v as FieldType } : x,
+                            ),
+                          )
+                        }
                       >
-                        <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="w-28">
+                          <SelectValue />
+                        </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="text">Text</SelectItem>
                           <SelectItem value="number">Number</SelectItem>
@@ -165,13 +240,28 @@ export function AppSidebar() {
                           placeholder="Options (comma-separated)"
                           value={(f.options ?? []).join(",")}
                           onChange={(e) =>
-                            setCustomFields(customFields.map((x, j) =>
-                              j === i ? { ...x, options: e.target.value.split(",") } : x
-                            ))
+                            setCustomFields(
+                              customFields.map((x, j) =>
+                                j === i
+                                  ? { ...x, options: e.target.value.split(",") }
+                                  : x,
+                              ),
+                            )
                           }
                         />
                       )}
-                      <Button type="button" variant="ghost" size="icon" onClick={() => setCustomFields(customFields.filter((_, j) => j !== i))}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Remove field"
+                        title="Remove field"
+                        onClick={() =>
+                          setCustomFields(
+                            customFields.filter((_, j) => j !== i),
+                          )
+                        }
+                      >
                         <Trash2 className="size-4" />
                       </Button>
                     </div>
@@ -181,8 +271,19 @@ export function AppSidebar() {
             </ScrollArea>
 
             <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" onClick={() => setIsSpaceDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={!newSpaceName.trim() || columns.length === 0}>Create</Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsSpaceDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={!newSpaceName.trim() || columns.length === 0}
+              >
+                Create
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -199,8 +300,14 @@ export function AppSidebar() {
         <nav className="flex-1 px-3 space-y-6 overflow-y-auto pt-2">
           <div>
             <div className="px-2 mb-2 flex items-center justify-between">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Spaces</p>
-              <button onClick={() => setIsSpaceDialogOpen(true)} aria-label="Add space" className="text-muted-foreground hover:text-foreground">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Spaces
+              </p>
+              <button
+                onClick={() => setIsSpaceDialogOpen(true)}
+                aria-label="Add space"
+                className="text-muted-foreground hover:text-foreground"
+              >
                 <Plus className="size-3.5" />
               </button>
             </div>
@@ -213,7 +320,9 @@ export function AppSidebar() {
                     to="/space/$spaceId"
                     params={{ spaceId: sp.id }}
                     className={`w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors ${
-                      active ? "bg-accent text-foreground ring-1 ring-border" : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                      active
+                        ? "bg-accent text-foreground ring-1 ring-border"
+                        : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
                     }`}
                   >
                     <span className="text-xs">{sp.emoji}</span>
@@ -225,7 +334,9 @@ export function AppSidebar() {
           </div>
 
           <div>
-            <p className="px-2 mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Direct Messages</p>
+            <p className="px-2 mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Direct Messages
+            </p>
             <div className="space-y-0.5">
               {others.map((u) => {
                 const active = path === `/chat/${u.id}`;
@@ -235,10 +346,14 @@ export function AppSidebar() {
                     to="/chat/$userId"
                     params={{ userId: u.id }}
                     className={`w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors ${
-                      active ? "bg-accent text-foreground ring-1 ring-border" : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                      active
+                        ? "bg-accent text-foreground ring-1 ring-border"
+                        : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
                     }`}
                   >
-                    <div className="size-5 rounded bg-muted ring-1 ring-border grid place-items-center text-[10px]">{u.initials}</div>
+                    <div className="size-5 rounded bg-muted ring-1 ring-border grid place-items-center text-[10px]">
+                      {u.initials}
+                    </div>
                     <span className="truncate">{u.name}</span>
                     <div className="ml-auto size-1.5 rounded-full bg-primary" />
                   </Link>
@@ -252,17 +367,23 @@ export function AppSidebar() {
           <Link
             to="/settings"
             className={`w-full flex items-center gap-2 px-2 py-2 text-sm rounded-md transition-colors ${
-              path === "/settings" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+              path === "/settings"
+                ? "bg-accent text-foreground"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
             }`}
           >
             <Settings className="size-4" />
             <span>Settings</span>
           </Link>
           <div className="flex items-center gap-2 px-2 py-1.5">
-            <div className="size-7 rounded-full bg-muted ring-1 ring-border grid place-items-center text-[11px] font-medium">{me?.initials}</div>
+            <div className="size-7 rounded-full bg-muted ring-1 ring-border grid place-items-center text-[11px] font-medium">
+              {me?.initials}
+            </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium truncate">{me?.name}</p>
-              <p className="text-[10px] text-muted-foreground truncate">{me?.email}</p>
+              <p className="text-[10px] text-muted-foreground truncate">
+                {me?.email}
+              </p>
             </div>
           </div>
         </div>

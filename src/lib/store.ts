@@ -8,6 +8,7 @@ export interface CustomField {
   name: string;
   type: FieldType;
   options?: string[];
+  required?: boolean;
 }
 
 export interface Task {
@@ -59,7 +60,7 @@ export interface AppState {
   notificationsEmail: string;
 }
 
-const STORAGE_KEY = "syncduo:v3";
+const STORAGE_KEY = "syncduo:v4";
 
 const seed = (): AppState => ({
   currentUserId: "",

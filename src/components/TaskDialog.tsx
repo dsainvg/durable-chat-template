@@ -45,6 +45,19 @@ export function TaskDialog({
   const toDateInput = (iso: string) => iso.slice(0, 10);
   const fromDateInput = (s: string) => new Date(s).toISOString();
 
+  const missingRequiredFields = () => {
+    if (!draft.title.trim()) return true;
+    for (const f of space.customFields) {
+      if (f.required) {
+        const val = draft.custom[f.id];
+        if (val === undefined || val === null || val.toString().trim() === "") {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-xl">
@@ -53,7 +66,7 @@ export function TaskDialog({
         </DialogHeader>
         <div className="space-y-4">
           <div>
-            <Label className="text-xs">Title</Label>
+            <Label className="text-xs">Title <span className="text-destructive">*</span></Label>
             <Input value={draft.title} onChange={(e) => set("title", e.target.value)} placeholder="Task title…" autoFocus />
           </div>
           <div>
@@ -105,7 +118,7 @@ export function TaskDialog({
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Custom fields</p>
               {space.customFields.map((f) => (
                 <div key={f.id}>
-                  <Label className="text-xs">{f.name}</Label>
+                  <Label className="text-xs">{f.name} {f.required && <span className="text-destructive">*</span>}</Label>
                   {f.type === "select" ? (
                     <Select value={draft.custom[f.id] ?? ""} onValueChange={(v) => setCustom(f.id, v)}>
                       <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
@@ -133,7 +146,7 @@ export function TaskDialog({
           ) : <span />}
           <div className="flex gap-2">
             <Button variant="ghost" onClick={onClose}>Cancel</Button>
-            <Button onClick={() => onSave(draft)} disabled={!draft.title.trim()}>Save</Button>
+            <Button onClick={() => onSave(draft)} disabled={missingRequiredFields()}>Save</Button>
           </div>
         </DialogFooter>
       </DialogContent>

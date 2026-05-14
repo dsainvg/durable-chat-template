@@ -10,6 +10,7 @@ import { CalendarView } from "@/components/views/CalendarView";
 import { GanttView } from "@/components/views/GanttView";
 import { TaskDialog } from "@/components/TaskDialog";
 import { ChannelPanel } from "@/components/ChannelPanel";
+import { SpaceSettingsDialog } from "@/components/SpaceSettingsDialog";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/space/$spaceId")({
@@ -116,6 +117,7 @@ function SpacePage() {
   const [openTask, setOpenTask] = useState<Task | null>(null);
   const [creating, setCreating] = useState(false);
   const [channelOpen, setChannelOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   if (!space) {
     return (
@@ -228,7 +230,7 @@ function SpacePage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate({ to: "/space/$spaceId/settings", params: { spaceId } })}
+            onClick={() => setSettingsOpen(true)}
           >
             <Settings className="size-4" />
           </Button>
@@ -264,6 +266,14 @@ function SpacePage() {
           onClose={() => setOpenTask(null)}
           onSave={(t) => { updateTask(t); setOpenTask(null); }}
           onDelete={() => { deleteTask(openTask.id); setOpenTask(null); }}
+        />
+      )}
+
+      {settingsOpen && (
+        <SpaceSettingsDialog
+          spaceId={spaceId}
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
         />
       )}
     </>

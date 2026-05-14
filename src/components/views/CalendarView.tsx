@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { Space, Task } from "@/lib/store";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -7,22 +7,28 @@ export function CalendarView({ space, onOpen }: { space: Space; onOpen: (t: Task
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
 
-  const first = new Date(year, month, 1);
-  const startDay = first.getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const cells: (Date | null)[] = [];
-  for (let i = 0; i < startDay; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
-  while (cells.length % 7 !== 0) cells.push(null);
+  const cells = useMemo(() => {
+    const first = new Date(year, month, 1);
+    const startDay = first.getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const arr: (Date | null)[] = [];
+    for (let i = 0; i < startDay; i++) arr.push(null);
+    for (let d = 1; d <= daysInMonth; d++) arr.push(new Date(year, month, d));
+    while (arr.length % 7 !== 0) arr.push(null);
+    return arr;
+  }, [year, month]);
 
-  const tasksByDay = new Map<string, Task[]>();
-  for (const t of space.tasks) {
-    const d = new Date(t.dueDate);
-    const k = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-    const arr = tasksByDay.get(k) ?? [];
-    arr.push(t);
-    tasksByDay.set(k, arr);
-  }
+  const tasksByDay = useMemo(() => {
+    const map = new Map<string, Task[]>();
+    for (const t of space.tasks) {
+      const d = new Date(t.dueDate);
+      const k = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      const arr = map.get(k) ?? [];
+      arr.push(t);
+      map.set(k, arr);
+    }
+    return map;
+  }, [space.tasks]);
 
   const today = new Date();
 

@@ -1,9 +1,10 @@
+import { useMemo } from "react";
 import type { Space, Task } from "@/lib/store";
 import { useStore } from "@/lib/store";
 
 export function ListView({ space, onOpen }: { space: Space; onOpen: (t: Task) => void }) {
   const { state } = useStore();
-  const userMap = Object.fromEntries(state.users.map((u) => [u.id, u]));
+  const userMap = useMemo(() => Object.fromEntries(state.users.map((u) => [u.id, u])), [state.users]);
 
   return (
     <div className="p-6 space-y-6">

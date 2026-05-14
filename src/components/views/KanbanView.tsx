@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { Space, Task } from "@/lib/store";
 import { useStore } from "@/lib/store";
 
@@ -12,7 +12,7 @@ export function KanbanView({
   onMove: (t: Task) => void;
 }) {
   const { state } = useStore();
-  const userMap = Object.fromEntries(state.users.map((u) => [u.id, u]));
+  const userMap = useMemo(() => Object.fromEntries(state.users.map((u) => [u.id, u])), [state.users]);
   const [dragId, setDragId] = useState<string | null>(null);
 
   return (

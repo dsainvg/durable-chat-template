@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Settings, Plus, MessageSquare, Hash } from "lucide-react";
-import { useStore, uid } from "@/lib/store";
+import { Settings, Plus, MessageSquare, Hash, Trash2 } from "lucide-react";
+import { useStore, uid, type CustomField, type FieldType } from "@/lib/store";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
@@ -13,6 +19,14 @@ export function AppSidebar() {
 
   const [isSpaceDialogOpen, setIsSpaceDialogOpen] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState("");
+  const [columns, setColumns] = useState([{ id: "todo", name: "To Do" }, { id: "doing", name: "Doing" }, { id: "done", name: "Done" }]);
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
+
+  const resetForm = () => {
+    setNewSpaceName("");
+    setColumns([{ id: "todo", name: "To Do" }, { id: "doing", name: "Doing" }, { id: "done", name: "Done" }]);
+    setCustomFields([]);
+  };
 
   const handleAddSpace = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,7 +45,11 @@ export function AppSidebar() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ name: newSpaceName.trim() }),
+        body: JSON.stringify({
+          name: newSpaceName.trim(),
+          columns,
+          customFields,
+        }),
       });
 
       if (!res.ok) {
@@ -50,12 +68,8 @@ export function AppSidebar() {
             color: "brand",
             emoji: "✨",
             enabledViews: { list: true, kanban: true, calendar: true, gantt: true },
-            columns: [
-              { id: "todo", name: "To Do" },
-              { id: "doing", name: "Doing" },
-              { id: "done", name: "Done" },
-            ],
-            customFields: [],
+            columns,
+            customFields,
             emailReminders: false,
             emailDigestTime: "09:00",
             tasks: [],
@@ -64,7 +78,7 @@ export function AppSidebar() {
         ],
       }));
 
-      setNewSpaceName("");
+      resetForm();
       setIsSpaceDialogOpen(false);
     } catch (err) {
       console.error("Error creating space:", err);
@@ -73,23 +87,102 @@ export function AppSidebar() {
 
   return (
     <>
-      <Dialog open={isSpaceDialogOpen} onOpenChange={setIsSpaceDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={isSpaceDialogOpen} onOpenChange={(open) => {
+        setIsSpaceDialogOpen(open);
+        if (!open) resetForm();
+      }}>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Create New Space</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleAddSpace} className="space-y-4 py-4">
-            <input
-              type="text"
-              value={newSpaceName}
-              onChange={(e) => setNewSpaceName(e.target.value)}
-              placeholder="Space name"
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              autoFocus
-            />
-            <DialogFooter>
+            <div>
+              <Label className="text-xs">Space Name</Label>
+              <Input
+                type="text"
+                value={newSpaceName}
+                onChange={(e) => setNewSpaceName(e.target.value)}
+                placeholder="Space name"
+                autoFocus
+              />
+            </div>
+
+            <ScrollArea className="max-h-[50vh] pr-4 space-y-6">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold">Columns</Label>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setColumns([...columns, { id: uid(), name: "New Column" }])}>
+                    <Plus className="size-3.5 mr-1" /> Add
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {columns.map((c, i) => (
+                    <div key={c.id} className="flex gap-2">
+                      <Input
+                        value={c.name}
+                        onChange={(e) => setColumns(columns.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
+                        placeholder="Column name"
+                      />
+                      <Button type="button" variant="ghost" size="icon" onClick={() => setColumns(columns.filter((_, j) => j !== i))}>
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-3 mt-6">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold">Custom Fields</Label>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setCustomFields([...customFields, { id: uid(), name: "", type: "text" }])}>
+                    <Plus className="size-3.5 mr-1" /> Add
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {customFields.map((f, i) => (
+                    <div key={f.id} className="flex gap-2 items-start">
+                      <Input
+                        className="flex-1"
+                        value={f.name}
+                        placeholder="Field name"
+                        onChange={(e) => setCustomFields(customFields.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
+                      />
+                      <Select
+                        value={f.type}
+                        onValueChange={(v) => setCustomFields(customFields.map((x, j) => (j === i ? { ...x, type: v as FieldType } : x)))}
+                      >
+                        <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="text">Text</SelectItem>
+                          <SelectItem value="number">Number</SelectItem>
+                          <SelectItem value="date">Date</SelectItem>
+                          <SelectItem value="select">Select</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {f.type === "select" && (
+                        <Input
+                          className="w-32"
+                          placeholder="Options (comma-separated)"
+                          value={(f.options ?? []).join(",")}
+                          onChange={(e) =>
+                            setCustomFields(customFields.map((x, j) =>
+                              j === i ? { ...x, options: e.target.value.split(",") } : x
+                            ))
+                          }
+                        />
+                      )}
+                      <Button type="button" variant="ghost" size="icon" onClick={() => setCustomFields(customFields.filter((_, j) => j !== i))}>
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </ScrollArea>
+
+            <DialogFooter className="pt-2">
               <Button type="button" variant="outline" onClick={() => setIsSpaceDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={!newSpaceName.trim()}>Create</Button>
+              <Button type="submit" disabled={!newSpaceName.trim() || columns.length === 0}>Create</Button>
             </DialogFooter>
           </form>
         </DialogContent>

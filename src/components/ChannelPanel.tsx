@@ -3,7 +3,7 @@ import type { Space } from "@/lib/store";
 import { useStore, uid } from "@/lib/store";
 import { X, Send } from "lucide-react";
 
-export function ChannelPanel({ space, onClose }: { space: Space; onClose: () => void }) {
+export function ChannelPanel({ space, onClose, onSend }: { space: Space; onClose: () => void; onSend?: (t: string) => void }) {
   const { state, update } = useStore();
   const [text, setText] = useState("");
   const userMap = Object.fromEntries(state.users.map((u) => [u.id, u]));
@@ -17,14 +17,18 @@ export function ChannelPanel({ space, onClose }: { space: Space; onClose: () => 
   const send = () => {
     const t = text.trim();
     if (!t) return;
-    update((s) => ({
-      ...s,
-      spaces: s.spaces.map((sp) =>
-        sp.id === space.id
-          ? { ...sp, channel: [...sp.channel, { id: uid(), userId: me, text: t, ts: Date.now() }] }
-          : sp
-      ),
-    }));
+    if (onSend) {
+      onSend(t);
+    } else {
+      update((s) => ({
+        ...s,
+        spaces: s.spaces.map((sp) =>
+          sp.id === space.id
+            ? { ...sp, channel: [...sp.channel, { id: uid(), userId: me, text: t, ts: Date.now() }] }
+            : sp
+        ),
+      }));
+    }
     setText("");
   };
 

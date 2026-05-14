@@ -15,25 +15,25 @@ export interface Task {
 
 export type ChatMessage = {
 	id: string;
-	content: string;
-	user: string;
-	role: "user" | "assistant";
+	text: string;
+	userId: string;
+	ts: number;
 };
 
 export type Message =
 	| {
 			type: "add";
 			id: string;
-			content: string;
-			user: string;
-			role: "user" | "assistant";
+			text: string;
+			userId: string;
+			ts: number;
 	  }
 	| {
 			type: "update";
 			id: string;
-			content: string;
-			user: string;
-			role: "user" | "assistant";
+			text: string;
+			userId: string;
+			ts: number;
 	  }
 	| {
 			type: "all";

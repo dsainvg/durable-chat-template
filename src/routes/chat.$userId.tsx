@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useRef, useEffect } from "react";
 import { useStore, uid } from "@/lib/store";
+import usePartySocket from "partysocket/react";
 import { Send } from "lucide-react";
 
 export const Route = createFileRoute("/chat/$userId")({
@@ -17,6 +18,33 @@ function ChatPage() {
   const endRef = useRef<HTMLDivElement>(null);
   const userMap = Object.fromEntries(state.users.map((u) => [u.id, u]));
 
+  const roomName = [me, userId].sort().join("_");
+
+  const socket = usePartySocket({
+    room: roomName,
+    onMessage: (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === "add") {
+          update((s) => ({
+            ...s,
+            dms: {
+              ...s.dms,
+              [userId]: [...(s.dms[userId] ?? []), msg].slice(-100),
+            },
+          }));
+        } else if (msg.type === "all") {
+          update((s) => ({
+            ...s,
+            dms: { ...s.dms, [userId]: msg.messages },
+          }));
+        }
+      } catch (err) {
+        console.error("Failed to parse party socket message", err);
+      }
+    },
+  });
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
@@ -26,10 +54,15 @@ function ChatPage() {
   const send = () => {
     const t = text.trim();
     if (!t) return;
-    update((s) => ({
-      ...s,
-      dms: { ...s.dms, [userId]: [...(s.dms[userId] ?? []), { id: uid(), userId: me, text: t, ts: Date.now() }] },
-    }));
+    socket.send(
+      JSON.stringify({
+        type: "add",
+        id: uid(),
+        text: t,
+        userId: me,
+        ts: Date.now(),
+      })
+    );
     setText("");
   };
 

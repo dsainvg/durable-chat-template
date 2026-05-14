@@ -38,6 +38,7 @@ async function initDb(db: D1Database) {
 
 	// Create tasks table with space_id
 	await db.prepare("CREATE TABLE IF NOT EXISTS tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, status TEXT DEFAULT 'To Do', task_type TEXT DEFAULT 'Task', custom_task_id TEXT, due_date TEXT, start INTEGER, duration INTEGER, space_id INTEGER)").run();
+	await db.prepare("CREATE TABLE IF NOT EXISTS tasks_v2 (id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT, status TEXT NOT NULL, assignee TEXT, due_date TEXT, start_date TEXT, priority TEXT, custom TEXT, space_id TEXT NOT NULL)").run();
 
 	// Add space_id to existing tasks if needed (sqlite doesn't fail if column exists using catch)
 	try {
@@ -187,93 +188,79 @@ export default {
 				const spaceId = url.searchParams.get('space_id');
 				let results;
 				if (spaceId) {
-					results = (await env.DB.prepare("SELECT * FROM tasks WHERE space_id = ?").bind(parseInt(spaceId)).all()).results;
+					results = (await env.DB.prepare("SELECT * FROM tasks_v2 WHERE space_id = ?").bind(spaceId).all()).results;
 				} else {
-					results = (await env.DB.prepare("SELECT * FROM tasks").all()).results;
+					results = (await env.DB.prepare("SELECT * FROM tasks_v2").all()).results;
 				}
-				return new Response(JSON.stringify(results), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				const parsedResults = results.map((r: any) => ({
+					...r,
+					dueDate: r.due_date,
+					startDate: r.start_date,
+					custom: r.custom ? JSON.parse(r.custom) : {}
+				}));
+				return new Response(JSON.stringify(parsedResults), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 			}
 
 			if (url.pathname === '/api/tasks' && request.method === 'POST') {
 				try {
 					const body = await request.json() as any;
+					const id = body.id || Math.random().toString(36).substring(2, 10);
 					const title = body.title || 'New Task';
-					const status = body.status || 'To Do';
-					const task_type = body.task_type || 'Task';
-					const custom_task_id = body.custom_task_id || `ENG-${Math.floor(Math.random() * 1000)}`;
-					const due_date = body.due_date || null;
-					const start = body.start || 1;
-					const duration = body.duration || 1;
-					const space_id = body.space_id || 1;
+					const description = body.description || '';
+					const status = body.status || 'todo';
+					const assignee = body.assignee || '';
+					const due_date = body.dueDate || null;
+					const start_date = body.startDate || null;
+					const priority = body.priority || 'medium';
+					const custom = JSON.stringify(body.custom || {});
+					const space_id = body.space_id;
 
-					const { meta } = await env.DB.prepare("INSERT INTO tasks (title, status, task_type, custom_task_id, due_date, start, duration, space_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)")
-						.bind(title, status, task_type, custom_task_id, due_date, start, duration, space_id)
+					if (!space_id) {
+						return new Response(JSON.stringify({ error: "space_id is required" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+					}
+
+					await env.DB.prepare("INSERT OR REPLACE INTO tasks_v2 (id, title, description, status, assignee, due_date, start_date, priority, custom, space_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)")
+						.bind(id, title, description, status, assignee, due_date, start_date, priority, custom, space_id)
 						.run();
 
-					return new Response(JSON.stringify({ id: meta.last_row_id }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+					const task = {
+						id, title, description, status, assignee, dueDate: due_date, startDate: start_date, priority, custom: JSON.parse(custom), space_id
+					};
+
+					// Broadcast update to the space's Chat Durable Object to notify clients
+					const idStr = env.Chat.idFromName(space_id);
+					const chatStub = env.Chat.get(idStr);
+					await chatStub.fetch(new Request("http://internal/broadcast_task", {
+						method: "POST",
+						body: JSON.stringify({ type: "task_updated", task })
+					}));
+
+					return new Response(JSON.stringify(task), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 				} catch (e) {
 					return new Response(JSON.stringify({ error: "Bad request" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 				}
 			}
 
-			const taskMatch = url.pathname.match(/^\/api\/tasks\/(\d+)$/);
-			if (taskMatch && request.method === 'PUT') {
-				const id = parseInt(taskMatch[1]);
+			const taskMatch = url.pathname.match(/^\/api\/tasks\/([^/]+)$/);
+			if (taskMatch && request.method === 'DELETE') {
+				const id = taskMatch[1];
 				try {
-					const body = await request.json() as any;
-					const updates = [];
-					const values = [];
-					let index = 1;
+					const urlParams = new URLSearchParams(url.search);
+					const space_id = urlParams.get('space_id');
+					if (!space_id) {
+						return new Response(JSON.stringify({ error: "space_id required" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+					}
+					await env.DB.prepare(`DELETE FROM tasks_v2 WHERE id = ?`).bind(id).run();
 
-					if (body.status !== undefined) {
-						updates.push(`status = ?${index++}`);
-						values.push(body.status);
-					}
-					if (body.due_date !== undefined) {
-						updates.push(`due_date = ?${index++}`);
-						values.push(body.due_date);
-					}
-					if (body.title !== undefined) {
-						updates.push(`title = ?${index++}`);
-						values.push(body.title);
-					}
-					if (body.task_type !== undefined) {
-						updates.push(`task_type = ?${index++}`);
-						values.push(body.task_type);
-					}
-					if (body.custom_task_id !== undefined) {
-						updates.push(`custom_task_id = ?${index++}`);
-						values.push(body.custom_task_id);
-					}
-					if (body.start !== undefined) {
-						updates.push(`start = ?${index++}`);
-						values.push(body.start);
-					}
-					if (body.duration !== undefined) {
-						updates.push(`duration = ?${index++}`);
-						values.push(body.duration);
-					}
+					// Broadcast delete
+					const idStr = env.Chat.idFromName(space_id);
+					const chatStub = env.Chat.get(idStr);
+					await chatStub.fetch(new Request("http://internal/broadcast_task", {
+						method: "POST",
+						body: JSON.stringify({ type: "task_deleted", id })
+					}));
 
-					if (updates.length > 0) {
-						values.push(id);
-						await env.DB.prepare(`UPDATE tasks SET ${updates.join(', ')} WHERE id = ?${index}`).bind(...values).run();
-
-						const { results } = await env.DB.prepare("SELECT * FROM tasks WHERE id = ?1").bind(id).all();
-						const updatedTask = results[0] as any;
-
-						// Broadcast update to the space's Chat Durable Object to notify clients
-						const spaceId = updatedTask.space_id || 1;
-						const idStr = env.Chat.idFromName(spaceId.toString());
-						const chatStub = env.Chat.get(idStr);
-						await chatStub.fetch(new Request("http://internal/broadcast_task", {
-							method: "POST",
-							body: JSON.stringify({ type: "task_updated", task: updatedTask })
-						}));
-
-						return new Response(JSON.stringify(updatedTask), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
-					} else {
-						return new Response(JSON.stringify({ error: "No valid fields to update" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
-					}
+					return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 				} catch (e) {
 					return new Response(JSON.stringify({ error: "Bad request" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 				}
@@ -330,9 +317,9 @@ export class Chat extends Server<Env> {
 		if (data.type === "add") {
 			const newMsg: ChatMessage = {
 				id: data.id,
-				content: data.content,
-				user: data.user,
-				role: data.role,
+				text: data.text,
+				userId: data.userId,
+				ts: data.ts,
 			};
 			this.messages.push(newMsg);
 			if (this.messages.length > 100) this.messages.shift(); // Keep last 100

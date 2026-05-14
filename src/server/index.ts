@@ -14,7 +14,6 @@ async function hashPassword(password: string): Promise<string> {
 	return hashHex;
 }
 
-// password -> 5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8
 
 const CORS_HEADERS = {
 	"Access-Control-Allow-Origin": "*",
@@ -28,7 +27,7 @@ async function initDb(db: D1Database) {
 	if (dbInitialized) return;
 
 	await db.prepare("CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, initials TEXT NOT NULL, hash TEXT NOT NULL, active INTEGER DEFAULT 0, last_seen INTEGER DEFAULT 0)").run();
-	await db.prepare("CREATE TABLE IF NOT EXISTS spaces_v2 (id TEXT PRIMARY KEY, name TEXT NOT NULL, color TEXT, emoji TEXT, enabledViews TEXT, columns TEXT, customFields TEXT, emailReminders INTEGER, emailDigestTime TEXT)").run();
+	await db.prepare("CREATE TABLE IF NOT EXISTS spaces (id TEXT PRIMARY KEY, name TEXT NOT NULL, color TEXT, emoji TEXT, enabledViews TEXT, columns TEXT, customFields TEXT, emailReminders INTEGER, emailDigestTime TEXT)").run();
 
 	dbInitialized = true;
 }
@@ -182,7 +181,7 @@ export default {
 			}
 
 			if (url.pathname === '/api/spaces' && request.method === 'GET') {
-				const { results } = await env.DB.prepare("SELECT * FROM spaces_v2").all();
+				const { results } = await env.DB.prepare("SELECT * FROM spaces").all();
 				const parsed = results.map((r: any) => ({
 					...r,
 					enabledViews: r.enabledViews ? JSON.parse(r.enabledViews) : { list: true, kanban: true, calendar: true, gantt: true },
@@ -206,7 +205,7 @@ export default {
 				const emailReminders = body.emailReminders ? 1 : 0;
 				const emailDigestTime = body.emailDigestTime || '09:00';
 
-				await env.DB.prepare("INSERT INTO spaces_v2 (id, name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+				await env.DB.prepare("INSERT INTO spaces (id, name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
 					.bind(id, name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime).run();
 
 				const safeId = id.replace(/[^a-zA-Z0-9_]/g, '');
@@ -229,7 +228,7 @@ export default {
 					const emailReminders = body.emailReminders ? 1 : 0;
 					const emailDigestTime = body.emailDigestTime;
 
-					await env.DB.prepare("UPDATE spaces_v2 SET name = ?, color = ?, emoji = ?, enabledViews = ?, columns = ?, customFields = ?, emailReminders = ?, emailDigestTime = ? WHERE id = ?")
+					await env.DB.prepare("UPDATE spaces SET name = ?, color = ?, emoji = ?, enabledViews = ?, columns = ?, customFields = ?, emailReminders = ?, emailDigestTime = ? WHERE id = ?")
 						.bind(name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime, id).run();
 
 					return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
@@ -238,17 +237,6 @@ export default {
 				}
 			}
 
-			if (url.pathname === '/api/templates' && request.method === 'GET') {
-				const { results } = await env.DB.prepare("SELECT * FROM templates").all();
-				return new Response(JSON.stringify(results), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
-			}
-			if (url.pathname === '/api/templates' && request.method === 'POST') {
-				const body = await request.json() as any;
-				const { meta } = await env.DB.prepare("INSERT INTO templates (name, default_status, default_type, duration) VALUES (?1, ?2, ?3, ?4)")
-					.bind(body.name, body.default_status || 'To Do', body.default_type || 'Task', body.duration || 1)
-					.run();
-				return new Response(JSON.stringify({ id: meta.last_row_id }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
-			}
 
 			if (url.pathname === '/api/tasks' && request.method === 'GET') {
 				const spaceId = url.searchParams.get('space_id');

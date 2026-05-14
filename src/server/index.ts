@@ -23,6 +23,42 @@ const CORS_HEADERS = {
 
 let dbInitialized = false;
 
+// Simple in-memory rate limiter for unauthenticated endpoints
+const rateLimitMap = new Map<string, number[]>();
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+const MAX_REQUESTS_PER_WINDOW = 5;
+
+function isRateLimited(ip: string): boolean {
+	const now = Date.now();
+	const windowStart = now - RATE_LIMIT_WINDOW_MS;
+
+	let timestamps = rateLimitMap.get(ip) || [];
+	// Filter out timestamps older than the window
+	timestamps = timestamps.filter(ts => ts > windowStart);
+
+	if (timestamps.length >= MAX_REQUESTS_PER_WINDOW) {
+		rateLimitMap.set(ip, timestamps);
+		return true;
+	}
+
+	timestamps.push(now);
+	rateLimitMap.set(ip, timestamps);
+
+	// Optional: cleanup old entries periodically to prevent memory leak
+	if (Math.random() < 0.05) {
+		for (const [key, times] of rateLimitMap.entries()) {
+			const validTimes = times.filter(ts => ts > windowStart);
+			if (validTimes.length === 0) {
+				rateLimitMap.delete(key);
+			} else {
+				rateLimitMap.set(key, validTimes);
+			}
+		}
+	}
+
+	return false;
+}
+
 async function initDb(db: D1Database) {
 	if (dbInitialized) return;
 
@@ -42,6 +78,10 @@ export default {
 
 		const userMatch = url.pathname.match(/^\/api\/user\/([^/]+)$/);
 		if (userMatch && request.method === 'GET') {
+			const ip = request.headers.get('cf-connecting-ip') || 'unknown';
+			if (isRateLimited(ip)) {
+				return new Response(JSON.stringify({ error: "Too Many Requests" }), { status: 429, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+			}
 			await initDb(env.DB);
 			const id = userMatch[1];
 			const { results } = await env.DB.prepare("SELECT hash FROM users WHERE id = ?").bind(id).all();

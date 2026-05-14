@@ -13,7 +13,6 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SpaceSpaceIdRouteImport } from './routes/space.$spaceId'
 import { Route as ChatUserIdRouteImport } from './routes/chat.$userId'
-import { Route as SpaceSpaceIdSettingsRouteImport } from './routes/space.$spaceId.settings'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
@@ -35,63 +34,39 @@ const ChatUserIdRoute = ChatUserIdRouteImport.update({
   path: '/chat/$userId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SpaceSpaceIdSettingsRoute = SpaceSpaceIdSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => SpaceSpaceIdRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
   '/chat/$userId': typeof ChatUserIdRoute
-  '/space/$spaceId': typeof SpaceSpaceIdRouteWithChildren
-  '/space/$spaceId/settings': typeof SpaceSpaceIdSettingsRoute
+  '/space/$spaceId': typeof SpaceSpaceIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
   '/chat/$userId': typeof ChatUserIdRoute
-  '/space/$spaceId': typeof SpaceSpaceIdRouteWithChildren
-  '/space/$spaceId/settings': typeof SpaceSpaceIdSettingsRoute
+  '/space/$spaceId': typeof SpaceSpaceIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
   '/chat/$userId': typeof ChatUserIdRoute
-  '/space/$spaceId': typeof SpaceSpaceIdRouteWithChildren
-  '/space/$spaceId/settings': typeof SpaceSpaceIdSettingsRoute
+  '/space/$spaceId': typeof SpaceSpaceIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/settings'
-    | '/chat/$userId'
-    | '/space/$spaceId'
-    | '/space/$spaceId/settings'
+  fullPaths: '/' | '/settings' | '/chat/$userId' | '/space/$spaceId'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/settings'
-    | '/chat/$userId'
-    | '/space/$spaceId'
-    | '/space/$spaceId/settings'
-  id:
-    | '__root__'
-    | '/'
-    | '/settings'
-    | '/chat/$userId'
-    | '/space/$spaceId'
-    | '/space/$spaceId/settings'
+  to: '/' | '/settings' | '/chat/$userId' | '/space/$spaceId'
+  id: '__root__' | '/' | '/settings' | '/chat/$userId' | '/space/$spaceId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SettingsRoute: typeof SettingsRoute
   ChatUserIdRoute: typeof ChatUserIdRoute
-  SpaceSpaceIdRoute: typeof SpaceSpaceIdRouteWithChildren
+  SpaceSpaceIdRoute: typeof SpaceSpaceIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -124,33 +99,14 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatUserIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/space/$spaceId/settings': {
-      id: '/space/$spaceId/settings'
-      path: '/settings'
-      fullPath: '/space/$spaceId/settings'
-      preLoaderRoute: typeof SpaceSpaceIdSettingsRouteImport
-      parentRoute: typeof SpaceSpaceIdRoute
-    }
   }
 }
-
-interface SpaceSpaceIdRouteChildren {
-  SpaceSpaceIdSettingsRoute: typeof SpaceSpaceIdSettingsRoute
-}
-
-const SpaceSpaceIdRouteChildren: SpaceSpaceIdRouteChildren = {
-  SpaceSpaceIdSettingsRoute: SpaceSpaceIdSettingsRoute,
-}
-
-const SpaceSpaceIdRouteWithChildren = SpaceSpaceIdRoute._addFileChildren(
-  SpaceSpaceIdRouteChildren,
-)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SettingsRoute: SettingsRoute,
   ChatUserIdRoute: ChatUserIdRoute,
-  SpaceSpaceIdRoute: SpaceSpaceIdRouteWithChildren,
+  SpaceSpaceIdRoute: SpaceSpaceIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

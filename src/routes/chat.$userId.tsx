@@ -21,6 +21,8 @@ function ChatPage() {
   const roomName = [me, userId].sort().join("_");
 
   const socket = usePartySocket({
+    host: typeof window !== "undefined" ? window.location.host : undefined,
+    party: "chat",
     room: roomName,
     onMessage: (e) => {
       try {

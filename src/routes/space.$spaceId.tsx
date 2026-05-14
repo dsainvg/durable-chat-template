@@ -52,6 +52,8 @@ function SpacePage() {
   }, [spaceId, update]);
 
   const socket = usePartySocket({
+    host: typeof window !== "undefined" ? window.location.host : undefined,
+    party: "chat",
     room: spaceId,
     onMessage: (e) => {
       try {

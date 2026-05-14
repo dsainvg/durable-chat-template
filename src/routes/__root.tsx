@@ -88,7 +88,7 @@ function ThemedLayout() {
   useEffect(() => { applyTheme(state.theme); }, [state.theme]);
 
   useEffect(() => {
-    const verifyToken = async () => {
+    const verifyTokenAndLoadData = async () => {
       const token = localStorage.getItem("syncduo_token");
       if (!token) {
         setIsVerifying(false);
@@ -96,31 +96,50 @@ function ThemedLayout() {
       }
 
       try {
-        const res = await fetch("/api/heartbeat", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${token}`
-          }
-        });
+        const [heartbeatRes, spacesRes, usersRes] = await Promise.all([
+          fetch("/api/heartbeat", { method: "POST", headers: { "Authorization": `Bearer ${token}` } }),
+          fetch("/api/spaces", { headers: { "Authorization": `Bearer ${token}` } }),
+          fetch("/api/users")
+        ]);
 
-        if (res.ok) {
+        if (heartbeatRes.ok) {
           setIsAuthenticated(true);
+
+          let fetchedSpaces: any[] = [];
+          if (spacesRes.ok) fetchedSpaces = await spacesRes.json();
+
+          let fetchedUsers: any[] = [];
+          if (usersRes.ok) fetchedUsers = await usersRes.json();
+
+          // Restore session user ID from token
+          const decoded = atob(token);
+          const [currentUserId] = decoded.split(':');
+
+          update(s => ({ ...s, currentUserId, spaces: fetchedSpaces, users: fetchedUsers }));
         } else {
           localStorage.removeItem("syncduo_token");
         }
       } catch (e) {
-        console.error("Failed to verify token", e);
+        console.error("Failed to verify token or load data", e);
       } finally {
         setIsVerifying(false);
       }
     };
 
-    verifyToken();
-  }, []);
+    verifyTokenAndLoadData();
+  }, [update]);
 
-  const handleLogin = (token: string, userId: string) => {
+  const handleLogin = async (token: string, userId: string) => {
     localStorage.setItem("syncduo_token", token);
-    update(s => ({ ...s, currentUserId: userId }));
+    try {
+      const spacesRes = await fetch("/api/spaces", { headers: { "Authorization": `Bearer ${token}` } });
+      let fetchedSpaces: any[] = [];
+      if (spacesRes.ok) fetchedSpaces = await spacesRes.json();
+
+      update(s => ({ ...s, currentUserId: userId, spaces: fetchedSpaces }));
+    } catch(e) {
+      update(s => ({ ...s, currentUserId: userId }));
+    }
     setIsAuthenticated(true);
   };
 

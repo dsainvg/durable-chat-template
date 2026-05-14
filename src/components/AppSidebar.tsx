@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 export function AppSidebar() {
   const { state, update } = useStore();
   const path = useRouterState({ select: (r) => r.location.pathname });
-  const me = state.users.find((u) => u.id === state.currentUserId)!;
-  const others = state.users.filter((u) => u.id !== me.id);
+  const me = state.users.find((u) => u.id === state.currentUserId);
+  const others = state.users.filter((u) => me && u.id !== me.id);
 
   const addSpace = () => {
     const name = prompt("Space name?");
@@ -109,10 +109,10 @@ export function AppSidebar() {
           <span>Settings</span>
         </Link>
         <div className="flex items-center gap-2 px-2 py-1.5">
-          <div className="size-7 rounded-full bg-muted ring-1 ring-border grid place-items-center text-[11px] font-medium">{me.initials}</div>
+          <div className="size-7 rounded-full bg-muted ring-1 ring-border grid place-items-center text-[11px] font-medium">{me?.initials}</div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium truncate">{me.name}</p>
-            <p className="text-[10px] text-muted-foreground truncate">{me.email}</p>
+            <p className="text-xs font-medium truncate">{me?.name}</p>
+            <p className="text-[10px] text-muted-foreground truncate">{me?.email}</p>
           </div>
         </div>
       </div>

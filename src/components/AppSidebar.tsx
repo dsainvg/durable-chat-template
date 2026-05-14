@@ -14,36 +14,61 @@ export function AppSidebar() {
   const [isSpaceDialogOpen, setIsSpaceDialogOpen] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState("");
 
-  const handleAddSpace = (e: React.FormEvent) => {
+  const handleAddSpace = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSpaceName.trim()) return;
     
-    update((s) => ({
-      ...s,
-      spaces: [
-        ...s.spaces,
-        {
-          id: uid(),
-          name: newSpaceName.trim(),
-          color: "brand",
-          emoji: "✨",
-          enabledViews: { list: true, kanban: true, calendar: true, gantt: true },
-          columns: [
-            { id: "todo", name: "To Do" },
-            { id: "doing", name: "Doing" },
-            { id: "done", name: "Done" },
-          ],
-          customFields: [],
-          emailReminders: false,
-          emailDigestTime: "09:00",
-          tasks: [],
-          channel: [],
+    const token = localStorage.getItem("syncduo_token");
+    if (!token) {
+      console.error("No token found");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/spaces", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-      ],
-    }));
-    
-    setNewSpaceName("");
-    setIsSpaceDialogOpen(false);
+        body: JSON.stringify({ name: newSpaceName.trim() }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to create space");
+      }
+
+      const data = await res.json() as any;
+
+      update((s) => ({
+        ...s,
+        spaces: [
+          ...s.spaces,
+          {
+            id: data.id,
+            name: newSpaceName.trim(),
+            color: "brand",
+            emoji: "✨",
+            enabledViews: { list: true, kanban: true, calendar: true, gantt: true },
+            columns: [
+              { id: "todo", name: "To Do" },
+              { id: "doing", name: "Doing" },
+              { id: "done", name: "Done" },
+            ],
+            customFields: [],
+            emailReminders: false,
+            emailDigestTime: "09:00",
+            tasks: [],
+            channel: [],
+          },
+        ],
+      }));
+
+      setNewSpaceName("");
+      setIsSpaceDialogOpen(false);
+    } catch (err) {
+      console.error("Error creating space:", err);
+    }
   };
 
   return (

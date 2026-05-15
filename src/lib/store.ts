@@ -50,6 +50,7 @@ export interface User {
   name: string;
   initials: string;
   email: string;
+  settings?: string;
 }
 
 export interface AppState {
@@ -61,7 +62,7 @@ export interface AppState {
   notificationsEmail: string;
 }
 
-const STORAGE_KEY = "syncduo:v5";
+const STORAGE_KEY = "syncduo:v6";
 
 const seed = (): AppState => ({
   currentUserId: "",

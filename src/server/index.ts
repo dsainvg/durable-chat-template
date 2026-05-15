@@ -123,7 +123,12 @@ function isRateLimited(ip: string): boolean {
 async function initDb(db: D1Database) {
 	if (dbInitialized) return;
 
-	await db.prepare("CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, initials TEXT NOT NULL, hash TEXT NOT NULL, active INTEGER DEFAULT 0, last_seen INTEGER DEFAULT 0)").run();
+	await db.prepare("CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, initials TEXT NOT NULL, hash TEXT NOT NULL, active INTEGER DEFAULT 0, last_seen INTEGER DEFAULT 0, settings TEXT)").run();
+	try {
+		await db.prepare("ALTER TABLE users ADD COLUMN settings TEXT").run();
+	} catch (e) {
+		// Ignore if column already exists
+	}
 	await db.prepare("CREATE TABLE IF NOT EXISTS spaces (id TEXT PRIMARY KEY, name TEXT NOT NULL, color TEXT, emoji TEXT, enabledViews TEXT, columns TEXT, customFields TEXT, emailReminders INTEGER, emailDigestTime TEXT, settings TEXT)").run();
 
 	dbInitialized = true;
@@ -265,8 +270,9 @@ export default {
 					const name = body.name || '';
 					const email = body.email || '';
 					const initials = body.initials || '';
+					const settings = body.settings || '{}';
 
-					await env.DB.prepare("UPDATE users SET name = ?, email = ?, initials = ? WHERE id = ?").bind(name, email, initials, id).run();
+					await env.DB.prepare("UPDATE users SET name = ?, email = ?, initials = ?, settings = ? WHERE id = ?").bind(name, email, initials, settings, id).run();
 					return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 				} catch (e) {
 					return new Response(JSON.stringify({ error: "Bad request" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
@@ -274,7 +280,7 @@ export default {
 			}
 
 			if (url.pathname === '/api/users' && request.method === 'GET') {
-				const { results } = await env.DB.prepare("SELECT id, name, email, initials, active, last_seen FROM users").all();
+				const { results } = await env.DB.prepare("SELECT id, name, email, initials, active, last_seen, settings FROM users").all();
 				return new Response(JSON.stringify(results), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 			}
 

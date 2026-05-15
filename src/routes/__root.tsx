@@ -115,7 +115,23 @@ function ThemedLayout() {
           const decoded = atob(token);
           const [currentUserId] = decoded.split(':');
 
-          update(s => ({ ...s, currentUserId, spaces: fetchedSpaces, users: fetchedUsers }));
+          update(s => {
+            let theme = s.theme;
+            let notificationsEmail = s.notificationsEmail;
+
+            const currentUser = fetchedUsers.find(u => u.id === currentUserId);
+            if (currentUser && currentUser.settings) {
+              try {
+                const settings = JSON.parse(currentUser.settings);
+                if (settings.theme) theme = settings.theme;
+                if (settings.notificationsEmail !== undefined) notificationsEmail = settings.notificationsEmail;
+              } catch (e) {
+                console.error("Failed to parse user settings", e);
+              }
+            }
+
+            return { ...s, currentUserId, spaces: fetchedSpaces, users: fetchedUsers, theme, notificationsEmail };
+          });
         } else {
           localStorage.removeItem("syncduo_token");
         }
@@ -132,11 +148,33 @@ function ThemedLayout() {
   const handleLogin = async (token: string, userId: string) => {
     localStorage.setItem("syncduo_token", token);
     try {
-      const spacesRes = await fetch("/api/spaces", { headers: { "Authorization": `Bearer ${token}` } });
+      const [spacesRes, usersRes] = await Promise.all([
+        fetch("/api/spaces", { headers: { "Authorization": `Bearer ${token}` } }),
+        fetch("/api/users")
+      ]);
       let fetchedSpaces: any[] = [];
       if (spacesRes.ok) fetchedSpaces = await spacesRes.json();
 
-      update(s => ({ ...s, currentUserId: userId, spaces: fetchedSpaces }));
+      let fetchedUsers: any[] = [];
+      if (usersRes.ok) fetchedUsers = await usersRes.json();
+
+      update(s => {
+        let theme = s.theme;
+        let notificationsEmail = s.notificationsEmail;
+
+        const currentUser = fetchedUsers.find(u => u.id === userId);
+        if (currentUser && currentUser.settings) {
+          try {
+            const settings = JSON.parse(currentUser.settings);
+            if (settings.theme) theme = settings.theme;
+            if (settings.notificationsEmail !== undefined) notificationsEmail = settings.notificationsEmail;
+          } catch (e) {
+            console.error("Failed to parse user settings", e);
+          }
+        }
+
+        return { ...s, currentUserId: userId, spaces: fetchedSpaces, users: fetchedUsers, theme, notificationsEmail };
+      });
     } catch(e) {
       update(s => ({ ...s, currentUserId: userId }));
     }

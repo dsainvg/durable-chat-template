@@ -465,7 +465,7 @@ export default {
 					const priority = body.priority || 'medium';
 					const custom = JSON.stringify(body.custom || {});
 					const space_id = body.space_id;
-					const notificationsEmail = body.notificationsEmail;
+					const userEmail = body.userEmail;
 
 					if (!space_id) {
 						return new Response(JSON.stringify({ error: "space_id is required" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
@@ -482,7 +482,7 @@ export default {
 					};
 
 					// Send email reminder if configured
-					if (notificationsEmail && env.SMTP_USER && env.SMTP_PASS) {
+					if (userEmail && env.SMTP_USER && env.SMTP_PASS) {
 						const { results } = await env.DB.prepare("SELECT emailReminders FROM spaces WHERE id = ?").bind(space_id).all();
 						if (results.length > 0 && results[0].emailReminders) {
 							ctx.waitUntil((async () => {
@@ -498,7 +498,7 @@ export default {
 									});
 									await transport.sendMail({
 										from: env.SMTP_USER,
-										to: notificationsEmail,
+										to: userEmail,
 										subject: `Task Reminder: ${title}`,
 										text: `You have an updated task in space ${space_id}.\n\nTitle: ${title}\nDescription: ${description}\nStatus: ${status}\nPriority: ${priority}\nDue Date: ${due_date || 'None'}\n\nCustom settings:\n${custom}`,
 									});

@@ -58,7 +58,6 @@ export interface AppState {
   spaces: Space[];
   dms: Record<string, ChatMessage[]>; // key = other user id
   theme: "graphite" | "midnight" | "crimson" | "forest";
-  notificationsEmail: string;
 }
 
 export const STORAGE_KEY = "syncduo:v5";
@@ -66,7 +65,6 @@ export const STORAGE_KEY = "syncduo:v5";
 const seed = (): AppState => ({
   currentUserId: "",
   theme: "graphite",
-  notificationsEmail: "you@example.com",
   users: [],
   spaces: [],
   dms: {},

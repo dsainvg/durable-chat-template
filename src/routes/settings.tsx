@@ -25,7 +25,6 @@ function SettingsPage() {
   const me = state.users.find((u) => u.id === state.currentUserId)!;
   const [name, setName] = useState(me.name);
   const [email, setEmail] = useState(me.email);
-  const [notifEmail, setNotifEmail] = useState(state.notificationsEmail);
   const [pw, setPw] = useState({ cur: "", next: "", confirm: "" });
   const [emailNotif, setEmailNotif] = useState(true);
 
@@ -52,7 +51,6 @@ function SettingsPage() {
     // Update local store
     update((s) => ({
       ...s,
-      notificationsEmail: notifEmail,
       users: s.users.map((u) => (u.id === me.id ? { ...u, name, email, initials } : u)),
     }));
     toast.success("Profile saved");
@@ -114,11 +112,7 @@ function SettingsPage() {
             <div>
               <Label className="text-xs">Email</Label>
               <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-            </div>
-            <div>
-              <Label className="text-xs">Notifications email</Label>
-              <Input type="email" value={notifEmail} onChange={(e) => setNotifEmail(e.target.value)} />
-              <p className="text-[10px] text-muted-foreground mt-1">All reminders are mailed to this address.</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Used for login and notifications.</p>
             </div>
             <Button onClick={saveProfile}>Save profile</Button>
           </div>
@@ -148,7 +142,7 @@ function SettingsPage() {
           <div className="flex items-center justify-between bg-card border border-border rounded-lg p-3">
             <div>
               <p className="text-sm">Email me task updates</p>
-              <p className="text-xs text-muted-foreground">Sent to {notifEmail}</p>
+              <p className="text-xs text-muted-foreground">Sent to {email}</p>
             </div>
             <Switch checked={emailNotif} onCheckedChange={setEmailNotif} />
           </div>

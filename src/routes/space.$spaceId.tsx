@@ -144,8 +144,10 @@ function SpacePage() {
     const token = localStorage.getItem("syncduo_token");
     if (!token) return;
 
+    const me = state.users.find((u) => u.id === state.currentUserId);
+
     try {
-      const payload = { ...t, space_id: spaceId, notificationsEmail: state.notificationsEmail };
+      const payload = { ...t, space_id: spaceId, userEmail: me?.email };
       await fetch(`/api/tasks`, {
         method: "POST",
         headers: {
@@ -165,9 +167,9 @@ function SpacePage() {
         ),
       }));
 
-      if (space.emailReminders && state.notificationsEmail) {
+      if (space.emailReminders && me?.email) {
         toast.success(`Reminder queued`, {
-          description: `Email will be sent to ${state.notificationsEmail} at ${space.emailDigestTime}`,
+          description: `Email will be sent to ${me.email} at ${space.emailDigestTime}`,
         });
       }
     } catch (e) {

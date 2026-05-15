@@ -33,6 +33,7 @@ export function SpaceSettingsDialog({
   const { state, update } = useStore();
   const navigate = useNavigate();
   const space = state.spaces.find((s) => s.id === spaceId);
+  const me = state.users.find((u) => u.id === state.currentUserId);
 
   const [localSpace, setLocalSpace] = useState(space);
 
@@ -302,7 +303,7 @@ export function SpaceSettingsDialog({
             <div className="flex items-center justify-between bg-card border border-border rounded-lg p-3">
               <div>
                 <p className="text-sm">Daily digest</p>
-                <p className="text-xs text-muted-foreground">Sent to {state.notificationsEmail}</p>
+                <p className="text-xs text-muted-foreground">Sent to {me?.email}</p>
               </div>
               <Switch
                 checked={localSpace.emailReminders}
@@ -331,13 +332,13 @@ export function SpaceSettingsDialog({
                       "Content-Type": "application/json",
                       ...(token ? { Authorization: `Bearer ${token}` } : {})
                     },
-                    body: JSON.stringify({ email: state.notificationsEmail })
+                    body: JSON.stringify({ email: me?.email })
                   });
                   if (!res.ok) {
                     const err = await res.json().catch(() => ({ error: "Failed to send email" })) as any;
                     throw new Error(err.error || "Failed to send email");
                   }
-                  toast.success("Test reminder sent", { id: "test-email", description: `→ ${state.notificationsEmail}` });
+                  toast.success("Test reminder sent", { id: "test-email", description: `→ ${me?.email}` });
                 } catch (e: any) {
                   toast.error("Failed to send test reminder", { id: "test-email", description: e.message });
                 }

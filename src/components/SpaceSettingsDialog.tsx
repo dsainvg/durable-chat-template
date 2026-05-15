@@ -127,14 +127,64 @@ export function SpaceSettingsDialog({
             </div>
           </Section>
 
-          <Section title="View Settings" subtitle="Settings for every view in JSON format.">
-            <div>
-              <Textarea
-                className="font-mono text-xs w-full h-32"
-                placeholder='{"table": {"showDescription": true}}'
-                value={localSpace.settings || ""}
-                onChange={(e) => patchLocal((sp) => ({ ...sp, settings: e.target.value }))}
-              />
+          <Section title="View Settings" subtitle="Configure preferences for specific views.">
+            <div className="space-y-4">
+              <div className="bg-card border border-border rounded-lg p-4 space-y-3">
+                <h3 className="text-sm font-medium">Table View Columns</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: "status", label: "Status" },
+                    { id: "assignee", label: "Assignee" },
+                    { id: "priority", label: "Priority" },
+                    { id: "dueDate", label: "Due Date" },
+                  ].map((field) => (
+                    <label key={field.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <Switch
+                        checked={localSpace.settings?.table?.hiddenFields?.[field.id] !== true}
+                        onCheckedChange={(c) =>
+                          patchLocal((sp) => ({
+                            ...sp,
+                            settings: {
+                              ...sp.settings,
+                              table: {
+                                ...(sp.settings?.table || {}),
+                                hiddenFields: {
+                                  ...(sp.settings?.table?.hiddenFields || {}),
+                                  [field.id]: !c
+                                }
+                              }
+                            }
+                          }))
+                        }
+                      />
+                      {field.label}
+                    </label>
+                  ))}
+                  {localSpace.customFields.map((f) => (
+                    <label key={f.id} className="flex items-center gap-2 text-sm cursor-pointer text-muted-foreground">
+                      <Switch
+                        checked={localSpace.settings?.table?.hiddenFields?.[f.id] !== true}
+                        onCheckedChange={(c) =>
+                          patchLocal((sp) => ({
+                            ...sp,
+                            settings: {
+                              ...sp.settings,
+                              table: {
+                                ...(sp.settings?.table || {}),
+                                hiddenFields: {
+                                  ...(sp.settings?.table?.hiddenFields || {}),
+                                  [f.id]: !c
+                                }
+                              }
+                            }
+                          }))
+                        }
+                      />
+                      {f.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
             </div>
           </Section>
 

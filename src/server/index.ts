@@ -328,11 +328,11 @@ export default {
 				const { results } = await env.DB.prepare("SELECT * FROM spaces").all();
 				const parsed = results.map((r: any) => ({
 					...r,
-					enabledViews: r.enabledViews ? JSON.parse(r.enabledViews) : { list: true, kanban: true, calendar: true, gantt: true },
+					enabledViews: r.enabledViews ? JSON.parse(r.enabledViews) : { list: true, kanban: true, calendar: true, gantt: true, table: true },
 					columns: r.columns ? JSON.parse(r.columns) : [{ id: "todo", name: "To Do" }, { id: "doing", name: "Doing" }, { id: "done", name: "Done" }],
 					customFields: r.customFields ? JSON.parse(r.customFields) : [],
 					emailReminders: Boolean(r.emailReminders),
-					settings: r.settings || "{}",
+					settings: r.settings ? JSON.parse(r.settings) : {},
 					tasks: [], // fetched separately
 					channel: [] // fetched separately or handled by party socket
 				}));
@@ -344,12 +344,12 @@ export default {
 				const name = body.name || 'New Space';
 				const color = body.color || 'brand';
 				const emoji = body.emoji || '✨';
-				const enabledViews = JSON.stringify(body.enabledViews || { list: true, kanban: true, calendar: true, gantt: true });
+				const enabledViews = JSON.stringify(body.enabledViews || { list: true, kanban: true, calendar: true, gantt: true, table: true });
 				const columns = JSON.stringify(body.columns || [{ id: "todo", name: "To Do" }, { id: "doing", name: "Doing" }, { id: "done", name: "Done" }]);
 				const customFields = JSON.stringify(body.customFields || []);
 				const emailReminders = body.emailReminders ? 1 : 0;
 				const emailDigestTime = body.emailDigestTime || '09:00';
-				const settings = body.settings || '{}';
+				const settings = JSON.stringify(body.settings || {});
 
 				await env.DB.prepare("INSERT INTO spaces (id, name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime, settings) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 					.bind(id, name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime, settings).run();
@@ -409,10 +409,20 @@ export default {
 					const customFields = JSON.stringify(body.customFields);
 					const emailReminders = body.emailReminders ? 1 : 0;
 					const emailDigestTime = body.emailDigestTime;
-					const settings = body.settings || '{}';
+					const settings = JSON.stringify(body.settings || {});
 
 					await env.DB.prepare("UPDATE spaces SET name = ?, color = ?, emoji = ?, enabledViews = ?, columns = ?, customFields = ?, emailReminders = ?, emailDigestTime = ?, settings = ? WHERE id = ?")
 						.bind(name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime, settings, id).run();
+
+					const idStr = env.Chat.idFromName(id);
+					const chatStub = env.Chat.get(idStr);
+					await chatStub.fetch(new Request("http://internal/broadcast_task", {
+						method: "POST",
+						body: JSON.stringify({ 
+							type: "space_updated", 
+							space: { id, name, color, emoji, enabledViews: body.enabledViews, columns: body.columns, customFields: body.customFields, emailReminders: body.emailReminders, emailDigestTime, settings: body.settings || {} }
+						})
+					}));
 
 					return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 				} catch (e) {

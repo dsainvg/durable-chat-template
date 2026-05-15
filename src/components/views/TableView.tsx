@@ -7,6 +7,8 @@ export function TableView({ space, onOpen }: { space: Space; onOpen: (t: Task) =
   const userMap = useMemo(() => Object.fromEntries(state.users.map((u) => [u.id, u])), [state.users]);
   const statusMap = useMemo(() => Object.fromEntries(space.columns.map(c => [c.id, c.name])), [space.columns]);
 
+  const hiddenFields = space.settings?.table?.hiddenFields || {};
+
   return (
     <div className="p-6">
       <div className="rounded-lg border border-border overflow-hidden bg-card">
@@ -15,19 +17,19 @@ export function TableView({ space, onOpen }: { space: Space; onOpen: (t: Task) =
             <thead className="text-xs text-muted-foreground bg-muted/50 uppercase border-b border-border">
               <tr>
                 <th className="px-4 py-3 font-medium">Title</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Assignee</th>
-                <th className="px-4 py-3 font-medium">Priority</th>
-                <th className="px-4 py-3 font-medium">Due Date</th>
+                {!hiddenFields["status"] && <th className="px-4 py-3 font-medium">Status</th>}
+                {!hiddenFields["assignee"] && <th className="px-4 py-3 font-medium">Assignee</th>}
+                {!hiddenFields["priority"] && <th className="px-4 py-3 font-medium">Priority</th>}
+                {!hiddenFields["dueDate"] && <th className="px-4 py-3 font-medium">Due Date</th>}
                 {space.customFields?.map(f => (
-                  <th key={f.id} className="px-4 py-3 font-medium">{f.name}</th>
+                  !hiddenFields[f.id] && <th key={f.id} className="px-4 py-3 font-medium">{f.name}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {space.tasks.length === 0 ? (
                 <tr>
-                  <td colSpan={5 + (space.customFields?.length || 0)} className="px-4 py-8 text-center text-muted-foreground italic">
+                  <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground italic">
                     No tasks found
                   </td>
                 </tr>
@@ -46,29 +48,39 @@ export function TableView({ space, onOpen }: { space: Space; onOpen: (t: Task) =
                         <span className="font-medium truncate max-w-[200px] sm:max-w-[300px]">{t.title}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground border border-border">
-                        {statusMap[t.status] || t.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <div className="size-6 rounded-full bg-muted ring-1 ring-border grid place-items-center text-[10px]">
-                          {userMap[t.assignee]?.initials ?? "?"}
-                        </div>
-                        <span className="text-muted-foreground text-xs">{userMap[t.assignee]?.name || "Unassigned"}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap capitalize text-muted-foreground text-xs">
-                      {t.priority}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-muted-foreground text-xs">
-                      {t.dueDate ? new Date(t.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "-"}
-                    </td>
-                    {space.customFields?.map(f => (
-                      <td key={f.id} className="px-4 py-3 text-muted-foreground text-xs truncate max-w-[150px]">
-                        {t.custom[f.id] || "-"}
+                    {!hiddenFields["status"] && (
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground border border-border">
+                          {statusMap[t.status] || t.status}
+                        </span>
                       </td>
+                    )}
+                    {!hiddenFields["assignee"] && (
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <div className="size-6 rounded-full bg-muted ring-1 ring-border grid place-items-center text-[10px]">
+                            {userMap[t.assignee]?.initials ?? "?"}
+                          </div>
+                          <span className="text-muted-foreground text-xs">{userMap[t.assignee]?.name || "Unassigned"}</span>
+                        </div>
+                      </td>
+                    )}
+                    {!hiddenFields["priority"] && (
+                      <td className="px-4 py-3 whitespace-nowrap capitalize text-muted-foreground text-xs">
+                        {t.priority}
+                      </td>
+                    )}
+                    {!hiddenFields["dueDate"] && (
+                      <td className="px-4 py-3 whitespace-nowrap text-muted-foreground text-xs">
+                        {t.dueDate ? new Date(t.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "-"}
+                      </td>
+                    )}
+                    {space.customFields?.map(f => (
+                      !hiddenFields[f.id] && (
+                        <td key={f.id} className="px-4 py-3 text-muted-foreground text-xs truncate max-w-[150px]">
+                          {t.custom[f.id] || "-"}
+                        </td>
+                      )
                     ))}
                   </tr>
                 ))

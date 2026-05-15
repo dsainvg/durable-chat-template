@@ -33,7 +33,7 @@ export interface Space {
   customFields: CustomField[];
   emailReminders: boolean;
   emailDigestTime: string;
-  settings: string;
+  settings: Record<string, any>;
   tasks: Task[];
   channel: ChatMessage[];
 }

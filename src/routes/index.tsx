@@ -1,4 +1,5 @@
-import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { useStore } from "@/lib/store";
 
 export const Route = createFileRoute("/")({
@@ -7,7 +8,15 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   const { state } = useStore();
+  const navigate = useNavigate();
   const first = state.spaces[0];
+
+  useEffect(() => {
+    if (first) {
+      navigate({ to: "/space/$spaceId", params: { spaceId: first.id }, replace: true });
+    }
+  }, [first, navigate]);
+
   if (!first) return <div className="p-8 text-muted-foreground">No spaces yet.</div>;
-  return <Navigate to="/space/$spaceId" params={{ spaceId: first.id }} replace />;
+  return null;
 }

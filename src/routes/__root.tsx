@@ -84,6 +84,7 @@ function ThemedLayout() {
   const { state, update } = useStore();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isVerifying, setIsVerifying] = useState(true);
+  const router = useRouter();
 
   useEffect(() => { applyTheme(state.theme); }, [state.theme]);
 
@@ -107,7 +108,7 @@ function ThemedLayout() {
         const [heartbeatRes, spacesRes, usersRes] = await Promise.all([
           fetch("/api/heartbeat", { method: "POST", headers: { "Authorization": `Bearer ${token}` } }),
           fetch("/api/spaces", { headers: { "Authorization": `Bearer ${token}` } }),
-          fetch("/api/users")
+          fetch("/api/users", { headers: { "Authorization": `Bearer ${token}` } })
         ]);
 
         if (heartbeatRes.ok) {
@@ -126,6 +127,14 @@ function ThemedLayout() {
           update(s => ({ ...s, currentUserId, spaces: fetchedSpaces, users: fetchedUsers }));
         } else {
           localStorage.removeItem("syncduo_token");
+          localStorage.removeItem(STORAGE_KEY);
+          update(s => ({
+            ...s,
+            currentUserId: "",
+            users: [],
+            spaces: [],
+            dms: {},
+          }));
         }
       } catch (e) {
         console.error("Failed to verify token or load data", e);
@@ -140,7 +149,11 @@ function ThemedLayout() {
   const handleLogin = async (token: string, userId: string) => {
     localStorage.setItem("syncduo_token", token);
     try {
-      const spacesRes = await fetch("/api/spaces", { headers: { "Authorization": `Bearer ${token}` } });
+      const [spacesRes, usersRes] = await Promise.all([
+        fetch("/api/spaces", { headers: { "Authorization": `Bearer ${token}` } }),
+        fetch("/api/users", { headers: { "Authorization": `Bearer ${token}` } })
+      ]);
+
       let fetchedSpaces: any[] = [];
       if (spacesRes.ok) {
         fetchedSpaces = await spacesRes.json();
@@ -161,11 +174,21 @@ function ThemedLayout() {
         );
       }
 
-      update(s => ({ ...s, currentUserId: userId, spaces: fetchedSpaces }));
+      let fetchedUsers: any[] = [];
+      if (usersRes.ok) {
+        fetchedUsers = await usersRes.json();
+      }
+
+      update(s => ({ ...s, currentUserId: userId, spaces: fetchedSpaces, users: fetchedUsers }));
+      
+      setIsAuthenticated(true);
+      if (router.state.location.pathname === "/" && fetchedSpaces.length > 0) {
+        router.navigate({ to: "/space/$spaceId", params: { spaceId: fetchedSpaces[0].id }, replace: true });
+      }
     } catch(e) {
       update(s => ({ ...s, currentUserId: userId }));
+      setIsAuthenticated(true);
     }
-    setIsAuthenticated(true);
   };
 
   if (isVerifying) {

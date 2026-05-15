@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
 
 import appCss from "../styles.css?url";
 import { AppSidebar } from "@/components/AppSidebar";
-import { useStore } from "@/lib/store";
+import { useStore, STORAGE_KEY } from "@/lib/store";
 import { applyTheme } from "@/lib/theme";
 import { Toaster } from "@/components/ui/sonner";
 import { LoginDialog } from "@/components/LoginDialog";
@@ -88,9 +88,27 @@ function ThemedLayout() {
   useEffect(() => { applyTheme(state.theme); }, [state.theme]);
 
   useEffect(() => {
+    const handleBeforeUnload = () => {
+      localStorage.removeItem("syncduo_token");
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, []);
+
+  useEffect(() => {
     const verifyTokenAndLoadData = async () => {
       const token = localStorage.getItem("syncduo_token");
       if (!token) {
+        localStorage.removeItem(STORAGE_KEY);
+        update(s => ({
+          ...s,
+          currentUserId: "",
+          users: [],
+          spaces: [],
+          dms: {},
+        }));
         setIsVerifying(false);
         return;
       }
@@ -134,7 +152,24 @@ function ThemedLayout() {
     try {
       const spacesRes = await fetch("/api/spaces", { headers: { "Authorization": `Bearer ${token}` } });
       let fetchedSpaces: any[] = [];
-      if (spacesRes.ok) fetchedSpaces = await spacesRes.json();
+      if (spacesRes.ok) {
+        fetchedSpaces = await spacesRes.json();
+        // Fetch tasks for each space
+        fetchedSpaces = await Promise.all(
+          fetchedSpaces.map(async (space) => {
+            try {
+              const tasksRes = await fetch(`/api/tasks?space_id=${space.id}`, { headers: { "Authorization": `Bearer ${token}` } });
+              if (tasksRes.ok) {
+                const tasks = await tasksRes.json();
+                return { ...space, tasks };
+              }
+            } catch (err) {
+              console.error(`Failed to fetch tasks for space ${space.id}`, err);
+            }
+            return { ...space, tasks: [] };
+          })
+        );
+      }
 
       update(s => ({ ...s, currentUserId: userId, spaces: fetchedSpaces }));
     } catch(e) {

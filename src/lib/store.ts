@@ -61,7 +61,7 @@ export interface AppState {
   notificationsEmail: string;
 }
 
-const STORAGE_KEY = "syncduo:v5";
+export const STORAGE_KEY = "syncduo:v5";
 
 const seed = (): AppState => ({
   currentUserId: "",

@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useStore } from "@/lib/store";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -17,6 +18,13 @@ function Index() {
     }
   }, [first, navigate]);
 
-  if (!first) return <div className="p-8 text-muted-foreground">No spaces yet.</div>;
+  if (!first) return (
+    <div className="flex flex-col h-full">
+      <header className="h-14 flex items-center gap-2 px-4 border-b border-border bg-card/30 sm:hidden">
+        <SidebarTrigger />
+      </header>
+      <div className="p-8 text-muted-foreground">No spaces yet.</div>
+    </div>
+  );
   return null;
 }

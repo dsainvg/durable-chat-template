@@ -33,7 +33,7 @@ export function ChannelPanel({ space, onClose, onSend }: { space: Space; onClose
   };
 
   return (
-    <aside className="w-80 border-l border-border bg-card flex flex-col flex-shrink-0">
+    <aside className="w-full sm:w-80 border-t sm:border-t-0 sm:border-l border-border bg-card flex flex-col flex-shrink-0 h-[50vh] sm:h-auto">
       <div className="h-12 px-4 flex items-center justify-between border-b border-border">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Channel</p>

@@ -10,6 +10,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 
 export function AppSidebar() {
   const { state, update } = useStore();
@@ -189,15 +190,18 @@ export function AppSidebar() {
         </DialogContent>
       </Dialog>
 
-      <aside className="w-64 flex-shrink-0 flex flex-col border-r border-border bg-sidebar">
-        <div className="p-4 flex items-center gap-2">
-          <div className="size-7 rounded bg-primary/20 ring-1 ring-primary/30 flex items-center justify-center">
-            <div className="size-2.5 rounded-full bg-primary" />
+      <Sidebar className="border-r border-border bg-sidebar">
+        <SidebarHeader className="p-4 flex flex-row items-center gap-2 justify-between">
+          <div className="flex items-center gap-2">
+            <div className="size-7 rounded bg-primary/20 ring-1 ring-primary/30 flex items-center justify-center">
+              <div className="size-2.5 rounded-full bg-primary" />
+            </div>
+            <span className="font-semibold tracking-tight">Sync Duo</span>
           </div>
-          <span className="font-semibold tracking-tight">Sync Duo</span>
-        </div>
+          <SidebarTrigger className="md:hidden" />
+        </SidebarHeader>
 
-        <nav className="flex-1 px-3 space-y-6 overflow-y-auto pt-2">
+        <SidebarContent className="px-3 space-y-6 pt-2">
           <div>
             <div className="px-2 mb-2 flex items-center justify-between">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Spaces</p>
@@ -247,9 +251,9 @@ export function AppSidebar() {
               })}
             </div>
           </div>
-        </nav>
+        </SidebarContent>
 
-        <div className="p-3 border-t border-border space-y-1">
+        <SidebarFooter className="p-3 border-t border-border space-y-1">
           <Link
             to="/settings"
             className={`w-full flex items-center gap-2 px-2 py-2 text-sm rounded-md transition-colors ${
@@ -266,8 +270,8 @@ export function AppSidebar() {
               <p className="text-[10px] text-muted-foreground truncate">{me?.email}</p>
             </div>
           </div>
-        </div>
-      </aside>
+        </SidebarFooter>
+      </Sidebar>
     </>
   );
 }

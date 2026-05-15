@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { useStore, uid } from "@/lib/store";
 import usePartySocket from "partysocket/react";
 import { Send } from "lucide-react";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 
 export const Route = createFileRoute("/chat/$userId")({
   component: ChatPage,
@@ -70,7 +71,8 @@ function ChatPage() {
 
   return (
     <>
-      <header className="h-14 flex items-center gap-3 px-6 border-b border-border bg-card/30">
+      <header className="h-14 flex items-center gap-3 px-4 sm:px-6 border-b border-border bg-card/30">
+        <SidebarTrigger className="sm:hidden" />
         <div className="size-8 rounded-full bg-muted ring-1 ring-border grid place-items-center text-xs font-medium">{other.initials}</div>
         <div>
           <p className="text-sm font-semibold">{other.name}</p>

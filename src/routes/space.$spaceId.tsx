@@ -4,6 +4,7 @@ import { useStore, uid, type Task, type ViewType } from "@/lib/store";
 import usePartySocket from "partysocket/react";
 import { Button } from "@/components/ui/button";
 import { Settings, Plus, MessageSquare } from "lucide-react";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { ListView } from "@/components/views/ListView";
 import { KanbanView } from "@/components/views/KanbanView";
 import { CalendarView } from "@/components/views/CalendarView";
@@ -213,13 +214,16 @@ function SpacePage() {
 
   return (
     <>
-      <header className="h-14 flex items-center justify-between px-6 border-b border-border bg-card/30 flex-shrink-0">
-        <div className="flex items-center gap-6 min-w-0">
-          <h1 className="text-sm font-semibold truncate flex items-center gap-2">
-            <span>{space.emoji}</span>
-            {space.name}
-          </h1>
-          <nav className="flex items-center gap-0.5">
+      <header className="h-14 flex items-center justify-between px-4 sm:px-6 border-b border-border bg-card/30 flex-shrink-0">
+        <div className="flex items-center gap-4 sm:gap-6 min-w-0">
+          <div className="flex items-center gap-2">
+            <SidebarTrigger className="sm:hidden" />
+            <h1 className="text-sm font-semibold truncate flex items-center gap-2">
+              <span>{space.emoji}</span>
+              <span className="hidden sm:inline">{space.name}</span>
+            </h1>
+          </div>
+          <nav className="flex items-center gap-0.5 overflow-x-auto no-scrollbar pb-1 sm:pb-0">
             {enabled.map((v) => (
               <button
                 key={v.id}
@@ -235,29 +239,31 @@ function SpacePage() {
             ))}
           </nav>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => setChannelOpen((o) => !o)}>
-            <MessageSquare className="size-4 mr-1.5" />
-            Channel
+        <div className="flex items-center gap-1 sm:gap-2">
+          <Button variant="ghost" size="sm" onClick={() => setChannelOpen((o) => !o)} className="px-2 sm:px-3">
+            <MessageSquare className="size-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Channel</span>
           </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setSettingsOpen(true)}
+            className="px-2 sm:px-3"
           >
             <Settings className="size-4" />
           </Button>
           <Button
             size="sm"
             onClick={() => { setOpenTask(newTask()); setCreating(true); }}
+            className="px-2 sm:px-3"
           >
-            <Plus className="size-3.5 mr-1" />
-            New Task
+            <Plus className="size-3.5 sm:mr-1" />
+            <span className="hidden sm:inline">New Task</span>
           </Button>
         </div>
       </header>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden flex-col sm:flex-row">
         <div className="flex-1 overflow-auto">
           {activeView === "list" && <ListView space={space} onOpen={(t) => { setOpenTask(t); setCreating(false); }} />}
           {activeView === "kanban" && <KanbanView space={space} onOpen={(t) => { setOpenTask(t); setCreating(false); }} onMove={updateTask} />}

@@ -15,6 +15,7 @@ import { useStore, STORAGE_KEY } from "@/lib/store";
 import { applyTheme } from "@/lib/theme";
 import { Toaster } from "@/components/ui/sonner";
 import { LoginDialog } from "@/components/LoginDialog";
+import { SidebarProvider } from "@/components/ui/sidebar";
 
 function NotFoundComponent() {
   return (
@@ -200,14 +201,16 @@ function ThemedLayout() {
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background text-foreground relative">
-      <AppSidebar />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <Outlet />
+    <SidebarProvider>
+      <div className="flex h-screen w-full overflow-hidden bg-background text-foreground relative">
+        <AppSidebar />
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <Outlet />
+        </div>
+        <Toaster />
+        <LoginDialog isOpen={!isAuthenticated} onLogin={handleLogin} />
       </div>
-      <Toaster />
-      <LoginDialog isOpen={!isAuthenticated} onLogin={handleLogin} />
-    </div>
+    </SidebarProvider>
   );
 }
 

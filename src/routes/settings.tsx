@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Check } from "lucide-react";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 
 export const Route = createFileRoute("/settings")({
   component: SettingsWrapper,
@@ -67,7 +68,8 @@ function SettingsPage() {
 
   return (
     <div className="flex-1 overflow-auto">
-      <header className="h-14 px-6 flex items-center border-b border-border bg-card/30">
+      <header className="h-14 px-4 sm:px-6 flex items-center gap-2 border-b border-border bg-card/30">
+        <SidebarTrigger className="sm:hidden" />
         <h1 className="text-sm font-semibold">Settings</h1>
       </header>
 

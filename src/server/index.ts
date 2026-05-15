@@ -1,6 +1,7 @@
 import { Server, routePartykitRequest } from "partyserver";
 import type { Connection } from "partyserver";
 import { Message, ChatMessage } from "../shared";
+import nodemailer from "nodemailer";
 
 // @ts-ignore
 import ssrHandler from "../../dist/server/server.mjs";
@@ -212,6 +213,42 @@ export default {
 				await env.DB.prepare(`CREATE TABLE IF NOT EXISTS tasks_${safeId} (id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT, status TEXT NOT NULL, assignee TEXT, due_date TEXT, start_date TEXT, priority TEXT, custom TEXT)`).run();
 
 				return new Response(JSON.stringify({ id }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+			}
+
+			const testEmailMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/test-email$/);
+			if (testEmailMatch && request.method === 'POST') {
+				try {
+					const body = await request.json() as any;
+					const email = body.email;
+					if (!email) {
+						return new Response(JSON.stringify({ error: "Missing email address" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+					}
+
+					if (!env.SMTP_USER || !env.SMTP_PASS) {
+						return new Response(JSON.stringify({ error: "SMTP credentials not configured in environment" }), { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+					}
+
+					const transporter = nodemailer.createTransport({
+						host: env.SMTP_HOST || "smtp.gmail.com",
+						port: parseInt(env.SMTP_PORT || "465", 10),
+						secure: true,
+						auth: {
+							user: env.SMTP_USER,
+							pass: env.SMTP_PASS,
+						},
+					});
+
+					await transporter.sendMail({
+						from: env.SMTP_USER,
+						to: email,
+						subject: "Test Reminder from Sync Duo",
+						text: "This is a test reminder email sent from your Sync Duo space settings.",
+					});
+
+					return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				} catch (e: any) {
+					return new Response(JSON.stringify({ error: e.message || "Failed to send email" }), { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				}
 			}
 
 			const spacePutMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)$/);

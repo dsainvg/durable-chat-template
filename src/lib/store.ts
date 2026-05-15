@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 
-export type ViewType = "list" | "kanban" | "calendar" | "gantt" | "table";
+export type ViewType = "list" | "kanban" | "calendar" | "gantt";
 export type FieldType = "text" | "number" | "select" | "date";
 
 export interface CustomField {
@@ -33,7 +33,6 @@ export interface Space {
   customFields: CustomField[];
   emailReminders: boolean;
   emailDigestTime: string;
-  settings: string;
   tasks: Task[];
   channel: ChatMessage[];
 }
@@ -61,7 +60,7 @@ export interface AppState {
   notificationsEmail: string;
 }
 
-const STORAGE_KEY = "syncduo:v5";
+const STORAGE_KEY = "syncduo:v4";
 
 const seed = (): AppState => ({
   currentUserId: "",

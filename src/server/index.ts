@@ -1,6 +1,7 @@
 import { Server, routePartykitRequest } from "partyserver";
 import type { Connection } from "partyserver";
 import { Message, ChatMessage } from "../shared";
+import nodemailer from "nodemailer";
 
 // @ts-ignore
 import ssrHandler from "../../dist/server/server.mjs";
@@ -33,7 +34,7 @@ async function initDb(db: D1Database) {
 }
 
 export default {
-	async fetch(request: Request, env: Env): Promise<Response> {
+	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
 		const url = new URL(request.url);
 
 		if (request.method === "OPTIONS") {
@@ -272,6 +273,7 @@ export default {
 					const priority = body.priority || 'medium';
 					const custom = JSON.stringify(body.custom || {});
 					const space_id = body.space_id;
+					const notificationsEmail = body.notificationsEmail;
 
 					if (!space_id) {
 						return new Response(JSON.stringify({ error: "space_id is required" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
@@ -286,6 +288,34 @@ export default {
 					const task = {
 						id, title, description, status, assignee, dueDate: due_date, startDate: start_date, priority, custom: JSON.parse(custom), space_id
 					};
+
+					// Send email reminder if configured
+					if (notificationsEmail && env.SMTP_USER && env.SMTP_PASS) {
+						const { results } = await env.DB.prepare("SELECT emailReminders FROM spaces WHERE id = ?").bind(space_id).all();
+						if (results.length > 0 && results[0].emailReminders) {
+							ctx.waitUntil((async () => {
+								try {
+									const transport = nodemailer.createTransport({
+										host: env.SMTP_HOST || "smtp.gmail.com",
+										port: Number(env.SMTP_PORT) || 465,
+										secure: true,
+										auth: {
+											user: env.SMTP_USER,
+											pass: env.SMTP_PASS
+										}
+									});
+									await transport.sendMail({
+										from: env.SMTP_USER,
+										to: notificationsEmail,
+										subject: `Task Reminder: ${title}`,
+										text: `You have an updated task in space ${space_id}.\n\nTitle: ${title}\nDescription: ${description}\nStatus: ${status}\nPriority: ${priority}\nDue Date: ${due_date || 'None'}\n\nCustom settings:\n${custom}`,
+									});
+								} catch (emailErr) {
+									console.error("Failed to send email", emailErr);
+								}
+							})());
+						}
+					}
 
 					// Broadcast update to the space's Chat Durable Object to notify clients
 					const idStr = env.Chat.idFromName(space_id);

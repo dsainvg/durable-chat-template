@@ -134,7 +134,7 @@ function SpacePage() {
     if (!token) return;
 
     try {
-      const payload = { ...t, space_id: spaceId };
+      const payload = { ...t, space_id: spaceId, notificationsEmail: state.notificationsEmail };
       await fetch(`/api/tasks`, {
         method: "POST",
         headers: {

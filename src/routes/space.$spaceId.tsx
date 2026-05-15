@@ -8,6 +8,7 @@ import { ListView } from "@/components/views/ListView";
 import { KanbanView } from "@/components/views/KanbanView";
 import { CalendarView } from "@/components/views/CalendarView";
 import { GanttView } from "@/components/views/GanttView";
+import { TableView } from "@/components/views/TableView";
 import { TaskDialog } from "@/components/TaskDialog";
 import { ChannelPanel } from "@/components/ChannelPanel";
 import { SpaceSettingsDialog } from "@/components/SpaceSettingsDialog";
@@ -22,6 +23,7 @@ const VIEW_LABELS: { id: ViewType; label: string }[] = [
   { id: "kanban", label: "Kanban" },
   { id: "calendar", label: "Calendar" },
   { id: "gantt", label: "Gantt" },
+  { id: "table", label: "Table" },
 ];
 
 function SpacePage() {
@@ -250,6 +252,7 @@ function SpacePage() {
           {activeView === "kanban" && <KanbanView space={space} onOpen={(t) => { setOpenTask(t); setCreating(false); }} onMove={updateTask} />}
           {activeView === "calendar" && <CalendarView space={space} onOpen={(t) => { setOpenTask(t); setCreating(false); }} />}
           {activeView === "gantt" && <GanttView space={space} onOpen={(t) => { setOpenTask(t); setCreating(false); }} />}
+          {activeView === "table" && <TableView space={space} onOpen={(t) => { setOpenTask(t); setCreating(false); }} />}
         </div>
 
         {channelOpen && (

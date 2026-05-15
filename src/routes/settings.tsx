@@ -10,8 +10,15 @@ import { toast } from "sonner";
 import { Check } from "lucide-react";
 
 export const Route = createFileRoute("/settings")({
-  component: SettingsPage,
+  component: SettingsWrapper,
 });
+
+function SettingsWrapper() {
+  const { state } = useStore();
+  const me = state.users.find((u) => u.id === state.currentUserId);
+  if (!me) return null;
+  return <SettingsPage />;
+}
 
 function SettingsPage() {
   const { state, update } = useStore();

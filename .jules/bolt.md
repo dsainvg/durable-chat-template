@@ -4,3 +4,6 @@
 ## 2024-05-14 - React Re-renders and Expensive Operations
 **Learning:** The combination of global state management (e.g. `useStore` triggering re-renders on any state change) and unmemoized array filtering inside loops (O(N*C)) or re-initializing date formatters causes performance degradation, especially in listing views like Kanban and ListView where many tasks are rendered.
 **Action:** Always memoize derived grouping logic (e.g., grouping tasks by column) and extract stable formatters (like `Intl.DateTimeFormat`) outside the component to avoid costly operations on every render.
+## 2024-05-24 - TableView Render Optimization
+**Learning:** The real-time `useStore` global state pattern causes frequent component re-renders. When components have expensive operations inside loops (like `toLocaleDateString` or mapping over arrays to check conditions), these re-renders become severe bottlenecks. Native `Date.toLocaleDateString` is particularly slow compared to reusing an `Intl.DateTimeFormat` instance.
+**Action:** Always extract `Intl.DateTimeFormat` instances outside component scope, and pre-calculate visible items (like custom fields) with `useMemo` before mapping over them inside large data loops like table rows.

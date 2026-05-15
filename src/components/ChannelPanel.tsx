@@ -3,6 +3,10 @@ import type { Space } from "@/lib/store";
 import { useStore, uid } from "@/lib/store";
 import { X, Send } from "lucide-react";
 
+// ⚡ Bolt: Native `Date.toLocaleTimeString` is very slow inside loops. Extracting
+// `Intl.DateTimeFormat` outside component scope speeds up rendering by reusing the instance.
+const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
+
 export function ChannelPanel({ space, onClose, onSend }: { space: Space; onClose: () => void; onSend?: (t: string) => void }) {
   const { state, update } = useStore();
   const [text, setText] = useState("");
@@ -55,7 +59,7 @@ export function ChannelPanel({ space, onClose, onSend }: { space: Space; onClose
               <div className="flex items-baseline gap-2 mb-0.5">
                 <span className="text-[10px] font-semibold">{u?.name ?? "Unknown"}</span>
                 <span className="text-[9px] text-muted-foreground">
-                  {new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  {timeFormatter.format(new Date(m.ts))}
                 </span>
               </div>
               <div className={`text-xs px-3 py-2 rounded-lg max-w-[85%] ${

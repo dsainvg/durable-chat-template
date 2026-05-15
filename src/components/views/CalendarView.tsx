@@ -2,6 +2,10 @@ import { useState, useMemo } from "react";
 import type { Space, Task } from "@/lib/store";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
+// ⚡ Bolt: Native `Date.toLocaleDateString` is very slow. Extracting
+// `Intl.DateTimeFormat` outside component scope speeds up rendering.
+const monthYearFormatter = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" });
+
 export function CalendarView({ space, onOpen }: { space: Space; onOpen: (t: Task) => void }) {
   const [cursor, setCursor] = useState(() => new Date());
   const year = cursor.getFullYear();
@@ -36,7 +40,7 @@ export function CalendarView({ space, onOpen }: { space: Space; onOpen: (t: Task
     <div className="p-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-semibold">
-          {cursor.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
+          {monthYearFormatter.format(cursor)}
         </h2>
         <div className="flex gap-1">
           <button onClick={() => setCursor(new Date(year, month - 1, 1))} aria-label="Previous month" className="p-1.5 rounded hover:bg-accent text-muted-foreground">

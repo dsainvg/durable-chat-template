@@ -2,12 +2,22 @@ import { useMemo } from "react";
 import type { Space, Task } from "@/lib/store";
 import { useStore } from "@/lib/store";
 
+// ⚡ Bolt: Native `Date.toLocaleDateString` is very slow inside loops. Extracting
+// `Intl.DateTimeFormat` outside component scope speeds up rendering by reusing the instance.
+const dateFormatter = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+// Stable reference to avoid breaking memoization when settings don't exist
+const EMPTY_OBJ = {};
+
 export function TableView({ space, onOpen }: { space: Space; onOpen: (t: Task) => void }) {
   const { state } = useStore();
   const userMap = useMemo(() => Object.fromEntries(state.users.map((u) => [u.id, u])), [state.users]);
   const statusMap = useMemo(() => Object.fromEntries(space.columns.map(c => [c.id, c.name])), [space.columns]);
 
-  const hiddenFields = space.settings?.table?.hiddenFields || {};
+  const hiddenFields = space.settings?.table?.hiddenFields || EMPTY_OBJ;
+
+  // ⚡ Bolt: Pre-calculating visible custom fields outside the render loop
+  // prevents repetitive .filter() and dictionary lookups per-row inside the table.
+  const visibleCustomFields = useMemo(() => space.customFields?.filter(f => !hiddenFields[f.id]) || [], [space.customFields, hiddenFields]);
 
   return (
     <div className="p-6">
@@ -21,8 +31,8 @@ export function TableView({ space, onOpen }: { space: Space; onOpen: (t: Task) =
                 {!hiddenFields["assignee"] && <th className="px-4 py-3 font-medium">Assignee</th>}
                 {!hiddenFields["priority"] && <th className="px-4 py-3 font-medium">Priority</th>}
                 {!hiddenFields["dueDate"] && <th className="px-4 py-3 font-medium">Due Date</th>}
-                {space.customFields?.map(f => (
-                  !hiddenFields[f.id] && <th key={f.id} className="px-4 py-3 font-medium">{f.name}</th>
+                {visibleCustomFields.map(f => (
+                  <th key={f.id} className="px-4 py-3 font-medium">{f.name}</th>
                 ))}
               </tr>
             </thead>
@@ -72,15 +82,13 @@ export function TableView({ space, onOpen }: { space: Space; onOpen: (t: Task) =
                     )}
                     {!hiddenFields["dueDate"] && (
                       <td className="px-4 py-3 whitespace-nowrap text-muted-foreground text-xs">
-                        {t.dueDate ? new Date(t.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "-"}
+                        {t.dueDate ? dateFormatter.format(new Date(t.dueDate)) : "-"}
                       </td>
                     )}
-                    {space.customFields?.map(f => (
-                      !hiddenFields[f.id] && (
-                        <td key={f.id} className="px-4 py-3 text-muted-foreground text-xs truncate max-w-[150px]">
-                          {t.custom[f.id] || "-"}
-                        </td>
-                      )
+                    {visibleCustomFields.map(f => (
+                      <td key={f.id} className="px-4 py-3 text-muted-foreground text-xs truncate max-w-[150px]">
+                        {t.custom[f.id] || "-"}
+                      </td>
                     ))}
                   </tr>
                 ))

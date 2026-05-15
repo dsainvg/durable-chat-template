@@ -6,13 +6,73 @@ import nodemailer from "nodemailer";
 // @ts-ignore
 import ssrHandler from "../../dist/server/server.mjs";
 
-// Helper to generate a SHA-256 hash
+// Helper to generate a secure PBKDF2 hash
 async function hashPassword(password: string): Promise<string> {
-	const msgUint8 = new TextEncoder().encode(password);
-	const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+	const saltBuffer = new Uint8Array(16);
+	crypto.getRandomValues(saltBuffer);
+	const saltHex = Array.from(saltBuffer).map((b) => b.toString(16).padStart(2, '0')).join('');
+
+	const enc = new TextEncoder();
+	const keyMaterial = await crypto.subtle.importKey(
+		'raw',
+		enc.encode(password),
+		{ name: 'PBKDF2' },
+		false,
+		['deriveBits']
+	);
+
+	const hashBuffer = await crypto.subtle.deriveBits(
+		{
+			name: 'PBKDF2',
+			salt: enc.encode(saltHex),
+			iterations: 100000,
+			hash: 'SHA-256'
+		},
+		keyMaterial,
+		256
+	);
+
 	const hashArray = Array.from(new Uint8Array(hashBuffer));
 	const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-	return hashHex;
+	return `${saltHex}$${hashHex}`;
+}
+
+// Helper to verify a password against a stored hash (legacy or PBKDF2)
+async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+	if (!storedHash.includes('$')) {
+		// Legacy SHA-256 check
+		const msgUint8 = new TextEncoder().encode(password);
+		const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+		const hashArray = Array.from(new Uint8Array(hashBuffer));
+		const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+		return hashHex === storedHash;
+	}
+
+	const [saltHex, originalHash] = storedHash.split('$');
+
+	const enc = new TextEncoder();
+	const keyMaterial = await crypto.subtle.importKey(
+		'raw',
+		enc.encode(password),
+		{ name: 'PBKDF2' },
+		false,
+		['deriveBits']
+	);
+
+	const hashBuffer = await crypto.subtle.deriveBits(
+		{
+			name: 'PBKDF2',
+			salt: enc.encode(saltHex),
+			iterations: 100000,
+			hash: 'SHA-256'
+		},
+		keyMaterial,
+		256
+	);
+
+	const hashArray = Array.from(new Uint8Array(hashBuffer));
+	const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+	return hashHex === originalHash;
 }
 
 
@@ -141,13 +201,18 @@ export default {
 					return new Response(JSON.stringify({ error: "Missing id or password" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 				}
 
-				const hashed = await hashPassword(password);
 				await initDb(env.DB);
 				const { results } = await env.DB.prepare("SELECT hash FROM users WHERE id = ?").bind(id).all();
-				if (results.length > 0 && (results[0] as any).hash === hashed) {
-					await env.DB.prepare("UPDATE users SET active = 1, last_seen = ? WHERE id = ?").bind(Date.now(), id).run();
-					const token = btoa(`${id}:${hashed}`);
-					return new Response(JSON.stringify({ token }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+
+				if (results.length > 0) {
+					const storedHash = (results[0] as any).hash;
+					const isValid = await verifyPassword(password, storedHash);
+
+					if (isValid) {
+						await env.DB.prepare("UPDATE users SET active = 1, last_seen = ? WHERE id = ?").bind(Date.now(), id).run();
+						const token = btoa(`${id}:${storedHash}`);
+						return new Response(JSON.stringify({ token }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+					}
 				}
 
 				return new Response(JSON.stringify({ error: "Invalid credentials" }), { status: 401, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });

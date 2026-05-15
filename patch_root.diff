@@ -1,0 +1,141 @@
+<<<<<<< SEARCH
+import { AppSidebar } from "@/components/AppSidebar";
+import { useStore } from "@/lib/store";
+import { applyTheme } from "@/lib/theme";
+=======
+import { AppSidebar } from "@/components/AppSidebar";
+import { useStore, seed, STORAGE_KEY } from "@/lib/store";
+import { applyTheme } from "@/lib/theme";
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+    const verifyTokenAndLoadData = async () => {
+      const token = localStorage.getItem("syncduo_token");
+      if (!token) {
+        setIsVerifying(false);
+        return;
+      }
+
+      try {
+        const [heartbeatRes, spacesRes, usersRes] = await Promise.all([
+          fetch("/api/heartbeat", { method: "POST", headers: { "Authorization": `Bearer ${token}` } }),
+          fetch("/api/spaces", { headers: { "Authorization": `Bearer ${token}` } }),
+          fetch("/api/users")
+        ]);
+
+        if (heartbeatRes.ok) {
+          setIsAuthenticated(true);
+
+          let fetchedSpaces: any[] = [];
+          if (spacesRes.ok) fetchedSpaces = await spacesRes.json();
+
+          let fetchedUsers: any[] = [];
+          if (usersRes.ok) fetchedUsers = await usersRes.json();
+
+          // Restore session user ID from token
+          const decoded = atob(token);
+          const [currentUserId] = decoded.split(':');
+
+          update(s => ({ ...s, currentUserId, spaces: fetchedSpaces, users: fetchedUsers }));
+        } else {
+          localStorage.removeItem("syncduo_token");
+        }
+      } catch (e) {
+        console.error("Failed to verify token or load data", e);
+      } finally {
+        setIsVerifying(false);
+      }
+    };
+=======
+    const verifyTokenAndLoadData = async () => {
+      const token = localStorage.getItem("syncduo_token");
+      if (!token) {
+        localStorage.removeItem(STORAGE_KEY);
+        update(() => seed());
+        setIsVerifying(false);
+        return;
+      }
+
+      try {
+        const [heartbeatRes, spacesRes, usersRes] = await Promise.all([
+          fetch("/api/heartbeat", { method: "POST", headers: { "Authorization": `Bearer ${token}` } }),
+          fetch("/api/spaces", { headers: { "Authorization": `Bearer ${token}` } }),
+          fetch("/api/users")
+        ]);
+
+        if (heartbeatRes.ok) {
+          setIsAuthenticated(true);
+
+          let fetchedSpaces: any[] = [];
+          if (spacesRes.ok) {
+            fetchedSpaces = await spacesRes.json();
+            await Promise.all(fetchedSpaces.map(async (sp: any) => {
+              try {
+                const tres = await fetch(`/api/tasks?space_id=${sp.id}`, { headers: { "Authorization": `Bearer ${token}` }});
+                if (tres.ok) sp.tasks = await tres.json();
+              } catch(e) {}
+            }));
+          }
+
+          let fetchedUsers: any[] = [];
+          if (usersRes.ok) fetchedUsers = await usersRes.json();
+
+          // Restore session user ID from token
+          const decoded = atob(token);
+          const [currentUserId] = decoded.split(':');
+
+          update(s => ({ ...s, currentUserId, spaces: fetchedSpaces, users: fetchedUsers }));
+        } else {
+          localStorage.removeItem("syncduo_token");
+          localStorage.removeItem(STORAGE_KEY);
+          update(() => seed());
+        }
+      } catch (e) {
+        console.error("Failed to verify token or load data", e);
+      } finally {
+        setIsVerifying(false);
+      }
+    };
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+  const handleLogin = async (token: string, userId: string) => {
+    localStorage.setItem("syncduo_token", token);
+    try {
+      const spacesRes = await fetch("/api/spaces", { headers: { "Authorization": `Bearer ${token}` } });
+      let fetchedSpaces: any[] = [];
+      if (spacesRes.ok) fetchedSpaces = await spacesRes.json();
+
+      update(s => ({ ...s, currentUserId: userId, spaces: fetchedSpaces }));
+    } catch(e) {
+      update(s => ({ ...s, currentUserId: userId }));
+    }
+    setIsAuthenticated(true);
+  };
+=======
+  const handleLogin = async (token: string, userId: string) => {
+    localStorage.setItem("syncduo_token", token);
+    try {
+      const [spacesRes, usersRes] = await Promise.all([
+        fetch("/api/spaces", { headers: { "Authorization": `Bearer ${token}` } }),
+        fetch("/api/users")
+      ]);
+      let fetchedSpaces: any[] = [];
+      if (spacesRes.ok) {
+        fetchedSpaces = await spacesRes.json();
+        await Promise.all(fetchedSpaces.map(async (sp: any) => {
+          try {
+            const tres = await fetch(`/api/tasks?space_id=${sp.id}`, { headers: { "Authorization": `Bearer ${token}` }});
+            if (tres.ok) sp.tasks = await tres.json();
+          } catch(e) {}
+        }));
+      }
+
+      let fetchedUsers: any[] = [];
+      if (usersRes.ok) fetchedUsers = await usersRes.json();
+
+      update(s => ({ ...s, currentUserId: userId, spaces: fetchedSpaces, users: fetchedUsers }));
+    } catch(e) {
+      update(s => ({ ...s, currentUserId: userId }));
+    }
+    setIsAuthenticated(true);
+  };
+>>>>>>> REPLACE

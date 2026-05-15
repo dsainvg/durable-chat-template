@@ -125,6 +125,7 @@ async function initDb(db: D1Database) {
 
 	await db.prepare("CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, initials TEXT NOT NULL, hash TEXT NOT NULL, active INTEGER DEFAULT 0, last_seen INTEGER DEFAULT 0)").run();
 	await db.prepare("CREATE TABLE IF NOT EXISTS spaces (id TEXT PRIMARY KEY, name TEXT NOT NULL, color TEXT, emoji TEXT, enabledViews TEXT, columns TEXT, customFields TEXT, emailReminders INTEGER, emailDigestTime TEXT, settings TEXT)").run();
+	await db.prepare("CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, last_used INTEGER NOT NULL)").run();
 
 	dbInitialized = true;
 }
@@ -171,7 +172,8 @@ export default {
 				await env.DB.prepare("INSERT INTO users (id, name, email, initials, hash, active, last_seen) VALUES (?, ?, ?, ?, ?, 1, ?)").bind(id, name || id, email || '', initials || id.substring(0,2).toUpperCase(), hashed, Date.now()).run();
 			}
 
-			const token = btoa(`${id}:${hashed}`);
+			const token = crypto.randomUUID();
+			await env.DB.prepare("INSERT INTO sessions (id, user_id, last_used) VALUES (?, ?, ?)").bind(token, id, Date.now()).run();
 			return new Response(JSON.stringify({ token }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 		}
 
@@ -187,8 +189,10 @@ export default {
 				const hashed = await hashPassword(password);
 				await initDb(env.DB);
 				await env.DB.prepare("INSERT INTO users (id, name, email, initials, hash, active, last_seen) VALUES (?, ?, ?, ?, ?, 1, ?)").bind(id, name, email || '', initials, hashed, Date.now()).run();
-				const token = btoa(`${id}:${hashed}`);
-				return new Response(JSON.stringify({ id, token, name, email, initials }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+
+				const token = crypto.randomUUID();
+				await env.DB.prepare("INSERT INTO sessions (id, user_id, last_used) VALUES (?, ?, ?)").bind(token, id, Date.now()).run();
+				return new Response(JSON.stringify({ token }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 			} catch (e) {
 				return new Response(JSON.stringify({ error: "Bad request" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 			}
@@ -210,7 +214,8 @@ export default {
 
 					if (isValid) {
 						await env.DB.prepare("UPDATE users SET active = 1, last_seen = ? WHERE id = ?").bind(Date.now(), id).run();
-						const token = btoa(`${id}:${storedHash}`);
+						const token = crypto.randomUUID();
+						await env.DB.prepare("INSERT INTO sessions (id, user_id, last_used) VALUES (?, ?, ?)").bind(token, id, Date.now()).run();
 						return new Response(JSON.stringify({ token }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 					}
 				}
@@ -234,23 +239,30 @@ export default {
 			const token = authHeader.substring(7);
 			let currentUserId = "";
 			try {
-				const decoded = atob(token);
-				const [id, hashed] = decoded.split(':');
-				currentUserId = id;
 				await initDb(env.DB);
-				const { results } = await env.DB.prepare("SELECT hash FROM users WHERE id = ?").bind(id).all();
-				if (results.length === 0 || (results[0] as any).hash !== hashed) {
+				const { results } = await env.DB.prepare("SELECT user_id, last_used FROM sessions WHERE id = ?").bind(token).all();
+
+				if (results.length === 0) {
 					throw new Error("Invalid token");
 				}
+
+				const session = results[0] as any;
+				const oneDayMs = 24 * 60 * 60 * 1000;
+
+				if (Date.now() - session.last_used > oneDayMs) {
+					await env.DB.prepare("DELETE FROM sessions WHERE id = ?").bind(token).run();
+					throw new Error("Session expired");
+				}
+
+				currentUserId = session.user_id;
+				await env.DB.prepare("UPDATE sessions SET last_used = ? WHERE id = ?").bind(Date.now(), token).run();
 			} catch (e) {
 				return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 			}
 
-			await initDb(env.DB);
-
 			if (url.pathname === '/api/heartbeat' && request.method === 'POST') {
 				await env.DB.prepare("UPDATE users SET active = 1, last_seen = ? WHERE id = ?").bind(Date.now(), currentUserId).run();
-				return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				return new Response(JSON.stringify({ ok: true, userId: currentUserId }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 			}
 
 			const userPutMatch = url.pathname.match(/^\/api\/user\/([^/]+)$/);

@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
 
 import appCss from "../styles.css?url";
 import { AppSidebar } from "@/components/AppSidebar";
-import { useStore } from "@/lib/store";
+import { useStore, seed, STORAGE_KEY } from "@/lib/store";
 import { applyTheme } from "@/lib/theme";
 import { Toaster } from "@/components/ui/sonner";
 import { LoginDialog } from "@/components/LoginDialog";
@@ -91,6 +91,8 @@ function ThemedLayout() {
     const verifyTokenAndLoadData = async () => {
       const token = localStorage.getItem("syncduo_token");
       if (!token) {
+        localStorage.removeItem(STORAGE_KEY);
+        update(() => seed());
         setIsVerifying(false);
         return;
       }
@@ -106,18 +108,28 @@ function ThemedLayout() {
           setIsAuthenticated(true);
 
           let fetchedSpaces: any[] = [];
-          if (spacesRes.ok) fetchedSpaces = await spacesRes.json();
+          if (spacesRes.ok) {
+            fetchedSpaces = await spacesRes.json();
+            await Promise.all(fetchedSpaces.map(async (sp: any) => {
+              try {
+                const tres = await fetch(`/api/tasks?space_id=${sp.id}`, { headers: { "Authorization": `Bearer ${token}` }});
+                if (tres.ok) sp.tasks = await tres.json();
+              } catch(e) {}
+            }));
+          }
 
           let fetchedUsers: any[] = [];
           if (usersRes.ok) fetchedUsers = await usersRes.json();
 
-          // Restore session user ID from token
-          const decoded = atob(token);
-          const [currentUserId] = decoded.split(':');
+          // Restore session user ID from heartbeat response
+          const heartbeatData = await heartbeatRes.json() as any;
+          const currentUserId = heartbeatData.userId;
 
           update(s => ({ ...s, currentUserId, spaces: fetchedSpaces, users: fetchedUsers }));
         } else {
           localStorage.removeItem("syncduo_token");
+          localStorage.removeItem(STORAGE_KEY);
+          update(() => seed());
         }
       } catch (e) {
         console.error("Failed to verify token or load data", e);
@@ -132,11 +144,25 @@ function ThemedLayout() {
   const handleLogin = async (token: string, userId: string) => {
     localStorage.setItem("syncduo_token", token);
     try {
-      const spacesRes = await fetch("/api/spaces", { headers: { "Authorization": `Bearer ${token}` } });
+      const [spacesRes, usersRes] = await Promise.all([
+        fetch("/api/spaces", { headers: { "Authorization": `Bearer ${token}` } }),
+        fetch("/api/users")
+      ]);
       let fetchedSpaces: any[] = [];
-      if (spacesRes.ok) fetchedSpaces = await spacesRes.json();
+      if (spacesRes.ok) {
+        fetchedSpaces = await spacesRes.json();
+        await Promise.all(fetchedSpaces.map(async (sp: any) => {
+          try {
+            const tres = await fetch(`/api/tasks?space_id=${sp.id}`, { headers: { "Authorization": `Bearer ${token}` }});
+            if (tres.ok) sp.tasks = await tres.json();
+          } catch(e) {}
+        }));
+      }
 
-      update(s => ({ ...s, currentUserId: userId, spaces: fetchedSpaces }));
+      let fetchedUsers: any[] = [];
+      if (usersRes.ok) fetchedUsers = await usersRes.json();
+
+      update(s => ({ ...s, currentUserId: userId, spaces: fetchedSpaces, users: fetchedUsers }));
     } catch(e) {
       update(s => ({ ...s, currentUserId: userId }));
     }

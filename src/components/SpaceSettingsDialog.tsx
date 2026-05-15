@@ -1,10 +1,8 @@
-import { useState, useEffect } from "react";
 import { useStore, uid, type FieldType, type ViewType } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -18,7 +16,6 @@ const VIEWS: { id: ViewType; label: string }[] = [
   { id: "kanban", label: "Kanban" },
   { id: "calendar", label: "Calendar" },
   { id: "gantt", label: "Gantt" },
-  { id: "table", label: "Table" },
 ];
 
 export function SpaceSettingsDialog({
@@ -34,24 +31,11 @@ export function SpaceSettingsDialog({
   const navigate = useNavigate();
   const space = state.spaces.find((s) => s.id === spaceId);
 
-  const [localSpace, setLocalSpace] = useState(space);
+  if (!space) return null;
 
-  useEffect(() => {
-    if (open && space) {
-      setLocalSpace(space);
-    }
-  }, [open, space]);
-
-  if (!space || !localSpace) return null;
-
-  const patchLocal = (fn: (sp: import("@/lib/store").Space) => import("@/lib/store").Space) => {
-    setLocalSpace((prev) => (prev ? fn(prev) : prev));
-  };
-
-  const handleSave = async () => {
-    if (!localSpace) return;
-
-    update((s) => ({ ...s, spaces: s.spaces.map((sp) => (sp.id === spaceId ? localSpace : sp)) }));
+  const patch = async (fn: (sp: import("@/lib/store").Space) => import("@/lib/store").Space) => {
+    const updatedSpace = fn(space);
+    update((s) => ({ ...s, spaces: s.spaces.map((sp) => (sp.id === spaceId ? updatedSpace : sp)) }));
 
     const token = localStorage.getItem("syncduo_token");
     if (token) {
@@ -63,28 +47,24 @@ export function SpaceSettingsDialog({
             "Authorization": `Bearer ${token}`
           },
           body: JSON.stringify({
-            name: localSpace.name,
-            color: localSpace.color,
-            emoji: localSpace.emoji,
-            enabledViews: localSpace.enabledViews,
-            columns: localSpace.columns,
-            customFields: localSpace.customFields,
-            emailReminders: localSpace.emailReminders,
-            emailDigestTime: localSpace.emailDigestTime,
-            settings: localSpace.settings,
+            name: updatedSpace.name,
+            color: updatedSpace.color,
+            emoji: updatedSpace.emoji,
+            enabledViews: updatedSpace.enabledViews,
+            columns: updatedSpace.columns,
+            customFields: updatedSpace.customFields,
+            emailReminders: updatedSpace.emailReminders,
+            emailDigestTime: updatedSpace.emailDigestTime,
           })
         });
-        toast.success("Settings saved");
       } catch (e) {
         console.error("Failed to sync space settings to server", e);
-        toast.error("Failed to save settings");
       }
     }
-    onOpenChange(false);
   };
 
   const removeSpace = () => {
-    if (!confirm(`Delete "${localSpace.name}"?`)) return;
+    if (!confirm(`Delete "${space.name}"?`)) return;
     update((s) => ({ ...s, spaces: s.spaces.filter((sp) => sp.id !== spaceId) }));
     onOpenChange(false);
     navigate({ to: "/" });
@@ -94,7 +74,7 @@ export function SpaceSettingsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{localSpace.emoji} {localSpace.name} — Settings</DialogTitle>
+          <DialogTitle>{space.emoji} {space.name} — Settings</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-8 py-4">
@@ -102,11 +82,11 @@ export function SpaceSettingsDialog({
             <div className="grid grid-cols-[80px_1fr] gap-3">
               <div>
                 <Label className="text-xs">Emoji</Label>
-                <Input value={localSpace.emoji} onChange={(e) => patchLocal((sp) => ({ ...sp, emoji: e.target.value }))} maxLength={2} />
+                <Input value={space.emoji} onChange={(e) => patch((sp) => ({ ...sp, emoji: e.target.value }))} maxLength={2} />
               </div>
               <div>
                 <Label className="text-xs">Name</Label>
-                <Input value={localSpace.name} onChange={(e) => patchLocal((sp) => ({ ...sp, name: e.target.value }))} />
+                <Input value={space.name} onChange={(e) => patch((sp) => ({ ...sp, name: e.target.value }))} />
               </div>
             </div>
           </Section>
@@ -117,9 +97,9 @@ export function SpaceSettingsDialog({
                 <label key={v.id} className="flex items-center justify-between bg-card border border-border rounded-lg p-3 cursor-pointer">
                   <span className="text-sm">{v.label}</span>
                   <Switch
-                    checked={localSpace.enabledViews[v.id]}
+                    checked={space.enabledViews[v.id]}
                     onCheckedChange={(c) =>
-                      patchLocal((sp) => ({ ...sp, enabledViews: { ...sp.enabledViews, [v.id]: c } }))
+                      patch((sp) => ({ ...sp, enabledViews: { ...sp.enabledViews, [v.id]: c } }))
                     }
                   />
                 </label>
@@ -127,36 +107,25 @@ export function SpaceSettingsDialog({
             </div>
           </Section>
 
-          <Section title="View Settings" subtitle="Settings for every view in JSON format.">
-            <div>
-              <Textarea
-                className="font-mono text-xs w-full h-32"
-                placeholder='{"table": {"showDescription": true}}'
-                value={localSpace.settings || ""}
-                onChange={(e) => patchLocal((sp) => ({ ...sp, settings: e.target.value }))}
-              />
-            </div>
-          </Section>
-
           <Section title="Columns" subtitle="Columns shown in Kanban / List.">
             <div className="space-y-2">
-              {localSpace.columns.map((c, i) => (
+              {space.columns.map((c, i) => (
                 <div key={c.id} className="flex gap-2">
                   <Input
                     value={c.name}
                     onChange={(e) =>
-                      patchLocal((sp) => ({
+                      patch((sp) => ({
                         ...sp,
                         columns: sp.columns.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)),
                       }))
                     }
                   />
-                  <Button variant="ghost" size="icon" onClick={() => patchLocal((sp) => ({ ...sp, columns: sp.columns.filter((_, j) => j !== i) }))}>
+                  <Button variant="ghost" size="icon" onClick={() => patch((sp) => ({ ...sp, columns: sp.columns.filter((_, j) => j !== i) }))}>
                     <Trash2 className="size-4" />
                   </Button>
                 </div>
               ))}
-              <Button variant="outline" size="sm" onClick={() => patchLocal((sp) => ({ ...sp, columns: [...sp.columns, { id: uid(), name: "New Column" }] }))}>
+              <Button variant="outline" size="sm" onClick={() => patch((sp) => ({ ...sp, columns: [...sp.columns, { id: uid(), name: "New Column" }] }))}>
                 <Plus className="size-3.5 mr-1" /> Add Column
               </Button>
             </div>
@@ -164,7 +133,7 @@ export function SpaceSettingsDialog({
 
           <Section title="Custom task fields" subtitle="Extra fields displayed when editing tasks.">
             <div className="space-y-2">
-              {localSpace.customFields.map((f, i) => (
+              {space.customFields.map((f, i) => (
                 <div key={f.id} className="flex gap-2 items-start">
                   <div className="flex-1 space-y-2">
                     <Input
@@ -172,7 +141,7 @@ export function SpaceSettingsDialog({
                       value={f.name}
                       placeholder="Field name"
                       onChange={(e) =>
-                        patchLocal((sp) => ({
+                        patch((sp) => ({
                           ...sp,
                           customFields: sp.customFields.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)),
                         }))
@@ -183,7 +152,7 @@ export function SpaceSettingsDialog({
                         className="scale-75 origin-left"
                         checked={f.required ?? false}
                         onCheckedChange={(c) =>
-                          patchLocal((sp) => ({
+                          patch((sp) => ({
                             ...sp,
                             customFields: sp.customFields.map((x, j) => (j === i ? { ...x, required: c } : x)),
                           }))
@@ -195,7 +164,7 @@ export function SpaceSettingsDialog({
                   <Select
                     value={f.type}
                     onValueChange={(v) =>
-                      patchLocal((sp) => ({
+                      patch((sp) => ({
                         ...sp,
                         customFields: sp.customFields.map((x, j) => (j === i ? { ...x, type: v as FieldType } : x)),
                       }))
@@ -215,7 +184,7 @@ export function SpaceSettingsDialog({
                       placeholder="Options (comma-separated)"
                       value={(f.options ?? []).join(",")}
                       onChange={(e) =>
-                        patchLocal((sp) => ({
+                        patch((sp) => ({
                           ...sp,
                           customFields: sp.customFields.map((x, j) =>
                             j === i ? { ...x, options: e.target.value.split(",") } : x
@@ -227,7 +196,7 @@ export function SpaceSettingsDialog({
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => patchLocal((sp) => ({ ...sp, customFields: sp.customFields.filter((_, j) => j !== i) }))}
+                    onClick={() => patch((sp) => ({ ...sp, customFields: sp.customFields.filter((_, j) => j !== i) }))}
                   >
                     <Trash2 className="size-4" />
                   </Button>
@@ -237,7 +206,7 @@ export function SpaceSettingsDialog({
                 variant="outline"
                 size="sm"
                 onClick={() =>
-                  patchLocal((sp) => ({
+                  patch((sp) => ({
                     ...sp,
                     customFields: [...sp.customFields, { id: uid(), name: "", type: "text", required: false }],
                   }))
@@ -255,16 +224,16 @@ export function SpaceSettingsDialog({
                 <p className="text-xs text-muted-foreground">Sent to {state.notificationsEmail}</p>
               </div>
               <Switch
-                checked={localSpace.emailReminders}
-                onCheckedChange={(c) => patchLocal((sp) => ({ ...sp, emailReminders: c }))}
+                checked={space.emailReminders}
+                onCheckedChange={(c) => patch((sp) => ({ ...sp, emailReminders: c }))}
               />
             </div>
             <div>
               <Label className="text-xs">Digest time</Label>
               <Input
                 type="time"
-                value={localSpace.emailDigestTime}
-                onChange={(e) => patchLocal((sp) => ({ ...sp, emailDigestTime: e.target.value }))}
+                value={space.emailDigestTime}
+                onChange={(e) => patch((sp) => ({ ...sp, emailDigestTime: e.target.value }))}
                 className="w-40"
               />
             </div>
@@ -300,10 +269,6 @@ export function SpaceSettingsDialog({
           <Section title="Danger zone">
             <Button variant="destructive" onClick={removeSpace}>Delete space</Button>
           </Section>
-
-          <div className="flex justify-end pt-4 border-t border-border mt-8">
-            <Button onClick={handleSave}>Save Settings</Button>
-          </div>
         </div>
       </DialogContent>
     </Dialog>

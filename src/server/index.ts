@@ -360,8 +360,7 @@ export default {
 				return new Response(JSON.stringify({ id }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 			}
 
-			const testEmailMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/test-email$/);
-			if (testEmailMatch && request.method === 'POST') {
+			if (url.pathname === '/api/user/test-email' && request.method === 'POST') {
 				try {
 					const body = await request.json() as any;
 					const email = body.email;
@@ -387,7 +386,7 @@ export default {
 						from: env.SMTP_USER,
 						to: email,
 						subject: "Test Reminder from Sync Duo",
-						text: "This is a test reminder email sent from your Sync Duo space settings.",
+						text: "This is a test reminder email sent from your Sync Duo settings.",
 					});
 
 					return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });

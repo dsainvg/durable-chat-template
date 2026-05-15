@@ -319,33 +319,6 @@ export function SpaceSettingsDialog({
                 className="w-40"
               />
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={async () => {
-                toast.loading("Sending test reminder...", { id: "test-email" });
-                try {
-                  const token = localStorage.getItem("syncduo_token");
-                  const res = await fetch(`/api/spaces/${spaceId}/test-email`, {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      ...(token ? { Authorization: `Bearer ${token}` } : {})
-                    },
-                    body: JSON.stringify({ email: me?.email })
-                  });
-                  if (!res.ok) {
-                    const err = await res.json().catch(() => ({ error: "Failed to send email" })) as any;
-                    throw new Error(err.error || "Failed to send email");
-                  }
-                  toast.success("Test reminder sent", { id: "test-email", description: `→ ${me?.email}` });
-                } catch (e: any) {
-                  toast.error("Failed to send test reminder", { id: "test-email", description: e.message });
-                }
-              }}
-            >
-              Send test reminder
-            </Button>
           </Section>
 
           <Section title="Danger zone">

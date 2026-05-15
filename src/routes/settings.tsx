@@ -139,12 +139,41 @@ function SettingsPage() {
 
         <section>
           <h2 className="text-sm font-semibold mb-4">Notifications</h2>
-          <div className="flex items-center justify-between bg-card border border-border rounded-lg p-3">
-            <div>
-              <p className="text-sm">Email me task updates</p>
-              <p className="text-xs text-muted-foreground">Sent to {email}</p>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between bg-card border border-border rounded-lg p-3">
+              <div>
+                <p className="text-sm">Email me task updates</p>
+                <p className="text-xs text-muted-foreground">Sent to {email}</p>
+              </div>
+              <Switch checked={emailNotif} onCheckedChange={setEmailNotif} />
             </div>
-            <Switch checked={emailNotif} onCheckedChange={setEmailNotif} />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                toast.loading("Sending test reminder...", { id: "test-email" });
+                try {
+                  const token = localStorage.getItem("syncduo_token");
+                  const res = await fetch(`/api/user/test-email`, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      ...(token ? { Authorization: `Bearer ${token}` } : {})
+                    },
+                    body: JSON.stringify({ email })
+                  });
+                  if (!res.ok) {
+                    const err = await res.json().catch(() => ({ error: "Failed to send email" })) as any;
+                    throw new Error(err.error || "Failed to send email");
+                  }
+                  toast.success("Test reminder sent", { id: "test-email", description: `→ ${email}` });
+                } catch (e: any) {
+                  toast.error("Failed to send test reminder", { id: "test-email", description: e.message });
+                }
+              }}
+            >
+              Send test reminder
+            </Button>
           </div>
         </section>
       </div>

@@ -26,7 +26,7 @@ let dbInitialized = false;
 // Simple in-memory rate limiter for unauthenticated endpoints
 const rateLimitMap = new Map<string, number[]>();
 const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
-const MAX_REQUESTS_PER_WINDOW = 5;
+const MAX_REQUESTS_PER_WINDOW = 25;
 
 function isRateLimited(ip: string): boolean {
 	const now = Date.now();

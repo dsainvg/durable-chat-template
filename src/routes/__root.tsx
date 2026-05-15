@@ -88,16 +88,6 @@ function ThemedLayout() {
   useEffect(() => { applyTheme(state.theme); }, [state.theme]);
 
   useEffect(() => {
-    const handleBeforeUnload = () => {
-      localStorage.removeItem("syncduo_token");
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-    };
-  }, []);
-
-  useEffect(() => {
     const verifyTokenAndLoadData = async () => {
       const token = localStorage.getItem("syncduo_token");
       if (!token) {

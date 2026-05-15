@@ -125,6 +125,7 @@ async function initDb(db: D1Database) {
 
 	await db.prepare("CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, initials TEXT NOT NULL, hash TEXT NOT NULL, active INTEGER DEFAULT 0, last_seen INTEGER DEFAULT 0)").run();
 	await db.prepare("CREATE TABLE IF NOT EXISTS spaces (id TEXT PRIMARY KEY, name TEXT NOT NULL, color TEXT, emoji TEXT, enabledViews TEXT, columns TEXT, customFields TEXT, emailReminders INTEGER, emailDigestTime TEXT, settings TEXT)").run();
+	await db.prepare("CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)").run();
 
 	dbInitialized = true;
 }
@@ -165,13 +166,17 @@ export default {
 			}
 			const hashed = await hashPassword(password);
 
+			const now = Date.now();
 			if (existing.length > 0) {
-				await env.DB.prepare("UPDATE users SET hash = ?, active = 1, last_seen = ? WHERE id = ?").bind(hashed, Date.now(), id).run();
+				await env.DB.prepare("UPDATE users SET hash = ?, active = 1, last_seen = ? WHERE id = ?").bind(hashed, now, id).run();
 			} else {
-				await env.DB.prepare("INSERT INTO users (id, name, email, initials, hash, active, last_seen) VALUES (?, ?, ?, ?, ?, 1, ?)").bind(id, name || id, email || '', initials || id.substring(0,2).toUpperCase(), hashed, Date.now()).run();
+				await env.DB.prepare("INSERT INTO users (id, name, email, initials, hash, active, last_seen) VALUES (?, ?, ?, ?, ?, 1, ?)").bind(id, name || id, email || '', initials || id.substring(0,2).toUpperCase(), hashed, now).run();
 			}
 
-			const token = btoa(`${id}:${hashed}`);
+			const sessionId = crypto.randomUUID();
+			await env.DB.prepare("INSERT INTO sessions (id, user_id, created_at, updated_at) VALUES (?, ?, ?, ?)").bind(sessionId, id, now, now).run();
+
+			const token = btoa(`${id}:${sessionId}`);
 			return new Response(JSON.stringify({ token }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 		}
 
@@ -186,8 +191,13 @@ export default {
 				const initials = name.substring(0, 2).toUpperCase();
 				const hashed = await hashPassword(password);
 				await initDb(env.DB);
-				await env.DB.prepare("INSERT INTO users (id, name, email, initials, hash, active, last_seen) VALUES (?, ?, ?, ?, ?, 1, ?)").bind(id, name, email || '', initials, hashed, Date.now()).run();
-				const token = btoa(`${id}:${hashed}`);
+				const now = Date.now();
+				await env.DB.prepare("INSERT INTO users (id, name, email, initials, hash, active, last_seen) VALUES (?, ?, ?, ?, ?, 1, ?)").bind(id, name, email || '', initials, hashed, now).run();
+
+				const sessionId = crypto.randomUUID();
+				await env.DB.prepare("INSERT INTO sessions (id, user_id, created_at, updated_at) VALUES (?, ?, ?, ?)").bind(sessionId, id, now, now).run();
+
+				const token = btoa(`${id}:${sessionId}`);
 				return new Response(JSON.stringify({ id, token, name, email, initials }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 			} catch (e) {
 				return new Response(JSON.stringify({ error: "Bad request" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
@@ -209,8 +219,13 @@ export default {
 					const isValid = await verifyPassword(password, storedHash);
 
 					if (isValid) {
-						await env.DB.prepare("UPDATE users SET active = 1, last_seen = ? WHERE id = ?").bind(Date.now(), id).run();
-						const token = btoa(`${id}:${storedHash}`);
+						const now = Date.now();
+						await env.DB.prepare("UPDATE users SET active = 1, last_seen = ? WHERE id = ?").bind(now, id).run();
+
+						const sessionId = crypto.randomUUID();
+						await env.DB.prepare("INSERT INTO sessions (id, user_id, created_at, updated_at) VALUES (?, ?, ?, ?)").bind(sessionId, id, now, now).run();
+
+						const token = btoa(`${id}:${sessionId}`);
 						return new Response(JSON.stringify({ token }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 					}
 				}
@@ -235,12 +250,35 @@ export default {
 			let currentUserId = "";
 			try {
 				const decoded = atob(token);
-				const [id, hashed] = decoded.split(':');
-				currentUserId = id;
+				const [id, sessionId] = decoded.split(':');
 				await initDb(env.DB);
-				const { results } = await env.DB.prepare("SELECT hash FROM users WHERE id = ?").bind(id).all();
-				if (results.length === 0 || (results[0] as any).hash !== hashed) {
-					throw new Error("Invalid token");
+
+				// Fallback/legacy support for tokens that used id:hash
+				const { results: userResults } = await env.DB.prepare("SELECT hash FROM users WHERE id = ?").bind(id).all();
+				if (userResults.length > 0 && (userResults[0] as any).hash === sessionId) {
+					currentUserId = id;
+				} else {
+					// Verify using sessions table
+					const { results } = await env.DB.prepare("SELECT user_id, updated_at FROM sessions WHERE id = ?").bind(sessionId).all();
+					if (results.length === 0) {
+						throw new Error("Invalid session");
+					}
+
+					const session = results[0] as { user_id: string, updated_at: number };
+					const now = Date.now();
+					// Expire if older than 1 day (86400000 ms)
+					if (now - session.updated_at > 86400000) {
+						await env.DB.prepare("DELETE FROM sessions WHERE id = ?").bind(sessionId).run();
+						throw new Error("Session expired");
+					}
+
+					// Session is valid, update updated_at
+					await env.DB.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").bind(now, sessionId).run();
+					currentUserId = session.user_id;
+
+					if (currentUserId !== id) {
+						throw new Error("User ID mismatch");
+					}
 				}
 			} catch (e) {
 				return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });

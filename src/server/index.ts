@@ -27,7 +27,7 @@ async function initDb(db: D1Database) {
 	if (dbInitialized) return;
 
 	await db.prepare("CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, initials TEXT NOT NULL, hash TEXT NOT NULL, active INTEGER DEFAULT 0, last_seen INTEGER DEFAULT 0)").run();
-	await db.prepare("CREATE TABLE IF NOT EXISTS spaces (id TEXT PRIMARY KEY, name TEXT NOT NULL, color TEXT, emoji TEXT, enabledViews TEXT, columns TEXT, customFields TEXT, emailReminders INTEGER, emailDigestTime TEXT)").run();
+	await db.prepare("CREATE TABLE IF NOT EXISTS spaces (id TEXT PRIMARY KEY, name TEXT NOT NULL, color TEXT, emoji TEXT, enabledViews TEXT, columns TEXT, customFields TEXT, emailReminders INTEGER, emailDigestTime TEXT, settings TEXT)").run();
 
 	dbInitialized = true;
 }
@@ -188,6 +188,7 @@ export default {
 					columns: r.columns ? JSON.parse(r.columns) : [{ id: "todo", name: "To Do" }, { id: "doing", name: "Doing" }, { id: "done", name: "Done" }],
 					customFields: r.customFields ? JSON.parse(r.customFields) : [],
 					emailReminders: Boolean(r.emailReminders),
+					settings: r.settings || "{}",
 					tasks: [], // fetched separately
 					channel: [] // fetched separately or handled by party socket
 				}));
@@ -204,9 +205,10 @@ export default {
 				const customFields = JSON.stringify(body.customFields || []);
 				const emailReminders = body.emailReminders ? 1 : 0;
 				const emailDigestTime = body.emailDigestTime || '09:00';
+				const settings = body.settings || '{}';
 
-				await env.DB.prepare("INSERT INTO spaces (id, name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-					.bind(id, name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime).run();
+				await env.DB.prepare("INSERT INTO spaces (id, name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime, settings) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+					.bind(id, name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime, settings).run();
 
 				const safeId = id.replace(/[^a-zA-Z0-9_]/g, '');
 				await env.DB.prepare(`CREATE TABLE IF NOT EXISTS tasks_${safeId} (id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT, status TEXT NOT NULL, assignee TEXT, due_date TEXT, start_date TEXT, priority TEXT, custom TEXT)`).run();
@@ -227,9 +229,10 @@ export default {
 					const customFields = JSON.stringify(body.customFields);
 					const emailReminders = body.emailReminders ? 1 : 0;
 					const emailDigestTime = body.emailDigestTime;
+					const settings = body.settings || '{}';
 
-					await env.DB.prepare("UPDATE spaces SET name = ?, color = ?, emoji = ?, enabledViews = ?, columns = ?, customFields = ?, emailReminders = ?, emailDigestTime = ? WHERE id = ?")
-						.bind(name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime, id).run();
+					await env.DB.prepare("UPDATE spaces SET name = ?, color = ?, emoji = ?, enabledViews = ?, columns = ?, customFields = ?, emailReminders = ?, emailDigestTime = ?, settings = ? WHERE id = ?")
+						.bind(name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime, settings, id).run();
 
 					return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 				} catch (e) {

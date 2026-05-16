@@ -50,6 +50,7 @@ export function AppSidebar() {
           name: newSpaceName.trim(),
           columns,
           customFields,
+          automations: [],
         }),
       });
 
@@ -71,6 +72,7 @@ export function AppSidebar() {
             enabledViews: { list: true, kanban: true, calendar: true, gantt: true, table: true },
             columns,
             customFields,
+            automations: [],
             emailReminders: false,
             emailDigestTime: "09:00",
             settings: {},

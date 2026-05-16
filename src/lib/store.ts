@@ -23,6 +23,15 @@ export interface Task {
   custom: Record<string, string>;
 }
 
+export interface Automation {
+  id: string;
+  enabled: boolean;
+  condition_type: "unassigned" | "assigned" | "due_today";
+  condition_payload: any;
+  action_type: "set_status" | "send_email" | "move_space";
+  action_payload: any;
+}
+
 export interface Space {
   id: string;
   name: string;
@@ -31,6 +40,7 @@ export interface Space {
   enabledViews: Record<ViewType, boolean>;
   columns: { id: string; name: string }[];
   customFields: CustomField[];
+  automations?: Automation[];
   emailReminders: boolean;
   emailDigestTime: string;
   settings: Record<string, any>;

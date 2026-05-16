@@ -100,9 +100,16 @@ export function SpaceSettingsDialog({
         </DialogHeader>
 
         <div className="space-y-8 py-4">
-          <Section title="General">
-            <div className="grid grid-cols-[80px_1fr] gap-3">
-              <div>
+          <Tabs defaultValue="general" className="w-full">
+            <TabsList className="w-full flex mb-6">
+              <TabsTrigger value="general" className="flex-1">General</TabsTrigger>
+              <TabsTrigger value="automations" className="flex-1">Automations</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="general" className="space-y-8 mt-0">
+              <Section title="General">
+                <div className="grid grid-cols-[80px_1fr] gap-3">
+                  <div>
                 <Label className="text-xs">Emoji</Label>
                 <Input value={localSpace.emoji} onChange={(e) => patchLocal((sp) => ({ ...sp, emoji: e.target.value }))} maxLength={2} />
               </div>
@@ -339,9 +346,148 @@ export function SpaceSettingsDialog({
             </div>
           </Section>
 
-          <Section title="Danger zone">
-            <Button variant="destructive" onClick={removeSpace}>Delete space</Button>
-          </Section>
+              <Section title="Danger zone">
+                <Button variant="destructive" onClick={removeSpace}>Delete space</Button>
+              </Section>
+            </TabsContent>
+
+            <TabsContent value="automations" className="space-y-8 mt-0">
+              <Section title="Automations" subtitle="Set up automated actions based on triggers.">
+                <div className="space-y-4">
+                  {(localSpace.automations || []).map((auto, i) => (
+                    <div key={auto.id} className="border border-border p-4 rounded-lg space-y-4 bg-card">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={auto.enabled}
+                            onCheckedChange={(c) => patchLocal((sp) => ({
+                              ...sp,
+                              automations: sp.automations?.map((x, j) => j === i ? { ...x, enabled: c } : x)
+                            }))}
+                          />
+                          <span className="text-sm font-medium">Automation {i + 1}</span>
+                        </div>
+                        <Button variant="ghost" size="icon" onClick={() => patchLocal((sp) => ({
+                          ...sp,
+                          automations: sp.automations?.filter((_, j) => j !== i)
+                        }))}>
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-xs">When this happens...</Label>
+                          <Select
+                            value={auto.condition_type}
+                            onValueChange={(v) => patchLocal((sp) => ({
+                              ...sp,
+                              automations: sp.automations?.map((x, j) => j === i ? { ...x, condition_type: v as any } : x)
+                            }))}
+                          >
+                            <SelectTrigger><SelectValue placeholder="Select condition" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="unassigned">Task is Unassigned</SelectItem>
+                              <SelectItem value="assigned">Task is Assigned</SelectItem>
+                              <SelectItem value="due_today">Task is Due Today</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-xs">Do this...</Label>
+                          <Select
+                            value={auto.action_type}
+                            onValueChange={(v) => patchLocal((sp) => ({
+                              ...sp,
+                              automations: sp.automations?.map((x, j) => j === i ? { ...x, action_type: v as any } : x)
+                            }))}
+                          >
+                            <SelectTrigger><SelectValue placeholder="Select action" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="set_status">Set Status</SelectItem>
+                              <SelectItem value="send_email">Send Email</SelectItem>
+                              <SelectItem value="move_space">Move to Space</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        {auto.action_type === "set_status" && (
+                          <>
+                            <Label className="text-xs">Target Status</Label>
+                            <Select
+                              value={auto.action_payload?.status || ""}
+                              onValueChange={(v) => patchLocal((sp) => ({
+                                ...sp,
+                                automations: sp.automations?.map((x, j) => j === i ? { ...x, action_payload: { ...x.action_payload, status: v } } : x)
+                              }))}
+                            >
+                              <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                              <SelectContent>
+                                {localSpace.columns.map(col => (
+                                  <SelectItem key={col.id} value={col.id}>{col.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </>
+                        )}
+
+                        {auto.action_type === "send_email" && (
+                          <>
+                            <Label className="text-xs">Target Email</Label>
+                            <Input
+                              placeholder="Email address"
+                              value={auto.action_payload?.email || ""}
+                              onChange={(e) => patchLocal((sp) => ({
+                                ...sp,
+                                automations: sp.automations?.map((x, j) => j === i ? { ...x, action_payload: { ...x.action_payload, email: e.target.value } } : x)
+                              }))}
+                            />
+                          </>
+                        )}
+
+                        {auto.action_type === "move_space" && (
+                          <>
+                            <Label className="text-xs">Target Space ID</Label>
+                            <Select
+                              value={auto.action_payload?.space_id || ""}
+                              onValueChange={(v) => patchLocal((sp) => ({
+                                ...sp,
+                                automations: sp.automations?.map((x, j) => j === i ? { ...x, action_payload: { ...x.action_payload, space_id: v } } : x)
+                              }))}
+                            >
+                              <SelectTrigger><SelectValue placeholder="Select space" /></SelectTrigger>
+                              <SelectContent>
+                                {state.spaces.map(s => (
+                                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                  <Button
+                    variant="outline"
+                    className="w-full border-dashed"
+                    onClick={() => patchLocal((sp) => ({
+                      ...sp,
+                      automations: [
+                        ...(sp.automations || []),
+                        { id: uid(), enabled: true, condition_type: "unassigned", condition_payload: {}, action_type: "set_status", action_payload: {} }
+                      ]
+                    }))}
+                  >
+                    <Plus className="mr-2 size-4" /> Add Automation
+                  </Button>
+                </div>
+              </Section>
+            </TabsContent>
+          </Tabs>
 
           <div className="flex justify-end pt-4 border-t border-border mt-8">
             <Button onClick={handleSave}>Save Settings</Button>

@@ -278,7 +278,7 @@ export function SpaceSettingsDialog({
                       }))
                     }
                   />
-                  <Button variant="ghost" size="icon" onClick={() => patchLocal((sp) => ({ ...sp, columns: sp.columns.filter((_, j) => j !== i) }))}>
+                  <Button variant="ghost" size="icon" aria-label="Delete column" onClick={() => patchLocal((sp) => ({ ...sp, columns: sp.columns.filter((_, j) => j !== i) }))}>
                     <Trash2 className="size-4" />
                   </Button>
                 </div>
@@ -355,6 +355,7 @@ export function SpaceSettingsDialog({
                     variant="ghost"
                     size="icon"
                     onClick={() => patchLocal((sp) => ({ ...sp, customFields: sp.customFields.filter((_, j) => j !== i) }))}
+                    aria-label="Delete field"
                   >
                     <Trash2 className="size-4" />
                   </Button>

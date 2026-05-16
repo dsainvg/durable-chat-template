@@ -127,7 +127,7 @@ export function AppSidebar() {
                         onChange={(e) => setColumns(columns.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
                         placeholder="Column name"
                       />
-                      <Button type="button" variant="ghost" size="icon" onClick={() => setColumns(columns.filter((_, j) => j !== i))}>
+                      <Button type="button" variant="ghost" size="icon" aria-label="Delete column" onClick={() => setColumns(columns.filter((_, j) => j !== i))}>
                         <Trash2 className="size-4" />
                       </Button>
                     </div>
@@ -175,7 +175,7 @@ export function AppSidebar() {
                           }
                         />
                       )}
-                      <Button type="button" variant="ghost" size="icon" onClick={() => setCustomFields(customFields.filter((_, j) => j !== i))}>
+                      <Button type="button" variant="ghost" size="icon" aria-label="Delete field" onClick={() => setCustomFields(customFields.filter((_, j) => j !== i))}>
                         <Trash2 className="size-4" />
                       </Button>
                     </div>

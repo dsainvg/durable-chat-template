@@ -132,11 +132,6 @@ function SpacePage() {
   const [creating, setCreating] = useState(false);
   const [channelOpen, setChannelOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [sortField, setSortField] = useState<string>("default");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
-  const [filterAssignee, setFilterAssignee] = useState<string>("all");
-  const [filterPriority, setFilterPriority] = useState<string>("all");
-  const [filterStatus, setFilterStatus] = useState<string>("all");
 
   if (!space) {
     return (
@@ -147,6 +142,40 @@ function SpacePage() {
   }
 
   const activeView = space.enabledViews[view] ? view : enabled[0]?.id;
+
+  const viewSettings = space.settings?.[activeView] || {};
+  const sortField = viewSettings.sortField || "default";
+  const sortDirection = viewSettings.sortDirection || "asc";
+  const filterAssignee = viewSettings.filterAssignee || "all";
+  const filterPriority = viewSettings.filterPriority || "all";
+  const filterStatus = viewSettings.filterStatus || "all";
+
+  const setViewSetting = async (key: string, value: string) => {
+    const newSettings = {
+      ...space.settings,
+      [activeView]: {
+        ...(space.settings?.[activeView] || {}),
+        [key]: value
+      }
+    };
+    update(s => ({
+      ...s,
+      spaces: s.spaces.map(sp => sp.id === spaceId ? { ...sp, settings: newSettings } : sp)
+    }));
+
+    const token = localStorage.getItem("syncduo_token");
+    if (token) {
+      try {
+        await fetch(`/api/spaces/${spaceId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+          body: JSON.stringify({ ...space, settings: newSettings })
+        });
+      } catch (e) {
+        toast.error("Failed to sync view settings");
+      }
+    }
+  };
 
   const processedSpace = useMemo(() => {
     if (!space) return space;
@@ -297,22 +326,22 @@ function SpacePage() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>Status</DropdownMenuLabel>
-              <DropdownMenuCheckboxItem checked={filterStatus === "all"} onCheckedChange={() => setFilterStatus("all")}>All</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem checked={filterStatus === "all"} onCheckedChange={() => setViewSetting("filterStatus", "all")}>All</DropdownMenuCheckboxItem>
               {space?.columns.map(c => (
-                <DropdownMenuCheckboxItem key={c.id} checked={filterStatus === c.id} onCheckedChange={() => setFilterStatus(c.id)}>{c.name}</DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem key={c.id} checked={filterStatus === c.id} onCheckedChange={() => setViewSetting("filterStatus", c.id)}>{c.name}</DropdownMenuCheckboxItem>
               ))}
               <DropdownMenuSeparator />
               <DropdownMenuLabel>Priority</DropdownMenuLabel>
               {["all", "high", "medium", "low", "none"].map(p => (
-                <DropdownMenuCheckboxItem key={p} checked={filterPriority === p} onCheckedChange={() => setFilterPriority(p)}>
+                <DropdownMenuCheckboxItem key={p} checked={filterPriority === p} onCheckedChange={() => setViewSetting("filterPriority", p)}>
                   {p.charAt(0).toUpperCase() + p.slice(1)}
                 </DropdownMenuCheckboxItem>
               ))}
               <DropdownMenuSeparator />
               <DropdownMenuLabel>Assignee</DropdownMenuLabel>
-              <DropdownMenuCheckboxItem checked={filterAssignee === "all"} onCheckedChange={() => setFilterAssignee("all")}>All</DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem checked={filterAssignee === state.currentUserId} onCheckedChange={() => setFilterAssignee(state.currentUserId || "all")}>Me</DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem checked={filterAssignee === "unassigned"} onCheckedChange={() => setFilterAssignee("unassigned")}>Unassigned</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem checked={filterAssignee === "all"} onCheckedChange={() => setViewSetting("filterAssignee", "all")}>All</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem checked={filterAssignee === state.currentUserId} onCheckedChange={() => setViewSetting("filterAssignee", state.currentUserId || "all")}>Me</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem checked={filterAssignee === "unassigned"} onCheckedChange={() => setViewSetting("filterAssignee", "unassigned")}>Unassigned</DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -322,17 +351,17 @@ function SpacePage() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>Sort Field</DropdownMenuLabel>
-              <DropdownMenuCheckboxItem checked={sortField === "default"} onCheckedChange={() => setSortField("default")}>Default</DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem checked={sortField === "dueDate"} onCheckedChange={() => setSortField("dueDate")}>Due Date</DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem checked={sortField === "priority"} onCheckedChange={() => setSortField("priority")}>Priority</DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem checked={sortField === "title"} onCheckedChange={() => setSortField("title")}>Title</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem checked={sortField === "default"} onCheckedChange={() => setViewSetting("sortField", "default")}>Default</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem checked={sortField === "dueDate"} onCheckedChange={() => setViewSetting("sortField", "dueDate")}>Due Date</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem checked={sortField === "priority"} onCheckedChange={() => setViewSetting("sortField", "priority")}>Priority</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem checked={sortField === "title"} onCheckedChange={() => setViewSetting("sortField", "title")}>Title</DropdownMenuCheckboxItem>
               {space?.customFields.map(f => (
-                <DropdownMenuCheckboxItem key={f.id} checked={sortField === f.id} onCheckedChange={() => setSortField(f.id)}>{f.name}</DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem key={f.id} checked={sortField === f.id} onCheckedChange={() => setViewSetting("sortField", f.id)}>{f.name}</DropdownMenuCheckboxItem>
               ))}
               <DropdownMenuSeparator />
               <DropdownMenuLabel>Direction</DropdownMenuLabel>
-              <DropdownMenuCheckboxItem checked={sortDirection === "asc"} onCheckedChange={() => setSortDirection("asc")}>Ascending</DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem checked={sortDirection === "desc"} onCheckedChange={() => setSortDirection("desc")}>Descending</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem checked={sortDirection === "asc"} onCheckedChange={() => setViewSetting("sortDirection", "asc")}>Ascending</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem checked={sortDirection === "desc"} onCheckedChange={() => setViewSetting("sortDirection", "desc")}>Descending</DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>
 

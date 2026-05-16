@@ -127,10 +127,192 @@ async function initDb(db: D1Database) {
 	await db.prepare("CREATE TABLE IF NOT EXISTS spaces (id TEXT PRIMARY KEY, name TEXT NOT NULL, color TEXT, emoji TEXT, enabledViews TEXT, columns TEXT, customFields TEXT, emailReminders INTEGER, emailDigestTime TEXT, settings TEXT, spacesettings TEXT)").run();
 	await db.prepare("CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)").run();
 
+	// Create tables for automations
+	await db.prepare(`CREATE TABLE IF NOT EXISTS automation_rules (id TEXT PRIMARY KEY, target_spaces TEXT NOT NULL, conditions TEXT NOT NULL, action_type TEXT NOT NULL, config TEXT NOT NULL, is_recurring INTEGER DEFAULT 0)`).run();
+	await db.prepare(`CREATE TABLE IF NOT EXISTS upcoming_events (id TEXT PRIMARY KEY, automation_id TEXT NOT NULL, task_id TEXT NOT NULL, space_id TEXT NOT NULL, status TEXT NOT NULL, action_type TEXT NOT NULL, config TEXT NOT NULL, scheduled_for INTEGER NOT NULL)`).run();
+	await db.prepare(`CREATE TABLE IF NOT EXISTS recurring_events (id TEXT PRIMARY KEY, automation_id TEXT NOT NULL, task_id TEXT NOT NULL, space_id TEXT NOT NULL, status TEXT NOT NULL, action_type TEXT NOT NULL, config TEXT NOT NULL, last_run INTEGER DEFAULT 0, next_run INTEGER NOT NULL)`).run();
+	await db.prepare(`CREATE TABLE IF NOT EXISTS executed_events (id TEXT PRIMARY KEY, automation_id TEXT NOT NULL, task_id TEXT NOT NULL, space_id TEXT NOT NULL, status TEXT NOT NULL, action_type TEXT NOT NULL, config TEXT NOT NULL, executed_at INTEGER NOT NULL)`).run();
+
 	try { await db.prepare("ALTER TABLE spaces ADD COLUMN spacesettings TEXT").run(); } catch (e) {} dbInitialized = true;
 }
 
 export default {
+	async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext) {
+		await initDb(env.DB);
+		const now = new Date();
+		const today = now.toISOString().split('T')[0];
+		const nowTime = now.getTime();
+
+		// 1. Evaluate automations to create events
+		const { results: automations } = await env.DB.prepare("SELECT * FROM automation_rules").all();
+		const { results: allSpaces } = await env.DB.prepare("SELECT id FROM spaces").all();
+
+		for (const auto of automations) {
+			const targetSpaces = JSON.parse(auto.target_spaces as string) as string[];
+			const conditions = JSON.parse(auto.conditions as string) as { type: string; config?: any }[];
+			const actionType = auto.action_type as string;
+			const configStr = auto.config as string;
+			const isRecurring = auto.is_recurring === 1;
+
+			// Determine spaces to query
+			const spacesToQuery = targetSpaces.length > 0 ? targetSpaces : allSpaces.map(s => s.id as string);
+
+			for (const spaceId of spacesToQuery) {
+				const safeId = spaceId.replace(/[^a-zA-Z0-9_]/g, '');
+
+				try {
+					// Query tasks dynamically
+					const { results: tasks } = await env.DB.prepare(`SELECT * FROM tasks_${safeId}`).all();
+
+					for (const task of tasks) {
+						const taskId = task.id as string;
+						let allMatches = true;
+
+						// Check complex conditions (AND logic)
+						for (const cond of conditions) {
+							if (cond.type === 'due_today') {
+								if (task.due_date !== today) allMatches = false;
+							} else if (cond.type === 'has_assignee') {
+								if (task.assignee === '' || task.assignee === null) allMatches = false;
+							} else if (cond.type === 'no_assignee') {
+								if (task.assignee !== '' && task.assignee !== null) allMatches = false;
+							} else if (cond.type === 'status_equals') {
+								if (task.status !== cond.config?.status) allMatches = false;
+							}
+							if (!allMatches) break;
+						}
+
+						// If no conditions are set, don't trigger on every task by default
+						if (conditions.length === 0) allMatches = false;
+
+						if (allMatches) {
+							// Queue the event if it hasn't been queued/executed recently
+							const table = isRecurring ? 'recurring_events' : 'upcoming_events';
+
+							if (isRecurring) {
+								const { results: existingRec } = await env.DB.prepare(`SELECT id FROM recurring_events WHERE automation_id = ? AND task_id = ?`).bind(auto.id, taskId).all();
+								if (existingRec.length === 0) {
+									await env.DB.prepare(`INSERT INTO recurring_events (id, automation_id, task_id, space_id, status, action_type, config, last_run, next_run) VALUES (?, ?, ?, ?, 'pending', ?, ?, 0, ?)`)
+										.bind(crypto.randomUUID(), auto.id, taskId, spaceId, actionType, configStr, nowTime).run();
+								}
+							} else {
+								// For one-time upcoming, ensure it wasn't queued in the last 24h OR ever executed
+								const { results: existingUp } = await env.DB.prepare(`SELECT id FROM upcoming_events WHERE automation_id = ? AND task_id = ? AND scheduled_for >= ?`).bind(auto.id, taskId, nowTime - 86400000).all(); // Last 24 hours
+								const { results: existingExec } = await env.DB.prepare(`SELECT id FROM executed_events WHERE automation_id = ? AND task_id = ?`).bind(auto.id, taskId).all();
+
+								if (existingUp.length === 0 && existingExec.length === 0) {
+									await env.DB.prepare(`INSERT INTO upcoming_events (id, automation_id, task_id, space_id, status, action_type, config, scheduled_for) VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)`)
+										.bind(crypto.randomUUID(), auto.id, taskId, spaceId, actionType, configStr, nowTime).run();
+								}
+							}
+						}
+					}
+				} catch (e) {
+					// Table tasks_${safeId} might not exist yet
+				}
+			}
+		}
+
+		// 2. Execute pending events (Upcoming and Recurring)
+		const { results: pendingUpcoming } = await env.DB.prepare(`SELECT * FROM upcoming_events WHERE status = 'pending' AND scheduled_for <= ?`).bind(nowTime).all();
+		const { results: pendingRecurring } = await env.DB.prepare(`SELECT * FROM recurring_events WHERE status = 'pending' AND next_run <= ?`).bind(nowTime).all();
+
+		const allPendingEvents = [
+			...pendingUpcoming.map((e: any) => ({ ...e, isRecurring: false })),
+			...pendingRecurring.map((e: any) => ({ ...e, isRecurring: true }))
+		];
+
+		for (const event of allPendingEvents) {
+			const eventId = event.id as string;
+			const taskId = event.task_id as string;
+			const spaceId = event.space_id as string;
+			const safeId = spaceId.replace(/[^a-zA-Z0-9_]/g, '');
+			const actionType = event.action_type as string;
+			const config = JSON.parse(event.config as string);
+			const automationId = event.automation_id as string;
+			const isRecurring = event.isRecurring as boolean;
+
+			try {
+				if (actionType === 'send_email' && env.SMTP_USER && env.SMTP_PASS && config.target_user_id) {
+					const { results: userRecord } = await env.DB.prepare("SELECT email FROM users WHERE id = ?").bind(config.target_user_id).all();
+					if (userRecord.length > 0 && userRecord[0].email) {
+						const email = userRecord[0].email as string;
+						const transport = nodemailer.createTransport({
+							host: env.SMTP_HOST || "smtp.gmail.com",
+							port: Number(env.SMTP_PORT) || 465,
+							secure: true,
+							auth: {
+								user: env.SMTP_USER,
+								pass: env.SMTP_PASS
+							}
+						});
+						await transport.sendMail({
+							from: env.SMTP_USER,
+							to: email,
+							subject: `Automation Alert: Task ${taskId}`,
+							text: `Automation triggered for task ${taskId} in space ${spaceId}.`,
+						});
+					}
+				} else if (actionType === 'change_status' && config.new_status) {
+					await env.DB.prepare(`UPDATE tasks_${safeId} SET status = ? WHERE id = ?`).bind(config.new_status, taskId).run();
+					// Broadcast update
+					const { results: taskData } = await env.DB.prepare(`SELECT * FROM tasks_${safeId} WHERE id = ?`).bind(taskId).all();
+					if (taskData.length > 0) {
+						const r = taskData[0] as any;
+						const updatedTask = { ...r, dueDate: r.due_date, startDate: r.start_date, custom: r.custom ? JSON.parse(r.custom) : {} };
+						const idStr = env.Chat.idFromName(spaceId);
+						const chatStub = env.Chat.get(idStr);
+						await chatStub.fetch(new Request("http://internal/broadcast_task", {
+							method: "POST",
+							body: JSON.stringify({ type: "task_updated", task: updatedTask })
+						}));
+					}
+				} else if (actionType === 'move_space' && config.new_space_id) {
+					const destSafeId = config.new_space_id.replace(/[^a-zA-Z0-9_]/g, '');
+					// Fetch task
+					const { results: taskData } = await env.DB.prepare(`SELECT * FROM tasks_${safeId} WHERE id = ?`).bind(taskId).all();
+					if (taskData.length > 0) {
+						const t = taskData[0] as any;
+						// Insert into new space
+						await env.DB.prepare(`INSERT OR REPLACE INTO tasks_${destSafeId} (id, title, description, status, assignee, due_date, start_date, priority, custom) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`)
+							.bind(t.id, t.title, t.description, t.status, t.assignee, t.due_date, t.start_date, t.priority, t.custom).run();
+						// Delete from old
+						await env.DB.prepare(`DELETE FROM tasks_${safeId} WHERE id = ?`).bind(taskId).run();
+
+						// Broadcast updates
+						const oldStr = env.Chat.idFromName(spaceId);
+						const oldStub = env.Chat.get(oldStr);
+						await oldStub.fetch(new Request("http://internal/broadcast_task", {
+							method: "POST",
+							body: JSON.stringify({ type: "task_deleted", id: taskId })
+						}));
+						const updatedTask = { ...t, dueDate: t.due_date, startDate: t.start_date, custom: t.custom ? JSON.parse(t.custom) : {} };
+						const newStr = env.Chat.idFromName(config.new_space_id);
+						const newStub = env.Chat.get(newStr);
+						await newStub.fetch(new Request("http://internal/broadcast_task", {
+							method: "POST",
+							body: JSON.stringify({ type: "task_updated", task: updatedTask })
+						}));
+					}
+				}
+
+				if (isRecurring) {
+					// Schedule for next day
+					await env.DB.prepare(`UPDATE recurring_events SET last_run = ?, next_run = ? WHERE id = ?`).bind(nowTime, nowTime + 86400000, eventId).run();
+				} else {
+					// Mark as executed and move to executed_events
+					await env.DB.prepare(`INSERT INTO executed_events (id, automation_id, task_id, space_id, status, action_type, config, executed_at) VALUES (?, ?, ?, ?, 'completed', ?, ?, ?)`)
+						.bind(crypto.randomUUID(), automationId, taskId, spaceId, actionType, event.config as string, nowTime).run();
+					await env.DB.prepare(`DELETE FROM upcoming_events WHERE id = ?`).bind(eventId).run();
+				}
+			} catch (e) {
+				console.error(`Error executing event ${eventId}:`, e);
+				const table = isRecurring ? 'recurring_events' : 'upcoming_events';
+				await env.DB.prepare(`UPDATE ${table} SET status = 'failed' WHERE id = ?`).bind(eventId).run();
+			}
+		}
+	},
+
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
 		const url = new URL(request.url);
 
@@ -557,6 +739,54 @@ export default {
 					return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 				} catch (e) {
 					return new Response(JSON.stringify({ error: "Bad request" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				}
+			}
+
+			// Global Automations endpoints
+			if (url.pathname === '/api/automations' && request.method === 'GET') {
+				try {
+					const { results } = await env.DB.prepare("SELECT * FROM automation_rules").all();
+					const automations = results.map((r: any) => ({
+						id: r.id,
+						targetSpaces: JSON.parse(r.target_spaces),
+						conditions: JSON.parse(r.conditions),
+						action_type: r.action_type,
+						config: JSON.parse(r.config),
+						isRecurring: r.is_recurring === 1
+					}));
+					return new Response(JSON.stringify(automations), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				} catch (e) {
+					return new Response(JSON.stringify({ error: "Failed to fetch automations" }), { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				}
+			}
+
+			if (url.pathname === '/api/automations' && request.method === 'POST') {
+				try {
+					const body = await request.json() as any;
+					const id = crypto.randomUUID();
+					const targetSpaces = JSON.stringify(body.targetSpaces || []);
+					const conditions = JSON.stringify(body.conditions || []);
+					const action_type = body.action_type;
+					const config = JSON.stringify(body.config || {});
+					const isRecurring = body.isRecurring ? 1 : 0;
+
+					await env.DB.prepare("INSERT INTO automation_rules (id, target_spaces, conditions, action_type, config, is_recurring) VALUES (?, ?, ?, ?, ?, ?)")
+						.bind(id, targetSpaces, conditions, action_type, config, isRecurring).run();
+
+					return new Response(JSON.stringify({ id, targetSpaces: body.targetSpaces || [], conditions: body.conditions || [], action_type, config: body.config, isRecurring: body.isRecurring }), { status: 201, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				} catch (e) {
+					return new Response(JSON.stringify({ error: "Failed to create automation" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				}
+			}
+
+			const automationDeleteMatch = url.pathname.match(/^\/api\/automations\/([^/]+)$/);
+			if (automationDeleteMatch && request.method === 'DELETE') {
+				const automation_id = automationDeleteMatch[1];
+				try {
+					await env.DB.prepare("DELETE FROM automation_rules WHERE id = ?").bind(automation_id).run();
+					return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				} catch (e) {
+					return new Response(JSON.stringify({ error: "Failed to delete automation" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 				}
 			}
 

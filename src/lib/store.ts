@@ -23,6 +23,20 @@ export interface Task {
   custom: Record<string, string>;
 }
 
+export interface AutomationCondition {
+  type: string; // 'due_today', 'has_assignee', 'no_assignee', 'status_equals', etc.
+  config?: Record<string, any>;
+}
+
+export interface Automation {
+  id: string;
+  targetSpaces: string[]; // empty array means "any space"
+  conditions: AutomationCondition[];
+  action_type: string;
+  config: Record<string, any>;
+  isRecurring: boolean;
+}
+
 export interface Space {
   id: string;
   name: string;
@@ -58,9 +72,10 @@ export interface AppState {
   spaces: Space[];
   dms: Record<string, ChatMessage[]>; // key = other user id
   theme: "graphite" | "midnight" | "crimson" | "forest";
+  automations: Automation[];
 }
 
-export const STORAGE_KEY = "syncduo:v5";
+export const STORAGE_KEY = "syncduo:v6";
 
 const seed = (): AppState => ({
   currentUserId: "",
@@ -68,6 +83,7 @@ const seed = (): AppState => ({
   users: [],
   spaces: [],
   dms: {},
+  automations: [],
 });
 
 function addDays(n: number): string {

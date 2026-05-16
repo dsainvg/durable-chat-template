@@ -37,12 +37,70 @@ export function SpaceSettingsDialog({
   const me = state.users.find((u) => u.id === state.currentUserId);
 
   const [localSpace, setLocalSpace] = useState(space);
+  const [automations, setAutomations] = useState<import("@/lib/store").Automation[]>([]);
+  const [newAutoTrigger, setNewAutoTrigger] = useState("due_today_with_assignee");
+  const [newAutoAction, setNewAutoAction] = useState("send_email");
+  const [newAutoConfig, setNewAutoConfig] = useState<Record<string, any>>({ email: me?.email || "" });
 
   useEffect(() => {
     if (open && space) {
       setLocalSpace(space);
+      // Fetch automations
+      const token = localStorage.getItem("syncduo_token");
+      if (token) {
+        fetch(`/api/spaces/${spaceId}/automations`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (Array.isArray(data)) setAutomations(data);
+          })
+          .catch(console.error);
+      }
     }
   }, [open, space]);
+
+  const handleAddAutomation = async () => {
+    const token = localStorage.getItem("syncduo_token");
+    if (!token) return;
+    try {
+      const res = await fetch(`/api/spaces/${spaceId}/automations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({
+          trigger_type: newAutoTrigger,
+          action_type: newAutoAction,
+          config: newAutoConfig
+        })
+      });
+      if (res.ok) {
+        const data = await res.json() as import("@/lib/store").Automation;
+        setAutomations([...automations, data]);
+        toast.success("Automation added");
+      } else {
+        toast.error("Failed to add automation");
+      }
+    } catch (e) {
+      toast.error("Network error");
+    }
+  };
+
+  const handleDeleteAutomation = async (autoId: string) => {
+    const token = localStorage.getItem("syncduo_token");
+    if (!token) return;
+    try {
+      const res = await fetch(`/api/spaces/${spaceId}/automations/${autoId}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setAutomations(automations.filter(a => a.id !== autoId));
+        toast.success("Automation removed");
+      }
+    } catch (e) {
+      toast.error("Failed to remove automation");
+    }
+  };
 
   if (!space || !localSpace) return null;
 
@@ -337,6 +395,10 @@ export function SpaceSettingsDialog({
                 className="w-40"
               />
             </div>
+          </Section>
+
+          <Section title="Automations" subtitle="Global Automations have moved.">
+            <p className="text-sm text-muted-foreground">Automations are now managed globally. Please access Automations from the sidebar.</p>
           </Section>
 
           <Section title="Danger zone">

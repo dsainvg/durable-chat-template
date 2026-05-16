@@ -25,7 +25,9 @@ export interface Task {
 
 export interface Automation {
   id: string;
+  name: string;
   enabled: boolean;
+  target_spaces: string[];
   condition_type: "unassigned" | "assigned" | "due_today";
   condition_payload: any;
   action_type: "set_status" | "send_email" | "move_space";
@@ -40,7 +42,6 @@ export interface Space {
   enabledViews: Record<ViewType, boolean>;
   columns: { id: string; name: string }[];
   customFields: CustomField[];
-  automations?: Automation[];
   emailReminders: boolean;
   emailDigestTime: string;
   settings: Record<string, any>;
@@ -66,17 +67,19 @@ export interface AppState {
   currentUserId: string;
   users: User[];
   spaces: Space[];
+  automations: Automation[];
   dms: Record<string, ChatMessage[]>; // key = other user id
   theme: "graphite" | "midnight" | "crimson" | "forest";
 }
 
-export const STORAGE_KEY = "syncduo:v5";
+export const STORAGE_KEY = "syncduo:v6";
 
 const seed = (): AppState => ({
   currentUserId: "",
   theme: "graphite",
   users: [],
   spaces: [],
+  automations: [],
   dms: {},
 });
 

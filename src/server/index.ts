@@ -126,10 +126,13 @@ async function initDb(db: D1Database) {
 	await db.prepare("CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, initials TEXT NOT NULL, hash TEXT NOT NULL, active INTEGER DEFAULT 0, last_seen INTEGER DEFAULT 0)").run();
 	await db.prepare("CREATE TABLE IF NOT EXISTS spaces (id TEXT PRIMARY KEY, name TEXT NOT NULL, color TEXT, emoji TEXT, enabledViews TEXT, columns TEXT, customFields TEXT, emailReminders INTEGER, emailDigestTime TEXT, settings TEXT, spacesettings TEXT, automations TEXT)").run();
 	await db.prepare("CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)").run();
-	await db.prepare("CREATE TABLE IF NOT EXISTS automation_events (automation_id TEXT, task_id TEXT, executed_at INTEGER, PRIMARY KEY(automation_id, task_id))").run();
+
+	await db.prepare("CREATE TABLE IF NOT EXISTS automations (id TEXT PRIMARY KEY, name TEXT, enabled INTEGER, target_spaces TEXT, condition_type TEXT, condition_payload TEXT, action_type TEXT, action_payload TEXT)").run();
+	await db.prepare("CREATE TABLE IF NOT EXISTS automation_upcoming (id TEXT PRIMARY KEY, automation_id TEXT NOT NULL, task_id TEXT NOT NULL, space_id TEXT NOT NULL, action_type TEXT NOT NULL, action_payload TEXT NOT NULL, queued_at INTEGER)").run();
+	await db.prepare("CREATE TABLE IF NOT EXISTS automation_recurring (automation_id TEXT PRIMARY KEY, last_run INTEGER)").run();
+	await db.prepare("CREATE TABLE IF NOT EXISTS automation_executed (id TEXT PRIMARY KEY, automation_id TEXT NOT NULL, task_id TEXT NOT NULL, executed_at INTEGER)").run();
 
 	try { await db.prepare("ALTER TABLE spaces ADD COLUMN spacesettings TEXT").run(); } catch (e) {}
-	try { await db.prepare("ALTER TABLE spaces ADD COLUMN automations TEXT").run(); } catch (e) {}
 
 	dbInitialized = true;
 }
@@ -138,28 +141,45 @@ export default {
 	async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
 		await initDb(env.DB);
 		try {
-			const { results: spaces } = await env.DB.prepare("SELECT * FROM spaces").all();
 			const now = Date.now();
+			const { results: recurring } = await env.DB.prepare("SELECT * FROM automation_recurring").all();
+			const { results: automations } = await env.DB.prepare("SELECT * FROM automations WHERE enabled = 1").all();
+			const { results: spaces } = await env.DB.prepare("SELECT id FROM spaces").all();
 
-			for (const space of spaces as any[]) {
-				if (!space.automations) continue;
-				const automations = JSON.parse(space.automations);
-				if (!automations || automations.length === 0) continue;
+			const automationsMap = new Map(automations.map(a => [a.id, a]));
 
-				const safeId = space.id.replace(/[^a-zA-Z0-9_]/g, '');
-				let tasks: any[] = [];
-				try {
-					const taskRes = await env.DB.prepare(`SELECT * FROM tasks_${safeId}`).all();
-					tasks = taskRes.results;
-				} catch (e) {
-					continue; // table might not exist
+			// 1. Evaluate rules and queue tasks into upcoming
+			for (const rec of recurring as any[]) {
+				const auto = automationsMap.get(rec.automation_id) as any;
+				if (!auto) continue;
+
+				let targetSpaceIds = spaces.map((s: any) => s.id);
+				if (auto.target_spaces) {
+					const parsedTargetSpaces = JSON.parse(auto.target_spaces);
+					if (parsedTargetSpaces.length > 0) {
+						targetSpaceIds = parsedTargetSpaces;
+					}
 				}
 
-				for (const auto of automations) {
-					if (!auto.enabled) continue;
+				for (const spaceId of targetSpaceIds) {
+					const safeId = spaceId.replace(/[^a-zA-Z0-9_]/g, '');
+					let tasks: any[] = [];
+					try {
+						const taskRes = await env.DB.prepare(`SELECT * FROM tasks_${safeId}`).all();
+						tasks = taskRes.results;
+					} catch (e) {
+						continue; // table might not exist
+					}
 
 					for (const task of tasks) {
-						// Check condition
+						// Check if already executed
+						const checkExecuted = await env.DB.prepare("SELECT id FROM automation_executed WHERE automation_id = ? AND task_id = ?").bind(auto.id, task.id).all();
+						if (checkExecuted.results.length > 0) continue;
+
+						// Check if already in upcoming queue
+						const checkUpcoming = await env.DB.prepare("SELECT id FROM automation_upcoming WHERE automation_id = ? AND task_id = ?").bind(auto.id, task.id).all();
+						if (checkUpcoming.results.length > 0) continue;
+
 						let matchesCondition = false;
 
 						if (auto.condition_type === "unassigned") {
@@ -175,97 +195,114 @@ export default {
 							}
 						}
 
-						if (!matchesCondition) continue;
-
-						// Check if already executed
-						const checkRes = await env.DB.prepare("SELECT * FROM automation_events WHERE automation_id = ? AND task_id = ?").bind(auto.id, task.id).all();
-						if (checkRes.results.length > 0) continue;
-
-						// Execute action
-						let actionSuccessful = true;
-						try {
-							if (auto.action_type === "set_status") {
-								const newStatus = auto.action_payload.status;
-								await env.DB.prepare(`UPDATE tasks_${safeId} SET status = ? WHERE id = ?`).bind(newStatus, task.id).run();
-								task.status = newStatus;
-
-								// Broadcast
-								const idStr = env.Chat.idFromName(space.id);
-								const chatStub = env.Chat.get(idStr);
-								await chatStub.fetch(new Request("http://internal/broadcast_task", {
-									method: "POST",
-									body: JSON.stringify({ type: "task_updated", task: { ...task, dueDate: task.due_date, startDate: task.start_date, custom: task.custom ? JSON.parse(task.custom) : {}, space_id: space.id } })
-								}));
-							} else if (auto.action_type === "send_email") {
-								const email = auto.action_payload.email;
-								if (email && env.SMTP_USER && env.SMTP_PASS) {
-									const transport = nodemailer.createTransport({
-										host: env.SMTP_HOST || "smtp.gmail.com",
-										port: Number(env.SMTP_PORT) || 465,
-										secure: true,
-										auth: {
-											user: env.SMTP_USER,
-											pass: env.SMTP_PASS
-										}
-									});
-									await transport.sendMail({
-										from: env.SMTP_USER,
-										to: email,
-										subject: `Automation Alert: ${task.title}`,
-										text: `An automation was triggered for task "${task.title}".\nStatus: ${task.status}\nAssignee: ${task.assignee}`,
-									});
-								}
-							} else if (auto.action_type === "move_space") {
-								const targetSpaceId = auto.action_payload.space_id;
-								if (targetSpaceId) {
-									const safeTargetId = targetSpaceId.replace(/[^a-zA-Z0-9_]/g, '');
-									// Check if target space exists
-									const targetCheck = await env.DB.prepare("SELECT id FROM spaces WHERE id = ?").bind(targetSpaceId).all();
-									if (targetCheck.results.length > 0) {
-										// Ensure target table exists
-										await env.DB.prepare(`CREATE TABLE IF NOT EXISTS tasks_${safeTargetId} (id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT, status TEXT NOT NULL, assignee TEXT, due_date TEXT, start_date TEXT, priority TEXT, custom TEXT)`).run();
-
-										// Move task
-										await env.DB.prepare(`INSERT OR REPLACE INTO tasks_${safeTargetId} (id, title, description, status, assignee, due_date, start_date, priority, custom) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-											.bind(task.id, task.title, task.description, task.status, task.assignee, task.due_date, task.start_date, task.priority, task.custom).run();
-
-										// Delete from old space
-										await env.DB.prepare(`DELETE FROM tasks_${safeId} WHERE id = ?`).bind(task.id).run();
-
-										// Broadcast deletion to old space
-										const oldIdStr = env.Chat.idFromName(space.id);
-										const oldChatStub = env.Chat.get(oldIdStr);
-										await oldChatStub.fetch(new Request("http://internal/broadcast_task", {
-											method: "POST",
-											body: JSON.stringify({ type: "task_deleted", id: task.id })
-										}));
-
-										// Broadcast addition to new space
-										const newIdStr = env.Chat.idFromName(targetSpaceId);
-										const newChatStub = env.Chat.get(newIdStr);
-										await newChatStub.fetch(new Request("http://internal/broadcast_task", {
-											method: "POST",
-											body: JSON.stringify({ type: "task_updated", task: { ...task, dueDate: task.due_date, startDate: task.start_date, custom: task.custom ? JSON.parse(task.custom) : {}, space_id: targetSpaceId } })
-										}));
-									} else {
-										actionSuccessful = false;
-									}
-								} else {
-									actionSuccessful = false;
-								}
-							}
-						} catch (actionErr) {
-							console.error("Action error:", actionErr);
-							actionSuccessful = false;
-						}
-
-						if (actionSuccessful) {
-							// Record event
-							await env.DB.prepare("INSERT INTO automation_events (automation_id, task_id, executed_at) VALUES (?, ?, ?)").bind(auto.id, task.id, now).run();
+						if (matchesCondition) {
+							const upId = Math.random().toString(36).substring(2, 10);
+							await env.DB.prepare("INSERT INTO automation_upcoming (id, automation_id, task_id, space_id, action_type, action_payload, queued_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+								.bind(upId, auto.id, task.id, spaceId, auto.action_type, auto.action_payload, now).run();
 						}
 					}
 				}
+				await env.DB.prepare("UPDATE automation_recurring SET last_run = ? WHERE automation_id = ?").bind(now, auto.id).run();
 			}
+
+			// 2. Process upcoming queue
+			const { results: upcoming } = await env.DB.prepare("SELECT * FROM automation_upcoming").all();
+
+			for (const item of upcoming as any[]) {
+				let actionSuccessful = true;
+				const safeId = item.space_id.replace(/[^a-zA-Z0-9_]/g, '');
+				let task: any = null;
+				try {
+					const taskRes = await env.DB.prepare(`SELECT * FROM tasks_${safeId} WHERE id = ?`).bind(item.task_id).all();
+					if (taskRes.results.length > 0) {
+						task = taskRes.results[0];
+					} else {
+						actionSuccessful = false; // task deleted
+					}
+				} catch(e) {
+					actionSuccessful = false;
+				}
+
+				if (task) {
+					try {
+						const actionPayload = JSON.parse(item.action_payload);
+						if (item.action_type === "set_status") {
+							const newStatus = actionPayload.status;
+							await env.DB.prepare(`UPDATE tasks_${safeId} SET status = ? WHERE id = ?`).bind(newStatus, task.id).run();
+
+							const idStr = env.Chat.idFromName(item.space_id);
+							const chatStub = env.Chat.get(idStr);
+							await chatStub.fetch(new Request("http://internal/broadcast_task", {
+								method: "POST",
+								body: JSON.stringify({ type: "task_updated", task: { ...task, status: newStatus, dueDate: task.due_date, startDate: task.start_date, custom: task.custom ? JSON.parse(task.custom) : {}, space_id: item.space_id } })
+							}));
+						} else if (item.action_type === "send_email") {
+							const email = actionPayload.email;
+							if (email && env.SMTP_USER && env.SMTP_PASS) {
+								const transport = nodemailer.createTransport({
+									host: env.SMTP_HOST || "smtp.gmail.com",
+									port: Number(env.SMTP_PORT) || 465,
+									secure: true,
+									auth: {
+										user: env.SMTP_USER,
+										pass: env.SMTP_PASS
+									}
+								});
+								await transport.sendMail({
+									from: env.SMTP_USER,
+									to: email,
+									subject: `Automation Alert: ${task.title}`,
+									text: `An automation was triggered for task "${task.title}".\nStatus: ${task.status}\nAssignee: ${task.assignee}`,
+								});
+							}
+						} else if (item.action_type === "move_space") {
+							const targetSpaceId = actionPayload.space_id;
+							if (targetSpaceId) {
+								const safeTargetId = targetSpaceId.replace(/[^a-zA-Z0-9_]/g, '');
+								const targetCheck = await env.DB.prepare("SELECT id FROM spaces WHERE id = ?").bind(targetSpaceId).all();
+								if (targetCheck.results.length > 0) {
+									await env.DB.prepare(`CREATE TABLE IF NOT EXISTS tasks_${safeTargetId} (id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT, status TEXT NOT NULL, assignee TEXT, due_date TEXT, start_date TEXT, priority TEXT, custom TEXT)`).run();
+
+									await env.DB.prepare(`INSERT OR REPLACE INTO tasks_${safeTargetId} (id, title, description, status, assignee, due_date, start_date, priority, custom) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+										.bind(task.id, task.title, task.description, task.status, task.assignee, task.due_date, task.start_date, task.priority, task.custom).run();
+
+									await env.DB.prepare(`DELETE FROM tasks_${safeId} WHERE id = ?`).bind(task.id).run();
+
+									const oldIdStr = env.Chat.idFromName(item.space_id);
+									const oldChatStub = env.Chat.get(oldIdStr);
+									await oldChatStub.fetch(new Request("http://internal/broadcast_task", {
+										method: "POST",
+										body: JSON.stringify({ type: "task_deleted", id: task.id })
+									}));
+
+									const newIdStr = env.Chat.idFromName(targetSpaceId);
+									const newChatStub = env.Chat.get(newIdStr);
+									await newChatStub.fetch(new Request("http://internal/broadcast_task", {
+										method: "POST",
+										body: JSON.stringify({ type: "task_updated", task: { ...task, dueDate: task.due_date, startDate: task.start_date, custom: task.custom ? JSON.parse(task.custom) : {}, space_id: targetSpaceId } })
+									}));
+								} else {
+									actionSuccessful = false;
+								}
+							} else {
+								actionSuccessful = false;
+							}
+						}
+					} catch (actionErr) {
+						console.error("Action error:", actionErr);
+						actionSuccessful = false;
+					}
+				}
+
+				if (actionSuccessful) {
+					const exId = Math.random().toString(36).substring(2, 10);
+					await env.DB.prepare("INSERT INTO automation_executed (id, automation_id, task_id, executed_at) VALUES (?, ?, ?, ?)").bind(exId, item.automation_id, item.task_id, now).run();
+				}
+
+				// Remove from upcoming queue regardless of success to avoid infinite retries on unrecoverable errors
+				await env.DB.prepare("DELETE FROM automation_upcoming WHERE id = ?").bind(item.id).run();
+			}
+
 		} catch (e) {
 			console.error("Cron failed:", e);
 		}
@@ -512,6 +549,66 @@ export default {
 				await env.DB.prepare(`CREATE TABLE IF NOT EXISTS tasks_${safeId} (id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT, status TEXT NOT NULL, assignee TEXT, due_date TEXT, start_date TEXT, priority TEXT, custom TEXT)`).run();
 
 				return new Response(JSON.stringify({ id }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+			}
+
+			if (url.pathname === '/api/automations' && request.method === 'GET') {
+				const { results } = await env.DB.prepare("SELECT * FROM automations").all();
+				const parsed = results.map((r: any) => ({
+					...r,
+					enabled: Boolean(r.enabled),
+					target_spaces: r.target_spaces ? JSON.parse(r.target_spaces) : [],
+					condition_payload: r.condition_payload ? JSON.parse(r.condition_payload) : {},
+					action_payload: r.action_payload ? JSON.parse(r.action_payload) : {}
+				}));
+				return new Response(JSON.stringify(parsed), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+			}
+
+			if (url.pathname === '/api/automations' && request.method === 'POST') {
+				const body = await request.json() as any;
+				const id = body.id || Math.random().toString(36).substring(2, 10);
+				const name = body.name || 'New Automation';
+				const enabled = body.enabled ? 1 : 0;
+				const target_spaces = JSON.stringify(body.target_spaces || []);
+				const condition_type = body.condition_type || 'unassigned';
+				const condition_payload = JSON.stringify(body.condition_payload || {});
+				const action_type = body.action_type || 'set_status';
+				const action_payload = JSON.stringify(body.action_payload || {});
+
+				await env.DB.prepare("INSERT INTO automations (id, name, enabled, target_spaces, condition_type, condition_payload, action_type, action_payload) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+					.bind(id, name, enabled, target_spaces, condition_type, condition_payload, action_type, action_payload).run();
+
+				await env.DB.prepare("INSERT OR REPLACE INTO automation_recurring (automation_id, last_run) VALUES (?, ?)").bind(id, 0).run();
+
+				return new Response(JSON.stringify({ id }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+			}
+
+			const automationMatch = url.pathname.match(/^\/api\/automations\/([^/]+)$/);
+			if (automationMatch && request.method === 'PUT') {
+				const id = automationMatch[1];
+				try {
+					const body = await request.json() as any;
+					const name = body.name;
+					const enabled = body.enabled ? 1 : 0;
+					const target_spaces = JSON.stringify(body.target_spaces || []);
+					const condition_type = body.condition_type;
+					const condition_payload = JSON.stringify(body.condition_payload || {});
+					const action_type = body.action_type;
+					const action_payload = JSON.stringify(body.action_payload || {});
+
+					await env.DB.prepare("UPDATE automations SET name = ?, enabled = ?, target_spaces = ?, condition_type = ?, condition_payload = ?, action_type = ?, action_payload = ? WHERE id = ?")
+						.bind(name, enabled, target_spaces, condition_type, condition_payload, action_type, action_payload, id).run();
+
+					return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				} catch (e) {
+					return new Response(JSON.stringify({ error: "Bad request" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				}
+			}
+
+			if (automationMatch && request.method === 'DELETE') {
+				const id = automationMatch[1];
+				await env.DB.prepare("DELETE FROM automations WHERE id = ?").bind(id).run();
+				await env.DB.prepare("DELETE FROM automation_recurring WHERE automation_id = ?").bind(id).run();
+				return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 			}
 
 			if (url.pathname === '/api/user/test-email' && request.method === 'POST') {

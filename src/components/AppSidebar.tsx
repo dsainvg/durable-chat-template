@@ -11,6 +11,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
+import { GlobalAutomationsDialog } from "./GlobalAutomationsDialog";
+import { Zap } from "lucide-react";
 
 export function AppSidebar() {
   const { state, update } = useStore();
@@ -19,6 +21,7 @@ export function AppSidebar() {
   const others = state.users.filter((u) => me && u.id !== me.id);
 
   const [isSpaceDialogOpen, setIsSpaceDialogOpen] = useState(false);
+  const [isAutomationsDialogOpen, setIsAutomationsDialogOpen] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState("");
   const [columns, setColumns] = useState([{ id: "todo", name: "To Do" }, { id: "doing", name: "Doing" }, { id: "done", name: "Done" }]);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
@@ -256,6 +259,13 @@ export function AppSidebar() {
         </SidebarContent>
 
         <SidebarFooter className="p-3 border-t border-border space-y-1">
+          <button
+            onClick={() => setIsAutomationsDialogOpen(true)}
+            className="w-full flex items-center gap-2 px-2 py-2 text-sm rounded-md transition-colors text-muted-foreground hover:text-foreground hover:bg-accent/50"
+          >
+            <Zap className="size-4" />
+            <span>Automations</span>
+          </button>
           <Link
             to="/settings"
             className={`w-full flex items-center gap-2 px-2 py-2 text-sm rounded-md transition-colors ${
@@ -274,6 +284,11 @@ export function AppSidebar() {
           </div>
         </SidebarFooter>
       </Sidebar>
+
+      <GlobalAutomationsDialog
+        open={isAutomationsDialogOpen}
+        onOpenChange={setIsAutomationsDialogOpen}
+      />
     </>
   );
 }

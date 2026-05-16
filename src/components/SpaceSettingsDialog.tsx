@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -129,64 +130,81 @@ export function SpaceSettingsDialog({
           </Section>
 
           <Section title="View Settings" subtitle="Configure preferences for specific views.">
-            <div className="space-y-4">
-              <div className="bg-card border border-border rounded-lg p-4 space-y-3">
-                <h3 className="text-sm font-medium">Table View Columns</h3>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { id: "status", label: "Status" },
-                    { id: "assignee", label: "Assignee" },
-                    { id: "priority", label: "Priority" },
-                    { id: "dueDate", label: "Due Date" },
-                  ].map((field) => (
-                    <label key={field.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                      <Switch
-                        checked={localSpace.settings?.table?.hiddenFields?.[field.id] !== true}
-                        onCheckedChange={(c) =>
+            <Tabs defaultValue="list" className="w-full">
+              <TabsList className="w-full flex">
+                <TabsTrigger value="list" className="flex-1">List</TabsTrigger>
+                <TabsTrigger value="kanban" className="flex-1">Kanban</TabsTrigger>
+                <TabsTrigger value="calendar" className="flex-1">Calendar</TabsTrigger>
+                <TabsTrigger value="table" className="flex-1">Table</TabsTrigger>
+              </TabsList>
+
+              {["list", "kanban", "calendar", "table"].map(viewKey => (
+                <TabsContent key={viewKey} value={viewKey} className="space-y-4 mt-4">
+                  {(viewKey === "kanban" || viewKey === "list") && (
+                    <div className="bg-card border border-border rounded-lg p-4 space-y-3">
+                      <h3 className="text-sm font-medium">Group By</h3>
+                      <Select
+                        value={localSpace.settings?.[viewKey]?.groupBy || "status"}
+                        onValueChange={(v) =>
                           patchLocal((sp) => ({
                             ...sp,
                             settings: {
                               ...sp.settings,
-                              table: {
-                                ...(sp.settings?.table || {}),
-                                hiddenFields: {
-                                  ...(sp.settings?.table?.hiddenFields || {}),
-                                  [field.id]: !c
-                                }
+                              [viewKey]: {
+                                ...(sp.settings?.[viewKey] || {}),
+                                groupBy: v
                               }
                             }
                           }))
                         }
-                      />
-                      {field.label}
-                    </label>
-                  ))}
-                  {localSpace.customFields.map((f) => (
-                    <label key={f.id} className="flex items-center gap-2 text-sm cursor-pointer text-muted-foreground">
-                      <Switch
-                        checked={localSpace.settings?.table?.hiddenFields?.[f.id] !== true}
-                        onCheckedChange={(c) =>
-                          patchLocal((sp) => ({
-                            ...sp,
-                            settings: {
-                              ...sp.settings,
-                              table: {
-                                ...(sp.settings?.table || {}),
-                                hiddenFields: {
-                                  ...(sp.settings?.table?.hiddenFields || {}),
-                                  [f.id]: !c
+                      >
+                        <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="status">Status</SelectItem>
+                          <SelectItem value="assignee">Assignee</SelectItem>
+                          <SelectItem value="priority">Priority</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  <div className="bg-card border border-border rounded-lg p-4 space-y-3">
+                    <h3 className="text-sm font-medium">Visible Fields</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { id: "status", label: "Status" },
+                        { id: "assignee", label: "Assignee" },
+                        { id: "priority", label: "Priority" },
+                        { id: "dueDate", label: "Due Date" },
+                        ...(localSpace.customFields || []).map(f => ({ id: f.id, label: f.name }))
+                      ].map((field) => (
+                        <label key={field.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                          <Switch
+                            checked={localSpace.settings?.[viewKey]?.hiddenFields?.[field.id] !== true}
+                            onCheckedChange={(c) =>
+                              patchLocal((sp) => ({
+                                ...sp,
+                                settings: {
+                                  ...sp.settings,
+                                  [viewKey]: {
+                                    ...(sp.settings?.[viewKey] || {}),
+                                    hiddenFields: {
+                                      ...(sp.settings?.[viewKey]?.hiddenFields || {}),
+                                      [field.id]: !c
+                                    }
+                                  }
                                 }
-                              }
+                              }))
                             }
-                          }))
-                        }
-                      />
-                      {f.name}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
+                          />
+                          {field.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </TabsContent>
+              ))}
+            </Tabs>
           </Section>
 
           <Section title="Columns" subtitle="Columns shown in Kanban / List.">

@@ -31,6 +31,7 @@ export function CalendarView({ space, onOpen }: { space: Space; onOpen: (t: Task
   }, [space.tasks]);
 
   const today = new Date();
+  const hiddenFields = space.settings?.calendar?.hiddenFields || {};
 
   return (
     <div className="p-6">
@@ -65,9 +66,12 @@ export function CalendarView({ space, onOpen }: { space: Space; onOpen: (t: Task
                   <button
                     key={t.id}
                     onClick={() => onOpen(t)}
-                    className="w-full text-left text-[10px] truncate px-1.5 py-0.5 rounded bg-primary/15 text-foreground hover:bg-primary/25"
+                    className="w-full flex items-center gap-1 text-left text-[10px] truncate px-1.5 py-0.5 rounded bg-primary/15 text-foreground hover:bg-primary/25"
                   >
-                    {t.title}
+                    {!hiddenFields["priority"] && (
+                      <div className={`size-1.5 shrink-0 rounded-full ${t.priority === "high" ? "bg-destructive" : t.priority === "medium" ? "bg-primary" : "bg-muted-foreground/40"}`} />
+                    )}
+                    <span className="truncate flex-1">{!hiddenFields["title"] ? t.title : "..."}</span>
                   </button>
                 ))}
                 {list.length > 3 && <div className="text-[9px] text-muted-foreground px-1">+{list.length - 3}</div>}

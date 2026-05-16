@@ -14,21 +14,38 @@ export function KanbanView({
   onMove: (t: Task) => void;
 }) {
   const { state } = useStore();
+  const hiddenFields = space.settings?.kanban?.hiddenFields || {};
+  const groupBy = space.settings?.kanban?.groupBy || "status";
   const userMap = useMemo(() => Object.fromEntries(state.users.map((u) => [u.id, u])), [state.users]);
   const [dragId, setDragId] = useState<string | null>(null);
+
+  const columns = useMemo(() => {
+    if (groupBy === "assignee") {
+      return state.users.map(u => ({ id: u.id, name: u.name })).concat([{ id: "unassigned", name: "Unassigned" }]);
+    } else if (groupBy === "priority") {
+      return [
+        { id: "high", name: "High" },
+        { id: "medium", name: "Medium" },
+        { id: "low", name: "Low" },
+        { id: "none", name: "None" }
+      ];
+    }
+    return space.columns;
+  }, [space.columns, state.users, groupBy]);
 
   const tasksByColumn = useMemo(() => {
     const map: Record<string, Task[]> = {};
     for (const t of space.tasks) {
-      if (!map[t.status]) map[t.status] = [];
-      map[t.status].push(t);
+      const key = groupBy === "assignee" ? (t.assignee || "unassigned") : groupBy === "priority" ? (t.priority || "none") : t.status;
+      if (!map[key]) map[key] = [];
+      map[key].push(t);
     }
     return map;
   }, [space.tasks]);
 
   return (
     <div className="p-6 flex gap-6 overflow-x-auto h-full">
-      {space.columns.map((col) => {
+      {columns.map((col) => {
         const tasks = tasksByColumn[col.id] || [];
         return (
           <div
@@ -38,7 +55,7 @@ export function KanbanView({
             onDrop={() => {
               if (!dragId) return;
               const t = space.tasks.find((x) => x.id === dragId);
-              if (t && t.status !== col.id) onMove({ ...t, status: col.id });
+              if (t) onMove({ ...t, [groupBy]: col.id === "unassigned" ? null : col.id === "none" ? null : col.id });
               setDragId(null);
             }}
           >
@@ -61,12 +78,12 @@ export function KanbanView({
                 >
                   <p className="text-sm leading-snug">{t.title}</p>
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-muted-foreground">
+                    {!hiddenFields["dueDate"] && <span className="text-[10px] text-muted-foreground">
                       {dateFormatter.format(new Date(t.dueDate))}
-                    </span>
-                    <div className="size-5 rounded-full bg-muted ring-1 ring-border grid place-items-center text-[9px]">
+                    </span>}
+                    {!hiddenFields["assignee"] && <div className="size-5 rounded-full bg-muted ring-1 ring-border grid place-items-center text-[9px]">
                       {userMap[t.assignee]?.initials ?? "?"}
-                    </div>
+                    </div>}
                   </div>
                 </div>
               ))}

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { Space, Task } from "@/lib/store";
 
-export function GanttView({ space, onOpen }: { space: Space; onOpen: (t: Task) => void }) {
+export function GanttView({ space, onOpen, onUpdate }: { space: Space; onOpen: (t: Task) => void; onUpdate?: (t: Task) => void }) {
   const tasks = space.tasks;
   if (tasks.length === 0) {
     return <div className="p-8 text-sm text-muted-foreground italic">No tasks to chart yet.</div>;
@@ -61,10 +61,41 @@ export function GanttView({ space, onOpen }: { space: Space; onOpen: (t: Task) =
                   <div
                     className={`absolute top-2 h-6 rounded ${
                       t.priority === "high" ? "bg-destructive/70" : t.priority === "medium" ? "bg-primary/70" : "bg-muted-foreground/40"
-                    } flex items-center px-2`}
+                    } flex items-center px-2 group/bar`}
                     style={{ left: offset, width }}
                   >
-                    <span className="text-[10px] truncate text-primary-foreground">{t.title}</span>
+                    <span className="text-[10px] truncate text-primary-foreground select-none">{t.title}</span>
+                    {onUpdate && (
+                      <div
+                        className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize opacity-0 group-hover/bar:opacity-100 bg-foreground/20 rounded-r"
+                        onClick={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          const startX = e.clientX;
+                          const startDue = new Date(t.dueDate).getTime();
+
+                          const onPointerMove = (moveEvent: PointerEvent) => {
+                            // Optionally visual preview, skipping for simplicity
+                          };
+
+                          const onPointerUp = (upEvent: PointerEvent) => {
+                            document.removeEventListener("pointermove", onPointerMove);
+                            document.removeEventListener("pointerup", onPointerUp);
+
+                            const dx = upEvent.clientX - startX;
+                            const daysDelta = Math.round(dx / colWidth);
+                            if (daysDelta !== 0) {
+                              const newDue = new Date(startDue + daysDelta * 86400_000);
+                              onUpdate({ ...t, dueDate: newDue.toISOString() });
+                            }
+                          };
+
+                          document.addEventListener("pointermove", onPointerMove);
+                          document.addEventListener("pointerup", onPointerUp);
+                        }}
+                      />
+                    )}
                   </div>
                 </div>
               </button>

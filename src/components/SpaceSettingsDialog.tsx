@@ -37,12 +37,70 @@ export function SpaceSettingsDialog({
   const me = state.users.find((u) => u.id === state.currentUserId);
 
   const [localSpace, setLocalSpace] = useState(space);
+  const [automations, setAutomations] = useState<import("@/lib/store").Automation[]>([]);
+  const [newAutoTrigger, setNewAutoTrigger] = useState("due_today_with_assignee");
+  const [newAutoAction, setNewAutoAction] = useState("send_email");
+  const [newAutoConfig, setNewAutoConfig] = useState<Record<string, any>>({ email: me?.email || "" });
 
   useEffect(() => {
     if (open && space) {
       setLocalSpace(space);
+      // Fetch automations
+      const token = localStorage.getItem("syncduo_token");
+      if (token) {
+        fetch(`/api/spaces/${spaceId}/automations`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (Array.isArray(data)) setAutomations(data);
+          })
+          .catch(console.error);
+      }
     }
   }, [open, space]);
+
+  const handleAddAutomation = async () => {
+    const token = localStorage.getItem("syncduo_token");
+    if (!token) return;
+    try {
+      const res = await fetch(`/api/spaces/${spaceId}/automations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({
+          trigger_type: newAutoTrigger,
+          action_type: newAutoAction,
+          config: newAutoConfig
+        })
+      });
+      if (res.ok) {
+        const data = await res.json() as import("@/lib/store").Automation;
+        setAutomations([...automations, data]);
+        toast.success("Automation added");
+      } else {
+        toast.error("Failed to add automation");
+      }
+    } catch (e) {
+      toast.error("Network error");
+    }
+  };
+
+  const handleDeleteAutomation = async (autoId: string) => {
+    const token = localStorage.getItem("syncduo_token");
+    if (!token) return;
+    try {
+      const res = await fetch(`/api/spaces/${spaceId}/automations/${autoId}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setAutomations(automations.filter(a => a.id !== autoId));
+        toast.success("Automation removed");
+      }
+    } catch (e) {
+      toast.error("Failed to remove automation");
+    }
+  };
 
   if (!space || !localSpace) return null;
 
@@ -336,6 +394,83 @@ export function SpaceSettingsDialog({
                 onChange={(e) => patchLocal((sp) => ({ ...sp, emailDigestTime: e.target.value }))}
                 className="w-40"
               />
+            </div>
+          </Section>
+
+          <Section title="Automations" subtitle="Set up triggers and actions for tasks in this space.">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                {automations.map((a) => (
+                  <div key={a.id} className="flex items-center justify-between bg-card border border-border p-3 rounded-md text-sm">
+                    <div>
+                      <span className="font-medium">When</span> {a.trigger_type.replace(/_/g, ' ')} <span className="font-medium">Then</span> {a.action_type.replace(/_/g, ' ')}
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteAutomation(a.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="bg-secondary/50 p-4 rounded-lg space-y-3">
+                <h4 className="text-sm font-medium">New Automation</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Trigger</Label>
+                    <Select value={newAutoTrigger} onValueChange={setNewAutoTrigger}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="due_today_with_assignee">Due today (with assignee)</SelectItem>
+                        <SelectItem value="due_today_no_assignee">Due today (no assignee)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Action</Label>
+                    <Select value={newAutoAction} onValueChange={(val) => {
+                      setNewAutoAction(val);
+                      if (val === "send_email") setNewAutoConfig({ email: me?.email || "" });
+                      else if (val === "change_status") setNewAutoConfig({ new_status: localSpace.columns[0]?.id || "" });
+                      else if (val === "move_space") setNewAutoConfig({ new_space_id: "" });
+                    }}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="send_email">Send Email</SelectItem>
+                        <SelectItem value="change_status">Change Status</SelectItem>
+                        <SelectItem value="move_space">Move Space</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {newAutoAction === "send_email" && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">To Email</Label>
+                    <Input value={newAutoConfig.email || ""} onChange={(e) => setNewAutoConfig({ ...newAutoConfig, email: e.target.value })} />
+                  </div>
+                )}
+                {newAutoAction === "change_status" && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">New Status</Label>
+                    <Select value={newAutoConfig.new_status || ""} onValueChange={(v) => setNewAutoConfig({ ...newAutoConfig, new_status: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {localSpace.columns.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {newAutoAction === "move_space" && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Destination Space ID</Label>
+                    <Input value={newAutoConfig.new_space_id || ""} onChange={(e) => setNewAutoConfig({ ...newAutoConfig, new_space_id: e.target.value })} />
+                  </div>
+                )}
+
+                <Button variant="secondary" className="w-full mt-2" onClick={handleAddAutomation}>
+                  <Plus className="h-4 w-4 mr-2" /> Add Automation
+                </Button>
+              </div>
             </div>
           </Section>
 

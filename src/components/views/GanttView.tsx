@@ -1,6 +1,10 @@
 import { useMemo } from "react";
 import type { Space, Task } from "@/lib/store";
 
+// Initialize a stable date formatter outside the component to avoid
+// recreating it on every render or inside loops, improving performance.
+const monthFormatter = new Intl.DateTimeFormat(undefined, { month: "short" });
+
 export function GanttView({ space, onOpen, onUpdate }: { space: Space; onOpen: (t: Task) => void; onUpdate?: (t: Task) => void }) {
   const tasks = space.tasks;
   if (tasks.length === 0) {
@@ -36,7 +40,7 @@ export function GanttView({ space, onOpen, onUpdate }: { space: Space; onOpen: (
                 return (
                   <div key={i} style={{ width: colWidth }} className="text-center py-2 text-[10px] text-muted-foreground border-l border-border">
                     {isMonthStart && (
-                      <div className="text-[9px] uppercase font-semibold text-foreground">{d.toLocaleDateString(undefined, { month: "short" })}</div>
+                      <div className="text-[9px] uppercase font-semibold text-foreground">{monthFormatter.format(d)}</div>
                     )}
                     <div>{d.getDate()}</div>
                   </div>

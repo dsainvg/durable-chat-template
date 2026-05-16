@@ -2,6 +2,10 @@ import { useMemo } from "react";
 import type { Space, Task } from "@/lib/store";
 import { useStore } from "@/lib/store";
 
+// Initialize a stable date formatter outside the component to avoid
+// recreating it on every render or inside loops, improving performance.
+const dateFormatter = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+
 export function TableView({ space, onOpen }: { space: Space; onOpen: (t: Task) => void }) {
   const { state } = useStore();
   const userMap = useMemo(() => Object.fromEntries(state.users.map((u) => [u.id, u])), [state.users]);
@@ -72,7 +76,7 @@ export function TableView({ space, onOpen }: { space: Space; onOpen: (t: Task) =
                     )}
                     {!hiddenFields["dueDate"] && (
                       <td className="px-4 py-3 whitespace-nowrap text-muted-foreground text-xs">
-                        {t.dueDate ? new Date(t.dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "-"}
+                        {t.dueDate ? dateFormatter.format(new Date(t.dueDate)) : "-"}
                       </td>
                     )}
                     {space.customFields?.map(f => (

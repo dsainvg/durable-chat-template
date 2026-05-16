@@ -23,14 +23,6 @@ export interface Task {
   custom: Record<string, string>;
 }
 
-export interface Automation {
-  id: string;
-  space_id: string;
-  trigger_type: string;
-  action_type: string;
-  config: Record<string, any>;
-}
-
 export interface Space {
   id: string;
   name: string;
@@ -44,7 +36,6 @@ export interface Space {
   settings: Record<string, any>;
   tasks: Task[];
   channel: ChatMessage[];
-  automations?: Automation[];
 }
 
 export interface ChatMessage {

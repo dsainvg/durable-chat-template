@@ -35,10 +35,5 @@
 	"observability": {
 		"enabled": true
 	},
-	"triggers": {
-		"crons": [
-			"*/30 7-23 * * *"
-		]
-	},
 	"upload_source_maps": true
 }

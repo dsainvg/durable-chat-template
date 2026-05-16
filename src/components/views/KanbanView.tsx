@@ -77,6 +77,15 @@ export function KanbanView({
                   }`}
                 >
                   <p className="text-sm leading-snug">{t.title}</p>
+                  {space.customFields && space.customFields.filter(f => !hiddenFields[f.id]).length > 0 && (
+                    <div className="space-y-1">
+                      {space.customFields.map(f => !hiddenFields[f.id] && (
+                        <div key={f.id} className="text-[10px] text-muted-foreground truncate flex justify-between items-center">
+                          <span className="font-semibold">{f.name}:</span> <span className="truncate ml-2">{t.custom?.[f.id] || "-"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex items-center justify-between">
                     {!hiddenFields["dueDate"] && <span className="text-[10px] text-muted-foreground">
                       {dateFormatter.format(new Date(t.dueDate))}

@@ -71,7 +71,11 @@ export function CalendarView({ space, onOpen }: { space: Space; onOpen: (t: Task
                     {!hiddenFields["priority"] && (
                       <div className={`size-1.5 shrink-0 rounded-full ${t.priority === "high" ? "bg-destructive" : t.priority === "medium" ? "bg-primary" : "bg-muted-foreground/40"}`} />
                     )}
-                    <span className="truncate flex-1">{!hiddenFields["title"] ? t.title : "..."}</span>
+                    <span className="truncate flex-1">
+                      {!hiddenFields["title"] ? t.title : "..."}
+                      {space.customFields && space.customFields.filter(f => !hiddenFields[f.id]).length > 0 &&
+                        ` | ${space.customFields.filter(f => !hiddenFields[f.id]).map(f => t.custom?.[f.id] || "-").join(", ")}`}
+                    </span>
                   </button>
                 ))}
                 {list.length > 3 && <div className="text-[9px] text-muted-foreground px-1">+{list.length - 3}</div>}

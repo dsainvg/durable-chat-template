@@ -324,6 +324,18 @@ export default {
 				return new Response(JSON.stringify(results), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 			}
 
+			const parseSettings = (r: any) => {
+				try {
+					const ss = r.spacesettings ? JSON.parse(r.spacesettings) : null;
+					if (ss && Object.keys(ss).length > 0) return ss;
+				} catch (e) {}
+				try {
+					const s = r.settings ? JSON.parse(r.settings) : null;
+					if (s && Object.keys(s).length > 0) return s;
+				} catch (e) {}
+				return {};
+			};
+
 			if (url.pathname === '/api/spaces' && request.method === 'GET') {
 				const { results } = await env.DB.prepare("SELECT * FROM spaces").all();
 				const parsed = results.map((r: any) => ({
@@ -332,7 +344,7 @@ export default {
 					columns: r.columns ? JSON.parse(r.columns) : [{ id: "todo", name: "To Do" }, { id: "doing", name: "Doing" }, { id: "done", name: "Done" }],
 					customFields: r.customFields ? JSON.parse(r.customFields) : [],
 					emailReminders: Boolean(r.emailReminders),
-					settings: (r.spacesettings ? JSON.parse(r.spacesettings) : null) || (r.settings ? JSON.parse(r.settings) : {}),
+					settings: parseSettings(r),
 					tasks: [], // fetched separately
 					channel: [] // fetched separately or handled by party socket
 				}));

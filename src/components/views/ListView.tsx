@@ -60,6 +60,15 @@ export function ListView({ space, onOpen }: { space: Space; onOpen: (t: Task) =>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm truncate">{t.title}</p>
                     {t.description && <p className="text-xs text-muted-foreground truncate">{t.description}</p>}
+                    {space.customFields && space.customFields.filter(f => !hiddenFields[f.id]).length > 0 && (
+                      <div className="flex gap-3 mt-1 overflow-hidden">
+                        {space.customFields.map(f => !hiddenFields[f.id] && (
+                          <span key={f.id} className="text-[10px] text-muted-foreground truncate max-w-[150px]">
+                            <span className="font-semibold">{f.name}:</span> {t.custom?.[f.id] || "-"}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   {!hiddenFields["dueDate"] && <div className="text-[11px] text-muted-foreground w-24 text-right">
                     {dateFormatter.format(new Date(t.dueDate))}

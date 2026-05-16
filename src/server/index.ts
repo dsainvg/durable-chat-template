@@ -124,10 +124,10 @@ async function initDb(db: D1Database) {
 	if (dbInitialized) return;
 
 	await db.prepare("CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, initials TEXT NOT NULL, hash TEXT NOT NULL, active INTEGER DEFAULT 0, last_seen INTEGER DEFAULT 0)").run();
-	await db.prepare("CREATE TABLE IF NOT EXISTS spaces (id TEXT PRIMARY KEY, name TEXT NOT NULL, color TEXT, emoji TEXT, enabledViews TEXT, columns TEXT, customFields TEXT, emailReminders INTEGER, emailDigestTime TEXT, settings TEXT)").run();
+	await db.prepare("CREATE TABLE IF NOT EXISTS spaces (id TEXT PRIMARY KEY, name TEXT NOT NULL, color TEXT, emoji TEXT, enabledViews TEXT, columns TEXT, customFields TEXT, emailReminders INTEGER, emailDigestTime TEXT, settings TEXT, spacesettings TEXT)").run();
 	await db.prepare("CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)").run();
 
-	dbInitialized = true;
+	try { await db.prepare("ALTER TABLE spaces ADD COLUMN spacesettings TEXT").run(); } catch (e) {} dbInitialized = true;
 }
 
 export default {
@@ -332,7 +332,7 @@ export default {
 					columns: r.columns ? JSON.parse(r.columns) : [{ id: "todo", name: "To Do" }, { id: "doing", name: "Doing" }, { id: "done", name: "Done" }],
 					customFields: r.customFields ? JSON.parse(r.customFields) : [],
 					emailReminders: Boolean(r.emailReminders),
-					settings: r.settings ? JSON.parse(r.settings) : {},
+					settings: (r.spacesettings ? JSON.parse(r.spacesettings) : null) || (r.settings ? JSON.parse(r.settings) : {}),
 					tasks: [], // fetched separately
 					channel: [] // fetched separately or handled by party socket
 				}));
@@ -349,10 +349,10 @@ export default {
 				const customFields = JSON.stringify(body.customFields || []);
 				const emailReminders = body.emailReminders ? 1 : 0;
 				const emailDigestTime = body.emailDigestTime || '09:00';
-				const settings = JSON.stringify(body.settings || {});
+				const settings = JSON.stringify(body.settings || {}); const spacesettings = JSON.stringify(body.settings || {});
 
-				await env.DB.prepare("INSERT INTO spaces (id, name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime, settings) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-					.bind(id, name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime, settings).run();
+				await env.DB.prepare("INSERT INTO spaces (id, name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime, settings, spacesettings) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+					.bind(id, name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime, settings, spacesettings).run();
 
 				const safeId = id.replace(/[^a-zA-Z0-9_]/g, '');
 				await env.DB.prepare(`CREATE TABLE IF NOT EXISTS tasks_${safeId} (id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT, status TEXT NOT NULL, assignee TEXT, due_date TEXT, start_date TEXT, priority TEXT, custom TEXT)`).run();
@@ -408,10 +408,10 @@ export default {
 					const customFields = JSON.stringify(body.customFields);
 					const emailReminders = body.emailReminders ? 1 : 0;
 					const emailDigestTime = body.emailDigestTime;
-					const settings = JSON.stringify(body.settings || {});
+					const settings = JSON.stringify(body.settings || {}); const spacesettings = JSON.stringify(body.settings || {});
 
-					await env.DB.prepare("UPDATE spaces SET name = ?, color = ?, emoji = ?, enabledViews = ?, columns = ?, customFields = ?, emailReminders = ?, emailDigestTime = ?, settings = ? WHERE id = ?")
-						.bind(name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime, settings, id).run();
+					await env.DB.prepare("UPDATE spaces SET name = ?, color = ?, emoji = ?, enabledViews = ?, columns = ?, customFields = ?, emailReminders = ?, emailDigestTime = ?, settings = ?, spacesettings = ? WHERE id = ?")
+						.bind(name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime, settings, spacesettings, id).run();
 
 					const idStr = env.Chat.idFromName(id);
 					const chatStub = env.Chat.get(idStr);

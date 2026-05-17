@@ -156,7 +156,7 @@ export function GlobalAutomationsDialog({
                         {a.action_type.replace('_', ' ')}
                       </div>
                     </div>
-                    <Button variant="ghost" size="icon" className="text-destructive shrink-0" onClick={() => handleDeleteAutomation(a.id)}>
+                    <Button variant="ghost" size="icon" aria-label="Delete automation" className="text-destructive shrink-0" onClick={() => handleDeleteAutomation(a.id)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
@@ -199,7 +199,7 @@ export function GlobalAutomationsDialog({
                        <Input className="h-8 text-xs" placeholder="Status ID (e.g., done)" value={c.config?.status || ""} onChange={e => updateCondition(i, { config: { status: e.target.value }})} />
                      )}
                   </div>
-                  <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8 text-destructive" onClick={() => removeCondition(i)}><Trash2 className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" aria-label="Remove condition" className="shrink-0 h-8 w-8 text-destructive" onClick={() => removeCondition(i)}><Trash2 className="h-4 w-4" /></Button>
                 </div>
               ))}
               <Button variant="outline" size="sm" className="h-8 text-xs mt-1" onClick={handleAddCondition}>

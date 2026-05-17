@@ -5,6 +5,8 @@ import usePartySocket from "partysocket/react";
 import { Send } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
+const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
+
 export const Route = createFileRoute("/chat/$userId")({
   component: ChatPage,
 });
@@ -101,7 +103,7 @@ function ChatPage() {
                 }`}>
                   {m.text}
                   <div className={`text-[9px] mt-1 ${mine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-                    {new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    {timeFormatter.format(m.ts)}
                   </div>
                 </div>
               </div>

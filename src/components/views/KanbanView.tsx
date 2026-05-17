@@ -5,11 +5,13 @@ import { useStore } from "@/lib/store";
 const dateFormatter = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 
 export function KanbanView({
+  viewId,
   space,
   onOpen,
   onMove,
 }: {
   space: Space;
+  viewId?: string;
   onOpen: (t: Task) => void;
   onMove: (t: Task) => void;
 }) {

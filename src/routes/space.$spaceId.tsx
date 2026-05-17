@@ -123,11 +123,8 @@ function SpacePage() {
     socket.send(JSON.stringify({ type: "add", id: uid(), text, userId: state.currentUserId, ts: Date.now() }));
   };
 
-  const enabled = useMemo(
-    () => VIEW_LABELS.filter((v) => space?.enabledViews[v.id]),
-    [space]
-  );
-  const [view, setView] = useState<ViewType>(enabled[0]?.id ?? "list");
+  const views = useMemo(() => space?.views || [], [space]);
+  const [viewId, setViewId] = useState<string>(views[0]?.id ?? "list");
   const [openTask, setOpenTask] = useState<Task | null>(null);
   const [creating, setCreating] = useState(false);
   const [channelOpen, setChannelOpen] = useState(false);
@@ -141,9 +138,11 @@ function SpacePage() {
     );
   }
 
-  const activeView = space.enabledViews[view] ? view : enabled[0]?.id;
+  const activeView = views.find(v => v.id === viewId) || views[0];
+  const activeViewId = activeView?.id;
+  const activeViewType = activeView?.type;
 
-  const viewSettings = space.settings?.[activeView] || {};
+  const viewSettings = space.settings?.[activeViewId] || {};
   const sortField = viewSettings.sortField || "default";
   const sortDirection = viewSettings.sortDirection || "asc";
   const filterAssignee = viewSettings.filterAssignee || "all";
@@ -151,10 +150,11 @@ function SpacePage() {
   const filterStatus = viewSettings.filterStatus || "all";
 
   const setViewSetting = async (key: string, value: string) => {
+    if (!activeViewId) return;
     const newSettings = {
       ...space.settings,
-      [activeView]: {
-        ...(space.settings?.[activeView] || {}),
+      [activeViewId]: {
+        ...(space.settings?.[activeViewId] || {}),
         [key]: value
       }
     };
@@ -299,17 +299,17 @@ function SpacePage() {
             </h1>
           </div>
           <nav className="flex items-center gap-0.5 overflow-x-auto no-scrollbar pb-1 sm:pb-0">
-            {enabled.map((v) => (
+            {views.map((v) => (
               <button
                 key={v.id}
-                onClick={() => setView(v.id)}
+                onClick={() => setViewId(v.id)}
                 className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
-                  activeView === v.id
+                  activeViewId === v.id
                     ? "text-primary bg-primary/10 ring-1 ring-primary/20"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {v.label}
+                {v.name}
               </button>
             ))}
           </nav>
@@ -378,19 +378,19 @@ function SpacePage() {
                 { id: "dueDate", label: "Due Date" },
                 ...(space?.customFields || []).map(f => ({ id: f.id, label: f.name }))
               ].map(f => {
-                const isHidden = space?.settings?.[activeView]?.hiddenFields?.[f.id] === true;
+                const isHidden = activeViewId ? space?.settings?.[activeViewId]?.hiddenFields?.[f.id] === true : false;
                 return (
                   <DropdownMenuCheckboxItem
                     key={f.id}
                     checked={!isHidden}
                     onCheckedChange={async (c) => {
-                      if (!space) return;
+                      if (!space || !activeViewId) return;
                       const newSettings = {
                         ...space.settings,
-                        [activeView]: {
-                          ...(space.settings?.[activeView] || {}),
+                        [activeViewId]: {
+                          ...(space.settings?.[activeViewId] || {}),
                           hiddenFields: {
-                            ...(space.settings?.[activeView]?.hiddenFields || {}),
+                            ...(space.settings?.[activeViewId]?.hiddenFields || {}),
                             [f.id]: !c
                           }
                         }
@@ -441,11 +441,11 @@ function SpacePage() {
 
       <div className="flex-1 flex overflow-hidden flex-col sm:flex-row">
         <div className="flex-1 overflow-auto">
-          {activeView === "list" && <ListView space={processedSpace!} onOpen={(t) => { setOpenTask(t); setCreating(false); }} />}
-          {activeView === "kanban" && <KanbanView space={processedSpace!} onOpen={(t) => { setOpenTask(t); setCreating(false); }} onMove={updateTask} />}
-          {activeView === "calendar" && <CalendarView space={processedSpace!} onOpen={(t) => { setOpenTask(t); setCreating(false); }} />}
-          {activeView === "gantt" && <GanttView space={processedSpace!} onOpen={(t) => { setOpenTask(t); setCreating(false); }} onUpdate={updateTask} />}
-          {activeView === "table" && <TableView space={processedSpace!} onOpen={(t) => { setOpenTask(t); setCreating(false); }} />}
+          {activeViewType === "list" && <ListView space={processedSpace!} viewId={activeViewId} onOpen={(t) => { setOpenTask(t); setCreating(false); }} onMove={updateTask} />}
+          {activeViewType === "kanban" && <KanbanView space={processedSpace!} viewId={activeViewId} onOpen={(t) => { setOpenTask(t); setCreating(false); }} onMove={updateTask} />}
+          {activeViewType === "calendar" && <CalendarView space={processedSpace!} viewId={activeViewId} onOpen={(t) => { setOpenTask(t); setCreating(false); }} onMove={updateTask} />}
+          {activeViewType === "gantt" && <GanttView space={processedSpace!} onOpen={(t) => { setOpenTask(t); setCreating(false); }} onUpdate={updateTask} />}
+          {activeViewType === "table" && <TableView space={processedSpace!} viewId={activeViewId} onOpen={(t) => { setOpenTask(t); setCreating(false); }} />}
         </div>
 
         {channelOpen && (

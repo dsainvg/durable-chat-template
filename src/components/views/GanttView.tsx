@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { Space, Task } from "@/lib/store";
 
 // Initialize a stable date formatter outside the component to avoid
@@ -7,6 +7,7 @@ const monthFormatter = new Intl.DateTimeFormat(undefined, { month: "short" });
 
 export function GanttView({ space, onOpen, onUpdate }: { space: Space; onOpen: (t: Task) => void; onUpdate?: (t: Task) => void }) {
   const tasks = space.tasks;
+  const [isResizing, setIsResizing] = useState(false);
   if (tasks.length === 0) {
     return <div className="p-8 text-sm text-muted-foreground italic">No tasks to chart yet.</div>;
   }
@@ -57,7 +58,14 @@ export function GanttView({ space, onOpen, onUpdate }: { space: Space; onOpen: (
             return (
               <button
                 key={t.id}
-                onClick={() => onOpen(t)}
+                onClick={(e) => {
+                  if (isResizing) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return;
+                  }
+                  onOpen(t);
+                }}
                 className="w-full flex border-b border-border hover:bg-accent/30 transition-colors text-left"
               >
                 <div className="w-[260px] flex-shrink-0 px-3 py-2.5 text-xs truncate">{t.title}</div>
@@ -78,8 +86,11 @@ export function GanttView({ space, onOpen, onUpdate }: { space: Space; onOpen: (
                           e.preventDefault();
                           const startX = e.clientX;
                           const startDue = new Date(t.dueDate).getTime();
+                          let moved = false;
 
                           const onPointerMove = (moveEvent: PointerEvent) => {
+                            moved = true;
+                            setIsResizing(true);
                             // Optionally visual preview, skipping for simplicity
                           };
 
@@ -87,11 +98,17 @@ export function GanttView({ space, onOpen, onUpdate }: { space: Space; onOpen: (
                             document.removeEventListener("pointermove", onPointerMove);
                             document.removeEventListener("pointerup", onPointerUp);
 
-                            const dx = upEvent.clientX - startX;
-                            const daysDelta = Math.round(dx / colWidth);
-                            if (daysDelta !== 0) {
-                              const newDue = new Date(startDue + daysDelta * 86400_000);
-                              onUpdate({ ...t, dueDate: newDue.toISOString() });
+                            if (moved) {
+                              const dx = upEvent.clientX - startX;
+                              const daysDelta = Math.round(dx / colWidth);
+                              if (daysDelta !== 0) {
+                                const newDue = new Date(startDue + daysDelta * 86400_000);
+                                onUpdate({ ...t, dueDate: newDue.toISOString() });
+                              }
+                              // Reset resizing flag after a short delay to prevent click from firing
+                              setTimeout(() => setIsResizing(false), 50);
+                            } else {
+                              setIsResizing(false);
                             }
                           };
 

@@ -3,6 +3,12 @@ import { useEffect, useState, useCallback } from "react";
 export type ViewType = "list" | "kanban" | "calendar" | "gantt" | "table";
 export type FieldType = "text" | "number" | "select" | "date";
 
+export interface ViewConfig {
+  id: string;
+  name: string;
+  type: ViewType;
+}
+
 export interface CustomField {
   id: string;
   name: string;
@@ -42,7 +48,7 @@ export interface Space {
   name: string;
   color: string;
   emoji: string;
-  enabledViews: Record<ViewType, boolean>;
+  views: ViewConfig[];
   columns: { id: string; name: string }[];
   customFields: CustomField[];
   emailReminders: boolean;
@@ -75,7 +81,7 @@ export interface AppState {
   automations: Automation[];
 }
 
-export const STORAGE_KEY = "syncduo:v6";
+export const STORAGE_KEY = "syncduo:v7";
 
 const seed = (): AppState => ({
   currentUserId: "",

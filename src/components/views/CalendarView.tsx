@@ -2,10 +2,11 @@ import { useState, useMemo } from "react";
 import type { Space, Task } from "@/lib/store";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-export function CalendarView({ space, onOpen }: { space: Space; onOpen: (t: Task) => void }) {
+export function CalendarView({ space, viewId, onOpen, onMove }: { space: Space; viewId?: string; onOpen: (t: Task) => void; onMove?: (t: Task) => void }) {
   const [cursor, setCursor] = useState(() => new Date());
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
+  const [dragId, setDragId] = useState<string | null>(null);
 
   const cells = useMemo(() => {
     const first = new Date(year, month, 1);
@@ -59,14 +60,37 @@ export function CalendarView({ space, onOpen }: { space: Space; onOpen: (t: Task
           const list = tasksByDay.get(k) ?? [];
           const isToday = date.toDateString() === today.toDateString();
           return (
-            <div key={i} className="bg-card h-28 p-1.5 flex flex-col gap-1 overflow-hidden">
+            <div
+              key={i}
+              className={`bg-card h-28 p-1.5 flex flex-col gap-1 overflow-hidden ${!!onMove ? "cursor-default" : ""}`}
+              onDragOver={(e) => {
+                if (onMove) e.preventDefault();
+              }}
+              onDrop={() => {
+                if (!dragId || !onMove) return;
+                const t = space.tasks.find((x) => x.id === dragId);
+                if (t) {
+                  // Ensure date retains its time or defaults to noon if not set to prevent timezone shifts
+                  const oldDate = new Date(t.dueDate);
+                  const newDate = new Date(date);
+                  newDate.setHours(oldDate.getHours(), oldDate.getMinutes(), oldDate.getSeconds());
+                  onMove({ ...t, dueDate: newDate.toISOString() });
+                }
+                setDragId(null);
+              }}
+            >
               <span className={`text-[11px] ${isToday ? "text-primary font-bold" : "text-muted-foreground"}`}>{date.getDate()}</span>
               <div className="space-y-0.5 overflow-hidden">
                 {list.slice(0, 3).map((t) => (
                   <button
                     key={t.id}
+                    draggable={!!onMove}
+                    onDragStart={(e) => {
+                      e.stopPropagation();
+                      setDragId(t.id);
+                    }}
                     onClick={() => onOpen(t)}
-                    className="w-full flex items-center gap-1 text-left text-[10px] truncate px-1.5 py-0.5 rounded bg-primary/15 text-foreground hover:bg-primary/25"
+                    className="w-full flex items-center gap-1 text-left text-[10px] truncate px-1.5 py-0.5 rounded bg-primary/15 text-foreground hover:bg-primary/25 cursor-pointer active:cursor-grabbing"
                   >
                     {!hiddenFields["priority"] && (
                       <div className={`size-1.5 shrink-0 rounded-full ${t.priority === "high" ? "bg-destructive" : t.priority === "medium" ? "bg-primary" : "bg-muted-foreground/40"}`} />

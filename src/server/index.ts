@@ -520,16 +520,44 @@ export default {
 
 			if (url.pathname === '/api/spaces' && request.method === 'GET') {
 				const { results } = await env.DB.prepare("SELECT * FROM spaces").all();
-				const parsed = results.map((r: any) => ({
-					...r,
-					enabledViews: r.enabledViews ? JSON.parse(r.enabledViews) : { list: true, kanban: true, calendar: true, gantt: true, table: true },
-					columns: r.columns ? JSON.parse(r.columns) : [{ id: "todo", name: "To Do" }, { id: "doing", name: "Doing" }, { id: "done", name: "Done" }],
-					customFields: r.customFields ? JSON.parse(r.customFields) : [],
-					emailReminders: Boolean(r.emailReminders),
-					settings: parseSettings(r),
-					tasks: [], // fetched separately
-					channel: [] // fetched separately or handled by party socket
-				}));
+				const parsed = results.map((r: any) => {
+					let views = [];
+					if (r.enabledViews) {
+						try {
+							const parsedViews = JSON.parse(r.enabledViews);
+							if (Array.isArray(parsedViews)) {
+								views = parsedViews;
+							} else {
+								// Migrate old enabledViews record to views array
+								for (const [key, enabled] of Object.entries(parsedViews)) {
+									if (enabled) {
+										views.push({ id: key, name: key.charAt(0).toUpperCase() + key.slice(1), type: key });
+									}
+								}
+							}
+						} catch (e) { }
+					}
+					if (views.length === 0) {
+						views = [
+							{ id: "list", name: "List", type: "list" },
+							{ id: "kanban", name: "Kanban", type: "kanban" },
+							{ id: "calendar", name: "Calendar", type: "calendar" },
+							{ id: "gantt", name: "Gantt", type: "gantt" },
+							{ id: "table", name: "Table", type: "table" }
+						];
+					}
+
+					return {
+						...r,
+						views,
+						columns: r.columns ? JSON.parse(r.columns) : [{ id: "todo", name: "To Do" }, { id: "doing", name: "Doing" }, { id: "done", name: "Done" }],
+						customFields: r.customFields ? JSON.parse(r.customFields) : [],
+						emailReminders: Boolean(r.emailReminders),
+						settings: parseSettings(r),
+						tasks: [], // fetched separately
+						channel: [] // fetched separately or handled by party socket
+					};
+				});
 				return new Response(JSON.stringify(parsed), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 			}
 			if (url.pathname === '/api/spaces' && request.method === 'POST') {
@@ -538,7 +566,13 @@ export default {
 				const name = body.name || 'New Space';
 				const color = body.color || 'brand';
 				const emoji = body.emoji || '✨';
-				const enabledViews = JSON.stringify(body.enabledViews || { list: true, kanban: true, calendar: true, gantt: true, table: true });
+				const enabledViews = JSON.stringify(body.views || [
+					{ id: "list", name: "List", type: "list" },
+					{ id: "kanban", name: "Kanban", type: "kanban" },
+					{ id: "calendar", name: "Calendar", type: "calendar" },
+					{ id: "gantt", name: "Gantt", type: "gantt" },
+					{ id: "table", name: "Table", type: "table" }
+				]);
 				const columns = JSON.stringify(body.columns || [{ id: "todo", name: "To Do" }, { id: "doing", name: "Doing" }, { id: "done", name: "Done" }]);
 				const customFields = JSON.stringify(body.customFields || []);
 				const emailReminders = body.emailReminders ? 1 : 0;
@@ -597,15 +631,16 @@ export default {
 					const name = body.name;
 					const color = body.color;
 					const emoji = body.emoji;
-					const enabledViews = JSON.stringify(body.enabledViews);
+					const enabledViews = JSON.stringify(body.views);
 					const columns = JSON.stringify(body.columns);
 					const customFields = JSON.stringify(body.customFields);
 					const emailReminders = body.emailReminders ? 1 : 0;
 					const emailDigestTime = body.emailDigestTime;
-					const settings = JSON.stringify(body.settings || {}); const spacesettings = JSON.stringify(body.settings || {});
+					const settingsStr = JSON.stringify(body.settings || {});
+					const spacesettingsStr = JSON.stringify(body.settings || {});
 
 					await env.DB.prepare("UPDATE spaces SET name = ?, color = ?, emoji = ?, enabledViews = ?, columns = ?, customFields = ?, emailReminders = ?, emailDigestTime = ?, settings = ?, spacesettings = ? WHERE id = ?")
-						.bind(name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime, settings, spacesettings, id).run();
+						.bind(name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime, settingsStr, spacesettingsStr, id).run();
 
 					const idStr = env.Chat.idFromName(id);
 					const chatStub = env.Chat.get(idStr);
@@ -613,7 +648,7 @@ export default {
 						method: "POST",
 						body: JSON.stringify({ 
 							type: "space_updated", 
-							space: { id, name, color, emoji, enabledViews: body.enabledViews, columns: body.columns, customFields: body.customFields, emailReminders: body.emailReminders, emailDigestTime, settings: body.settings || {} }
+							space: { id, name, color, emoji, views: body.views, columns: body.columns, customFields: body.customFields, emailReminders: body.emailReminders, emailDigestTime, settings: body.settings || {} }
 						})
 					}));
 

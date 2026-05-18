@@ -6,7 +6,7 @@ import { useStore } from "@/lib/store";
 // recreating it on every render or inside loops, improving performance.
 const dateFormatter = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 
-export function TableView({ space, onOpen }: { space: Space; onOpen: (t: Task) => void }) {
+export function TableView({ space, viewId, onOpen }: { space: Space; viewId?: string; onOpen: (t: Task) => void }) {
   const { state } = useStore();
   const userMap = useMemo(() => Object.fromEntries(state.users.map((u) => [u.id, u])), [state.users]);
   const statusMap = useMemo(() => Object.fromEntries(space.columns.map(c => [c.id, c.name])), [space.columns]);

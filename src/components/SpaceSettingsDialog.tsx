@@ -126,7 +126,7 @@ export function SpaceSettingsDialog({
             name: localSpace.name,
             color: localSpace.color,
             emoji: localSpace.emoji,
-            enabledViews: localSpace.enabledViews,
+            views: localSpace.views,
             columns: localSpace.columns,
             customFields: localSpace.customFields,
             emailReminders: localSpace.emailReminders,
@@ -171,46 +171,74 @@ export function SpaceSettingsDialog({
             </div>
           </Section>
 
-          <Section title="Views" subtitle="Toggle which views are available in this space.">
-            <div className="grid grid-cols-2 gap-3">
-              {VIEWS.map((v) => (
-                <label key={v.id} className="flex items-center justify-between bg-card border border-border rounded-lg p-3 cursor-pointer">
-                  <span className="text-sm">{v.label}</span>
-                  <Switch
-                    checked={localSpace.enabledViews[v.id]}
-                    onCheckedChange={(c) =>
-                      patchLocal((sp) => ({ ...sp, enabledViews: { ...sp.enabledViews, [v.id]: c } }))
+          <Section title="Views" subtitle="Manage and customize your views.">
+            <div className="space-y-2">
+              {localSpace.views?.map((v) => (
+                <div key={v.id} className="flex items-center gap-2 bg-card border border-border rounded-lg p-2">
+                  <Input
+                    className="flex-1 h-8"
+                    value={v.name}
+                    onChange={(e) =>
+                      patchLocal((sp) => ({
+                        ...sp,
+                        views: sp.views.map((x) => (x.id === v.id ? { ...x, name: e.target.value } : x)),
+                      }))
                     }
                   />
-                </label>
+                  <div className="text-xs text-muted-foreground w-16">{v.type}</div>
+                  <Button variant="ghost" size="icon" onClick={() => patchLocal((sp) => ({ ...sp, views: sp.views.filter(x => x.id !== v.id) }))}>
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
               ))}
+              <div className="flex gap-2 items-center">
+                <Select
+                  onValueChange={(vStr) => {
+                    const type = vStr as ViewType;
+                    patchLocal((sp) => ({
+                      ...sp,
+                      views: [...(sp.views || []), { id: uid(), name: `New ${type}`, type }]
+                    }));
+                  }}
+                >
+                  <SelectTrigger className="w-32 h-8"><SelectValue placeholder="Add view" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="list">List</SelectItem>
+                    <SelectItem value="kanban">Kanban</SelectItem>
+                    <SelectItem value="calendar">Calendar</SelectItem>
+                    <SelectItem value="gantt">Gantt</SelectItem>
+                    <SelectItem value="table">Table</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </Section>
 
           <Section title="View Settings" subtitle="Configure preferences for specific views.">
-            <Tabs defaultValue="list" className="w-full">
-              <TabsList className="w-full flex">
-                <TabsTrigger value="list" className="flex-1">List</TabsTrigger>
-                <TabsTrigger value="kanban" className="flex-1">Kanban</TabsTrigger>
-                <TabsTrigger value="calendar" className="flex-1">Calendar</TabsTrigger>
-                <TabsTrigger value="table" className="flex-1">Table</TabsTrigger>
+            {localSpace.views?.length === 0 && <p className="text-sm text-muted-foreground">No views available.</p>}
+            {localSpace.views?.length > 0 && (
+            <Tabs defaultValue={localSpace.views[0]?.id} className="w-full">
+              <TabsList className="w-full flex overflow-x-auto no-scrollbar">
+                {localSpace.views.map(v => (
+                  <TabsTrigger key={v.id} value={v.id} className="flex-shrink-0 px-3">{v.name}</TabsTrigger>
+                ))}
               </TabsList>
 
-              {["list", "kanban", "calendar", "table"].map(viewKey => (
-                <TabsContent key={viewKey} value={viewKey} className="space-y-4 mt-4">
-                  {(viewKey === "kanban" || viewKey === "list") && (
+              {localSpace.views.map(viewObj => (
+                <TabsContent key={viewObj.id} value={viewObj.id} className="space-y-4 mt-4">
+                  {(viewObj.type === "kanban" || viewObj.type === "list") && (
                     <div className="bg-card border border-border rounded-lg p-4 space-y-3">
                       <h3 className="text-sm font-medium">Group By</h3>
                       <Select
-                        value={localSpace.settings?.[viewKey]?.groupBy || "status"}
-                        onValueChange={(v) =>
+                        value={localSpace.settings?.[viewObj.id]?.groupBy || "status"}
+                        onValueChange={(val) =>
                           patchLocal((sp) => ({
                             ...sp,
                             settings: {
                               ...sp.settings,
-                              [viewKey]: {
-                                ...(sp.settings?.[viewKey] || {}),
-                                groupBy: v
+                              [viewObj.id]: {
+                                ...(sp.settings?.[viewObj.id] || {}),
+                                groupBy: val
                               }
                             }
                           }))
@@ -228,41 +256,106 @@ export function SpaceSettingsDialog({
 
                   <div className="bg-card border border-border rounded-lg p-4 space-y-3">
                     <h3 className="text-sm font-medium">Visible Fields</h3>
-                    <div className="grid grid-cols-2 gap-2">
-                      {[
-                        { id: "status", label: "Status" },
-                        { id: "assignee", label: "Assignee" },
-                        { id: "priority", label: "Priority" },
-                        { id: "dueDate", label: "Due Date" },
-                        ...(localSpace.customFields || []).map(f => ({ id: f.id, label: f.name }))
-                      ].map((field) => (
-                        <label key={field.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                          <Switch
-                            checked={localSpace.settings?.[viewKey]?.hiddenFields?.[field.id] !== true}
-                            onCheckedChange={(c) =>
-                              patchLocal((sp) => ({
-                                ...sp,
-                                settings: {
-                                  ...sp.settings,
-                                  [viewKey]: {
-                                    ...(sp.settings?.[viewKey] || {}),
-                                    hiddenFields: {
-                                      ...(sp.settings?.[viewKey]?.hiddenFields || {}),
-                                      [field.id]: !c
+                    <div className="flex flex-col gap-2">
+                      {(() => {
+                        const allFields = [
+                          { id: "status", label: "Status" },
+                          { id: "assignee", label: "Assignee" },
+                          { id: "priority", label: "Priority" },
+                          { id: "dueDate", label: "Due Date" },
+                          ...(localSpace.customFields || []).map(f => ({ id: f.id, label: f.name }))
+                        ];
+                        const fieldOrder = localSpace.settings?.[viewObj.id]?.fieldOrder || allFields.map(f => f.id);
+                        const orderedFields = fieldOrder.map((id: string) => allFields.find(f => f.id === id)).filter(Boolean);
+                        const remainingFields = allFields.filter(f => !fieldOrder.includes(f.id));
+                        const finalFields = [...orderedFields, ...remainingFields];
+
+                        return finalFields.map((field: any, idx: number) => (
+                          <div key={field.id} className="flex items-center justify-between bg-muted/50 p-2 rounded">
+                            <label className="flex items-center gap-2 text-sm cursor-pointer">
+                              <Switch
+                                checked={localSpace.settings?.[viewObj.id]?.hiddenFields?.[field.id] !== true}
+                                onCheckedChange={(c) =>
+                                  patchLocal((sp) => ({
+                                    ...sp,
+                                    settings: {
+                                      ...sp.settings,
+                                      [viewObj.id]: {
+                                        ...(sp.settings?.[viewObj.id] || {}),
+                                        hiddenFields: {
+                                          ...(sp.settings?.[viewObj.id]?.hiddenFields || {}),
+                                          [field.id]: !c
+                                        }
+                                      }
                                     }
-                                  }
+                                  }))
                                 }
-                              }))
-                            }
-                          />
-                          {field.label}
-                        </label>
-                      ))}
+                              />
+                              {field.label}
+                            </label>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                disabled={idx === 0}
+                                onClick={() => {
+                                  const newOrder = [...fieldOrder];
+                                  if (!newOrder.includes(field.id)) {
+                                    newOrder.push(...remainingFields.map(f => f.id));
+                                  }
+                                  const currentIdx = newOrder.indexOf(field.id);
+                                  [newOrder[currentIdx - 1], newOrder[currentIdx]] = [newOrder[currentIdx], newOrder[currentIdx - 1]];
+                                  patchLocal((sp) => ({
+                                    ...sp,
+                                    settings: {
+                                      ...sp.settings,
+                                      [viewObj.id]: {
+                                        ...(sp.settings?.[viewObj.id] || {}),
+                                        fieldOrder: newOrder
+                                      }
+                                    }
+                                  }));
+                                }}
+                              >
+                                ↑
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                disabled={idx === finalFields.length - 1}
+                                onClick={() => {
+                                  const newOrder = [...fieldOrder];
+                                  if (!newOrder.includes(field.id)) {
+                                    newOrder.push(...remainingFields.map(f => f.id));
+                                  }
+                                  const currentIdx = newOrder.indexOf(field.id);
+                                  [newOrder[currentIdx], newOrder[currentIdx + 1]] = [newOrder[currentIdx + 1], newOrder[currentIdx]];
+                                  patchLocal((sp) => ({
+                                    ...sp,
+                                    settings: {
+                                      ...sp.settings,
+                                      [viewObj.id]: {
+                                        ...(sp.settings?.[viewObj.id] || {}),
+                                        fieldOrder: newOrder
+                                      }
+                                    }
+                                  }));
+                                }}
+                              >
+                                ↓
+                              </Button>
+                            </div>
+                          </div>
+                        ));
+                      })()}
                     </div>
                   </div>
                 </TabsContent>
               ))}
             </Tabs>
+            )}
           </Section>
 
           <Section title="Columns" subtitle="Columns shown in Kanban / List.">

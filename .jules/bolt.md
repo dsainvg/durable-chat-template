@@ -10,3 +10,6 @@
 ## 2024-11-20 - Chat Message Render Performance
 **Learning:** Similar to list views, native `Date.toLocaleTimeString` calls inside `.map()` loops for rendering chat messages (e.g., in `ChannelPanel` and `chat.$userId`) cause noticeable performance degradation as they instantiate formatters for every message on each re-render.
 **Action:** Define static `Intl.DateTimeFormat` instances outside the component scope and use `.format(timestamp)` to avoid costly instantiations inside chat loops.
+## 2025-05-18 - Cloudflare Workers and Node APIs
+**Learning:** The `nodemailer` package uses Node APIs that are not compatible with standard Cloudflare Workers unless specific socket shims/nodejs_compat flags are set, and it must be explicitly imported or its usage causes a `ReferenceError`.
+**Action:** Ensure proper mock/shim or environment-specific imports are used when calling Node libraries in Worker endpoints.

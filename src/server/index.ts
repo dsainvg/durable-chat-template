@@ -144,6 +144,67 @@ export default {
 		const today = now.toISOString().split('T')[0];
 		const nowTime = now.getTime();
 
+		// Daily Check Automation
+		if (event.cron === "0 0 * * *") {
+			try {
+				const { results: users } = await env.DB.prepare("SELECT * FROM users LIMIT 2").all();
+				const { results: spaces } = await env.DB.prepare("SELECT id FROM spaces").all();
+
+				for (const user of users) {
+					let createdTask = false;
+					let completedTask = false;
+
+					for (const space of spaces) {
+						const safeId = (space.id as string).replace(/[^a-zA-Z0-9_]/g, '');
+						try {
+							// A simplistic daily check proxy: We check if they have created/completed tasks specifically due today.
+							// Note: Because tasks tables don't store a 'created_at' date or 'completed_at' date natively,
+							// 'due_date' being 'today' is the closest proxy given the schema structure.
+							const { results: tasks } = await env.DB.prepare(`SELECT * FROM tasks_${safeId} WHERE assignee = ? AND due_date = ?`).bind(user.id, today).all();
+
+							if (tasks.length > 0) {
+								createdTask = true;
+								for (const task of tasks) {
+									if (task.status === 'done' || task.status === 'Done') {
+										completedTask = true;
+										break;
+									}
+								}
+							}
+						} catch (e) {
+							// Table tasks_${safeId} might not exist yet
+						}
+					}
+
+					if (!(createdTask && completedTask) && user.email && env.SMTP_USER && env.SMTP_PASS) {
+						ctx.waitUntil((async () => {
+							try {
+								const transport = nodemailer.createTransport({
+									host: env.SMTP_HOST || "smtp.gmail.com",
+									port: Number(env.SMTP_PORT) || 465,
+									secure: true,
+									auth: {
+										user: env.SMTP_USER,
+										pass: env.SMTP_PASS
+									}
+								});
+								await transport.sendMail({
+									from: env.SMTP_USER,
+									to: user.email as string,
+									subject: `Daily Reminder: Workspace Activity Missing`,
+									text: `Hello ${user.name},\n\nYou have not met the daily goal of creating at least one task and moving at least one task to 'Done' today. Please log in and update your workspace.\n\nThank you!`
+								});
+							} catch (emailErr) {
+								console.error("Failed to send daily check email", emailErr);
+							}
+						})());
+					}
+				}
+			} catch (err) {
+				console.error("Failed to execute Daily Check", err);
+			}
+		}
+
 		// 1. Evaluate automations to create events
 		const { results: automations } = await env.DB.prepare("SELECT * FROM automation_rules").all();
 		const { results: allSpaces } = await env.DB.prepare("SELECT id FROM spaces").all();

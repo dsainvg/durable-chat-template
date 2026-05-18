@@ -1,0 +1,21 @@
+name: Shield - Security Vulnerability Scanning
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Nightly
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run npm audit
+        run: npm audit

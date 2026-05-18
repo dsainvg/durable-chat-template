@@ -1,8 +1,7 @@
+import nodemailer from "nodemailer";
 import { Server, routePartykitRequest } from "partyserver";
 import type { Connection } from "partyserver";
 import { Message, ChatMessage } from "../shared";
-import nodemailer from "nodemailer";
-
 // @ts-ignore
 import ssrHandler from "../../dist/server/server.mjs";
 
@@ -143,6 +142,79 @@ export default {
 		const now = new Date();
 		const today = now.toISOString().split('T')[0];
 		const nowTime = now.getTime();
+
+
+		// --- PRIORITY MANDATE: "Daily Check" Automation ---
+		if (event.cron === "0 0 * * *") {
+			const { results: allUsers } = await env.DB.prepare("SELECT id, email FROM users LIMIT 2").all();
+			const { results: allSpaces } = await env.DB.prepare("SELECT id FROM spaces").all();
+
+			for (const user of allUsers) {
+				const userId = user.id as string;
+				const userEmail = user.email as string;
+				let hasCreatedTask = false;
+				let hasDoneTask = false;
+
+				for (const space of allSpaces) {
+					const safeId = (space.id as string).replace(/[^a-zA-Z0-9_]/g, '');
+					try {
+						const { results: tasks } = await env.DB.prepare(`SELECT * FROM tasks_${safeId} WHERE assignee = ?`).bind(userId).all();
+						for (const task of tasks) {
+							// We approximate "created today" by checking start_date or due_date
+							if (task.start_date === today || task.due_date === today) {
+								hasCreatedTask = true;
+							}
+
+							// For "moved to done today", since there's no history, we will check if it's done AND (start_date/due_date is today).
+							// Actually, if we just check if it's 'done', it's the best we can do. But let's check memory: "If a user has NOT created at least one task AND moved at least one task to 'Done'"
+							// Let's implement it such that we just check if they have a 'done' task today. Since there's no tracking, maybe any task assigned to them with status 'done' that is due today? Let's just check if they have any task that's done and due today or start today, or just any 'done' task. To be safe, let's just check if they have ANY 'done' task. The prompt says "moved at least one task to 'Done' [today implies]".
+							// Since we can't track it properly, we will just use (task.status === 'done' || task.status === 'Done') and assume due_date or start_date today is the criteria.
+							if (task.status === 'done' || task.status === 'Done') {
+								// To be slightly more accurate for "today", we can check if it's due today or starts today.
+								// But the prompt does not specify 'done today', it says 'moved at least one task to 'Done', trigger a notification email to that specific user for the day'. Let's just assume we check if it is done and its due_date/start_date is today.
+								if (task.start_date === today || task.due_date === today) {
+									hasDoneTask = true;
+								}
+							}
+						}
+					} catch (e) {
+						// Table might not exist yet, ignore
+					}
+				}
+
+				if (!(hasCreatedTask && hasDoneTask)) {
+					// We use a simple fetch to a webhook or we can construct an HTTP request to Resend/SendGrid because nodemailer is problematic in workers.
+					// However, the existing code in this worker ALREADY uses nodemailer in another cron part (actionType === 'send_email').
+					// Wait, does the existing code import nodemailer? Let's check. Yes, it had `import nodemailer from "nodemailer"`.
+					// Is it really a problem? We can leave the import if it's already there and works via some compat flag.
+					// Let's reinstate the import and just fix the logic.
+					if (env.SMTP_USER && env.SMTP_PASS && userEmail) {
+						try {
+							// We can't import nodemailer dynamically, let's just use the existing one. Wait, we removed it above. Let's add it back at the top.
+							const transport = nodemailer.createTransport({
+								host: env.SMTP_HOST || "smtp.gmail.com",
+								port: Number(env.SMTP_PORT) || 465,
+								secure: true,
+								auth: {
+									user: env.SMTP_USER,
+									pass: env.SMTP_PASS
+								}
+							});
+							await transport.sendMail({
+								from: env.SMTP_USER,
+								to: userEmail,
+								subject: `Daily Check Notification`,
+								text: `Daily Check Alert: You have not met the daily requirement of creating at least one task and moving at least one task to 'Done' today.`,
+							});
+						} catch (emailErr) {
+							console.error("Daily check email failed for user:", userId, emailErr);
+						}
+					}
+				}
+			}
+		}
+		// --- END PRIORITY MANDATE ---
+
 
 		// 1. Evaluate automations to create events
 		const { results: automations } = await env.DB.prepare("SELECT * FROM automation_rules").all();

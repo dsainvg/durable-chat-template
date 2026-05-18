@@ -142,7 +142,7 @@ function SpacePage() {
   const activeViewId = activeView?.id;
   const activeViewType = activeView?.type;
 
-  const viewSettings = space.settings?.[activeViewId] || {};
+  const viewSettings = activeView?.settings || {};
   const sortField = viewSettings.sortField || "default";
   const sortDirection = viewSettings.sortDirection || "asc";
   const filterAssignee = viewSettings.filterAssignee || "all";
@@ -151,16 +151,19 @@ function SpacePage() {
 
   const setViewSetting = async (key: string, value: string) => {
     if (!activeViewId) return;
-    const newSettings = {
-      ...space.settings,
-      [activeViewId]: {
-        ...(space.settings?.[activeViewId] || {}),
+    const newViews = space.views.map(v => v.id === activeViewId ? {
+      ...v,
+      settings: {
+        ...(v.settings || {}),
         [key]: value
       }
-    };
+    } : v);
+
+    const updatedSpace = { ...space, views: newViews };
+
     update(s => ({
       ...s,
-      spaces: s.spaces.map(sp => sp.id === spaceId ? { ...sp, settings: newSettings } : sp)
+      spaces: s.spaces.map(sp => sp.id === spaceId ? updatedSpace : sp)
     }));
 
     const token = localStorage.getItem("syncduo_token");
@@ -169,7 +172,7 @@ function SpacePage() {
         await fetch(`/api/spaces/${spaceId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-          body: JSON.stringify({ ...space, settings: newSettings })
+          body: JSON.stringify(updatedSpace)
         });
       } catch (e) {
         toast.error("Failed to sync view settings");
@@ -378,26 +381,29 @@ function SpacePage() {
                 { id: "dueDate", label: "Due Date" },
                 ...(space?.customFields || []).map(f => ({ id: f.id, label: f.name }))
               ].map(f => {
-                const isHidden = activeViewId ? space?.settings?.[activeViewId]?.hiddenFields?.[f.id] === true : false;
+                const isHidden = activeView?.settings?.hiddenFields?.[f.id] === true;
                 return (
                   <DropdownMenuCheckboxItem
                     key={f.id}
                     checked={!isHidden}
                     onCheckedChange={async (c) => {
                       if (!space || !activeViewId) return;
-                      const newSettings = {
-                        ...space.settings,
-                        [activeViewId]: {
-                          ...(space.settings?.[activeViewId] || {}),
+                      const newViews = space.views.map(v => v.id === activeViewId ? {
+                        ...v,
+                        settings: {
+                          ...(v.settings || {}),
                           hiddenFields: {
-                            ...(space.settings?.[activeViewId]?.hiddenFields || {}),
+                            ...(v.settings?.hiddenFields || {}),
                             [f.id]: !c
                           }
                         }
-                      };
+                      } : v);
+
+                      const updatedSpace = { ...space, views: newViews };
+
                       update(s => ({
                         ...s,
-                        spaces: s.spaces.map(sp => sp.id === space.id ? { ...sp, settings: newSettings } : sp)
+                        spaces: s.spaces.map(sp => sp.id === space.id ? updatedSpace : sp)
                       }));
                       const token = localStorage.getItem("syncduo_token");
                       if (token) {
@@ -405,7 +411,7 @@ function SpacePage() {
                           await fetch(`/api/spaces/${space.id}`, {
                             method: "PUT",
                             headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-                            body: JSON.stringify({ ...space, settings: newSettings })
+                            body: JSON.stringify(updatedSpace)
                           });
                         } catch (e) {
                           toast.error("Failed to sync view settings");

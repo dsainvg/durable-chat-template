@@ -11,7 +11,8 @@ export function TableView({ space, viewId, onOpen }: { space: Space; viewId?: st
   const userMap = useMemo(() => Object.fromEntries(state.users.map((u) => [u.id, u])), [state.users]);
   const statusMap = useMemo(() => Object.fromEntries(space.columns.map(c => [c.id, c.name])), [space.columns]);
 
-  const hiddenFields = space.settings?.table?.hiddenFields || {};
+  const settings = viewId ? space.views.find(v => v.id === viewId)?.settings : undefined;
+  const hiddenFields = settings?.hiddenFields || {};
 
   return (
     <div className="p-6">

@@ -1,12 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useMemo, useEffect } from "react";
-import { useStore, uid, type Task, type ViewType, type Space } from "@/lib/store";
+import { useStore, uid, type Task, type ViewType } from "@/lib/store";
 import usePartySocket from "partysocket/react";
 import { Button } from "@/components/ui/button";
 import { Settings, Plus, MessageSquare } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
-import { Filter, ArrowUpDown, SlidersHorizontal, ChevronDown, ChevronUp } from "lucide-react";
+import { Filter, ArrowUpDown, SlidersHorizontal, ChevronDown } from "lucide-react";
 import { ListView } from "@/components/views/ListView";
 import { KanbanView } from "@/components/views/KanbanView";
 import { CalendarView } from "@/components/views/CalendarView";
@@ -123,14 +123,11 @@ function SpacePage() {
     socket.send(JSON.stringify({ type: "add", id: uid(), text, userId: state.currentUserId, ts: Date.now() }));
   };
 
-  const views = useMemo(() => {
-    if (space?.settings?.views) return space.settings.views as { id: string, type: ViewType, name: string }[];
-    const enabled = VIEW_LABELS.filter((v) => space?.enabledViews[v.id]);
-    if (enabled.length === 0) return [{ id: "list", type: "list" as ViewType, name: "List" }];
-    return enabled.map(v => ({ id: v.id, type: v.id, name: v.label }));
-  }, [space]);
-
-  const [activeViewId, setActiveViewId] = useState<string>(views[0]?.id ?? "list");
+  const enabled = useMemo(
+    () => VIEW_LABELS.filter((v) => space?.enabledViews[v.id]),
+    [space]
+  );
+  const [view, setView] = useState<ViewType>(enabled[0]?.id ?? "list");
   const [openTask, setOpenTask] = useState<Task | null>(null);
   const [creating, setCreating] = useState(false);
   const [channelOpen, setChannelOpen] = useState(false);
@@ -144,9 +141,7 @@ function SpacePage() {
     );
   }
 
-  const activeViewObj = views.find(v => v.id === activeViewId) || views[0];
-  const activeView = activeViewObj?.id;
-  const activeViewType = activeViewObj?.type;
+  const activeView = space.enabledViews[view] ? view : enabled[0]?.id;
 
   const viewSettings = space.settings?.[activeView] || {};
   const sortField = viewSettings.sortField || "default";
@@ -155,58 +150,29 @@ function SpacePage() {
   const filterPriority = viewSettings.filterPriority || "all";
   const filterStatus = viewSettings.filterStatus || "all";
 
-  const updateSpaceSettings = (key: string, value: any) => {
-    let finalSpace: Space | undefined;
-    update(s => {
-      const sp = s.spaces.find(x => x.id === spaceId);
-      if (!sp) return s;
-      const newSettings = { ...sp.settings, [key]: value };
-      finalSpace = { ...sp, settings: newSettings };
-      return {
-        ...s,
-        spaces: s.spaces.map(x => x.id === spaceId ? finalSpace! : x)
-      };
-    });
-
-    if (finalSpace) {
-      const token = localStorage.getItem("syncduo_token");
-      if (token) {
-        fetch(`/api/spaces/${spaceId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-          body: JSON.stringify(finalSpace)
-        }).catch(() => toast.error("Failed to sync settings"));
+  const setViewSetting = async (key: string, value: string) => {
+    const newSettings = {
+      ...space.settings,
+      [activeView]: {
+        ...(space.settings?.[activeView] || {}),
+        [key]: value
       }
-    }
-  };
+    };
+    update(s => ({
+      ...s,
+      spaces: s.spaces.map(sp => sp.id === spaceId ? { ...sp, settings: newSettings } : sp)
+    }));
 
-  const setViewSetting = (key: string, value: any) => {
-    let finalSpace: Space | undefined;
-    update(s => {
-      const sp = s.spaces.find(x => x.id === spaceId);
-      if (!sp) return s;
-      const newSettings = {
-        ...sp.settings,
-        [activeView]: {
-          ...(sp.settings?.[activeView] || {}),
-          [key]: value
-        }
-      };
-      finalSpace = { ...sp, settings: newSettings };
-      return {
-        ...s,
-        spaces: s.spaces.map(x => x.id === spaceId ? finalSpace! : x)
-      };
-    });
-
-    if (finalSpace) {
-      const token = localStorage.getItem("syncduo_token");
-      if (token) {
-        fetch(`/api/spaces/${spaceId}`, {
+    const token = localStorage.getItem("syncduo_token");
+    if (token) {
+      try {
+        await fetch(`/api/spaces/${spaceId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-          body: JSON.stringify(finalSpace)
-        }).catch(() => toast.error("Failed to sync view settings"));
+          body: JSON.stringify({ ...space, settings: newSettings })
+        });
+      } catch (e) {
+        toast.error("Failed to sync view settings");
       }
     }
   };
@@ -333,73 +299,18 @@ function SpacePage() {
             </h1>
           </div>
           <nav className="flex items-center gap-0.5 overflow-x-auto no-scrollbar pb-1 sm:pb-0">
-            {views.map((v) => (
-              <div key={v.id} className="flex items-center group relative">
-                <button
-                  onClick={() => setActiveViewId(v.id)}
-                  className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
-                    activeView === v.id
-                      ? "text-primary bg-primary/10 ring-1 ring-primary/20"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {v.name}
-                </button>
-                {activeView === v.id && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button className="absolute right-0 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-foreground bg-background rounded-full shadow-sm border border-border mr-0.5">
-                        <ChevronDown className="size-3" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start">
-                      <DropdownMenuItem onClick={() => {
-                        const newName = prompt("Enter new name for view:", v.name);
-                        if (newName && newName.trim()) {
-                          const newViews = views.map(x => x.id === v.id ? { ...x, name: newName.trim() } : x);
-                          updateSpaceSettings("views", newViews);
-                        }
-                      }}>Rename</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => {
-                        const newId = `${v.type}-${uid()}`;
-                        const newViews = [...views, { id: newId, type: v.type, name: `${v.name} Copy` }];
-                        const currentSettings = space.settings?.[v.id] || {};
-
-                        const newSettings = {
-                          ...space.settings,
-                          views: newViews,
-                          [newId]: { ...currentSettings }
-                        };
-
-                        update(s => ({
-                          ...s,
-                          spaces: s.spaces.map(sp => sp.id === spaceId ? { ...sp, settings: newSettings } : sp)
-                        }));
-
-                        const token = localStorage.getItem("syncduo_token");
-                        if (token) {
-                          fetch(`/api/spaces/${spaceId}`, {
-                            method: "PUT",
-                            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-                            body: JSON.stringify({ ...space, settings: newSettings })
-                          }).catch(() => toast.error("Failed to sync view duplicate"));
-                        }
-
-                        setActiveViewId(newId);
-                      }}>Duplicate</DropdownMenuItem>
-                      {views.length > 1 && (
-                        <DropdownMenuItem onClick={() => {
-                          if (confirm(`Delete view "${v.name}"?`)) {
-                            const newViews = views.filter(x => x.id !== v.id);
-                            updateSpaceSettings("views", newViews);
-                            if (activeViewId === v.id) setActiveViewId(newViews[0].id);
-                          }
-                        }} className="text-destructive">Delete</DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              </div>
+            {enabled.map((v) => (
+              <button
+                key={v.id}
+                onClick={() => setView(v.id)}
+                className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                  activeView === v.id
+                    ? "text-primary bg-primary/10 ring-1 ring-primary/20"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {v.label}
+              </button>
             ))}
           </nav>
         </div>
@@ -458,95 +369,54 @@ function SpacePage() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="px-2 sm:px-3" title="View Options"><SlidersHorizontal className="size-4" /></Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64 max-h-[80vh] overflow-y-auto">
-              <DropdownMenuLabel>Fields</DropdownMenuLabel>
-              {(() => {
-                const allFields = [
-                  { id: "status", label: "Status" },
-                  { id: "assignee", label: "Assignee" },
-                  { id: "priority", label: "Priority" },
-                  { id: "dueDate", label: "Due Date" },
-                  ...(space?.customFields || []).map(f => ({ id: f.id, label: f.name }))
-                ];
-                const order = space?.settings?.[activeView]?.fieldOrder || allFields.map(f => f.id);
-                const sortedFields = [...allFields].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
-
-                return sortedFields.map((f, i) => {
-                  const isHidden = space?.settings?.[activeView]?.hiddenFields?.[f.id] === true;
-                  return (
-                    <div key={f.id} className="flex items-center px-2 py-1.5 text-sm hover:bg-accent rounded-sm">
-                      <DropdownMenuCheckboxItem
-                        checked={!isHidden}
-                        onCheckedChange={async (c) => {
-                          if (!space) return;
-                          let finalSpace: Space | undefined;
-                          update(s => {
-                            const sp = s.spaces.find(x => x.id === spaceId);
-                            if (!sp) return s;
-                            const newSettings = {
-                              ...sp.settings,
-                              [activeView]: {
-                                ...(sp.settings?.[activeView] || {}),
-                                hiddenFields: {
-                                  ...(sp.settings?.[activeView]?.hiddenFields || {}),
-                                  [f.id]: !c
-                                }
-                              }
-                            };
-                            finalSpace = { ...sp, settings: newSettings };
-                            return {
-                              ...s,
-                              spaces: s.spaces.map(x => x.id === spaceId ? finalSpace! : x)
-                            };
-                          });
-                          if (finalSpace) {
-                            const token = localStorage.getItem("syncduo_token");
-                            if (token) fetch(`/api/spaces/${spaceId}`, { method: "PUT", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }, body: JSON.stringify(finalSpace) }).catch(() => toast.error("Failed to sync view settings"));
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Visible Columns</DropdownMenuLabel>
+              {[
+                { id: "status", label: "Status" },
+                { id: "assignee", label: "Assignee" },
+                { id: "priority", label: "Priority" },
+                { id: "dueDate", label: "Due Date" },
+                ...(space?.customFields || []).map(f => ({ id: f.id, label: f.name }))
+              ].map(f => {
+                const isHidden = space?.settings?.[activeView]?.hiddenFields?.[f.id] === true;
+                return (
+                  <DropdownMenuCheckboxItem
+                    key={f.id}
+                    checked={!isHidden}
+                    onCheckedChange={async (c) => {
+                      if (!space) return;
+                      const newSettings = {
+                        ...space.settings,
+                        [activeView]: {
+                          ...(space.settings?.[activeView] || {}),
+                          hiddenFields: {
+                            ...(space.settings?.[activeView]?.hiddenFields || {}),
+                            [f.id]: !c
                           }
-                        }}
-                        className="flex-1 min-w-0"
-                        onSelect={(e) => e.preventDefault()}
-                      >
-                        {f.label}
-                      </DropdownMenuCheckboxItem>
-                      <div className="flex gap-0.5 ml-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-5 h-5 w-5 disabled:opacity-50"
-                          disabled={i === 0}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            if (i === 0) return;
-                            const newOrder = [...order];
-                            [newOrder[i - 1], newOrder[i]] = [newOrder[i], newOrder[i - 1]];
-                            setViewSetting("fieldOrder", newOrder);
-                          }}
-                        >
-                          <ChevronUp className="size-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-5 h-5 w-5 disabled:opacity-50"
-                          disabled={i === sortedFields.length - 1}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            if (i === sortedFields.length - 1) return;
-                            const newOrder = [...order];
-                            [newOrder[i + 1], newOrder[i]] = [newOrder[i], newOrder[i + 1]];
-                            setViewSetting("fieldOrder", newOrder);
-                          }}
-                        >
-                          <ChevronDown className="size-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                });
-              })()}
+                        }
+                      };
+                      update(s => ({
+                        ...s,
+                        spaces: s.spaces.map(sp => sp.id === space.id ? { ...sp, settings: newSettings } : sp)
+                      }));
+                      const token = localStorage.getItem("syncduo_token");
+                      if (token) {
+                        try {
+                          await fetch(`/api/spaces/${space.id}`, {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                            body: JSON.stringify({ ...space, settings: newSettings })
+                          });
+                        } catch (e) {
+                          toast.error("Failed to sync view settings");
+                        }
+                      }
+                    }}
+                  >
+                    {f.label}
+                  </DropdownMenuCheckboxItem>
+                );
+              })}
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -571,11 +441,11 @@ function SpacePage() {
 
       <div className="flex-1 flex overflow-hidden flex-col sm:flex-row">
         <div className="flex-1 overflow-auto">
-          {activeViewType === "list" && <ListView space={processedSpace!} onOpen={(t) => { setOpenTask(t); setCreating(false); }} />}
-          {activeViewType === "kanban" && <KanbanView space={processedSpace!} onOpen={(t) => { setOpenTask(t); setCreating(false); }} onMove={updateTask} />}
-          {activeViewType === "calendar" && <CalendarView space={processedSpace!} onOpen={(t) => { setOpenTask(t); setCreating(false); }} />}
-          {activeViewType === "gantt" && <GanttView space={processedSpace!} onOpen={(t) => { setOpenTask(t); setCreating(false); }} onUpdate={updateTask} />}
-          {activeViewType === "table" && <TableView space={processedSpace!} onOpen={(t) => { setOpenTask(t); setCreating(false); }} />}
+          {activeView === "list" && <ListView space={processedSpace!} onOpen={(t) => { setOpenTask(t); setCreating(false); }} />}
+          {activeView === "kanban" && <KanbanView space={processedSpace!} onOpen={(t) => { setOpenTask(t); setCreating(false); }} onMove={updateTask} />}
+          {activeView === "calendar" && <CalendarView space={processedSpace!} onOpen={(t) => { setOpenTask(t); setCreating(false); }} />}
+          {activeView === "gantt" && <GanttView space={processedSpace!} onOpen={(t) => { setOpenTask(t); setCreating(false); }} onUpdate={updateTask} />}
+          {activeView === "table" && <TableView space={processedSpace!} onOpen={(t) => { setOpenTask(t); setCreating(false); }} />}
         </div>
 
         {channelOpen && (

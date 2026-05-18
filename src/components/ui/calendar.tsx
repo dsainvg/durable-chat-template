@@ -7,6 +7,12 @@ import { DayButton, DayPicker, getDefaultClassNames } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 
+// ⚡ Bolt: Caching Intl.DateTimeFormat outside the component scope prevents
+// expensive instantiations during the rendering of every individual day cell.
+// This replaces implicit instantiations caused by Date.toLocaleString().
+const monthFormatter = new Intl.DateTimeFormat(undefined, { month: "short" });
+const dateFormatter = new Intl.DateTimeFormat();
+
 function Calendar({
   className,
   classNames,
@@ -32,7 +38,7 @@ function Calendar({
       )}
       captionLayout={captionLayout}
       formatters={{
-        formatMonthDropdown: (date) => date.toLocaleString("default", { month: "short" }),
+        formatMonthDropdown: (date) => monthFormatter.format(date),
         ...formatters,
       }}
       classNames={{
@@ -154,7 +160,7 @@ function CalendarDayButton({
       ref={ref}
       variant="ghost"
       size="icon"
-      data-day={day.date.toLocaleDateString()}
+      data-day={dateFormatter.format(day.date)}
       data-selected-single={
         modifiers.selected &&
         !modifiers.range_start &&

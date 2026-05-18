@@ -7,3 +7,6 @@
 ## 2024-05-20 - Native Date Formatting Performance
 **Learning:** Native `Date.toLocaleDateString` calls inside React render loops (e.g., TableView and GanttView iterating over tasks or days) are remarkably slow because they re-initialize formatters on every render iteration.
 **Action:** Extract stable `Intl.DateTimeFormat` instances outside the component scope to avoid this overhead in list views.
+## 2024-11-20 - Chat Message Render Performance
+**Learning:** Similar to list views, native `Date.toLocaleTimeString` calls inside `.map()` loops for rendering chat messages (e.g., in `ChannelPanel` and `chat.$userId`) cause noticeable performance degradation as they instantiate formatters for every message on each re-render.
+**Action:** Define static `Intl.DateTimeFormat` instances outside the component scope and use `.format(timestamp)` to avoid costly instantiations inside chat loops.

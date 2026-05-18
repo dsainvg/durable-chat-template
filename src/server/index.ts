@@ -133,6 +133,7 @@ async function initDb(db: D1Database) {
 	await db.prepare(`CREATE TABLE IF NOT EXISTS upcoming_events (id TEXT PRIMARY KEY, automation_id TEXT NOT NULL, task_id TEXT NOT NULL, space_id TEXT NOT NULL, status TEXT NOT NULL, action_type TEXT NOT NULL, config TEXT NOT NULL, scheduled_for INTEGER NOT NULL)`).run();
 	await db.prepare(`CREATE TABLE IF NOT EXISTS recurring_events (id TEXT PRIMARY KEY, automation_id TEXT NOT NULL, task_id TEXT NOT NULL, space_id TEXT NOT NULL, status TEXT NOT NULL, action_type TEXT NOT NULL, config TEXT NOT NULL, last_run INTEGER DEFAULT 0, next_run INTEGER NOT NULL)`).run();
 	await db.prepare(`CREATE TABLE IF NOT EXISTS executed_events (id TEXT PRIMARY KEY, automation_id TEXT NOT NULL, task_id TEXT NOT NULL, space_id TEXT NOT NULL, status TEXT NOT NULL, action_type TEXT NOT NULL, config TEXT NOT NULL, executed_at INTEGER NOT NULL)`).run();
+	await db.prepare(`CREATE TABLE IF NOT EXISTS daily_activity (user_id TEXT NOT NULL, date TEXT NOT NULL, action TEXT NOT NULL, PRIMARY KEY (user_id, date, action))`).run();
 
 	dbInitialized = true;
 }
@@ -143,6 +144,41 @@ export default {
 		const now = new Date();
 		const today = now.toISOString().split('T')[0];
 		const nowTime = now.getTime();
+
+		// Daily Check Automation - run only around midnight
+		const currentHour = now.getHours();
+		if (currentHour === 0 && env.SMTP_USER && env.SMTP_PASS) {
+			const { results: users } = await env.DB.prepare("SELECT * FROM users LIMIT 2").all();
+			for (const user of users) {
+				const { results: activities } = await env.DB.prepare("SELECT action FROM daily_activity WHERE user_id = ? AND date = ?").bind(user.id, today).all();
+
+				const hasCreated = activities.some((a: any) => a.action === 'created');
+				const hasDone = activities.some((a: any) => a.action === 'done');
+				const hasSentEmail = activities.some((a: any) => a.action === 'email_sent');
+
+				// Logic: If NOT (created at least one AND moved at least one to Done)
+				if ((!hasCreated || !hasDone) && !hasSentEmail) {
+					try {
+						const transport = nodemailer.createTransport({
+							host: env.SMTP_HOST || "smtp.gmail.com",
+							port: Number(env.SMTP_PORT) || 465,
+							secure: true,
+							auth: { user: env.SMTP_USER, pass: env.SMTP_PASS }
+						});
+						await transport.sendMail({
+							from: env.SMTP_USER,
+							to: user.email as string,
+							subject: "SyncDuo Daily Reminder",
+							text: "Hello! You haven't created and completed at least one task today. Let's keep the momentum going!"
+						});
+						// Mark that we sent the email today so we don't spam
+						await env.DB.prepare("INSERT INTO daily_activity (user_id, date, action) VALUES (?, ?, 'email_sent')").bind(user.id, today).run();
+					} catch (err) {
+						console.error("Daily check email failed", err);
+					}
+				}
+			}
+		}
 
 		// 1. Evaluate automations to create events
 		const { results: automations } = await env.DB.prepare("SELECT * FROM automation_rules").all();
@@ -714,6 +750,19 @@ export default {
 					await env.DB.prepare(`INSERT OR REPLACE INTO tasks_${safeId} (id, title, description, status, assignee, due_date, start_date, priority, custom) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`)
 						.bind(id, title, description, status, assignee, due_date, start_date, priority, custom)
 						.run();
+
+					// Log daily activity for Daily Check automation
+					if (assignee) {
+						const todayStr = new Date().toISOString().split('T')[0];
+						if (!body.id) {
+							// It's a new task
+							await env.DB.prepare(`INSERT OR IGNORE INTO daily_activity (user_id, date, action) VALUES (?, ?, 'created')`).bind(assignee, todayStr).run();
+						}
+						if (status === 'done') {
+							// Task marked as done
+							await env.DB.prepare(`INSERT OR IGNORE INTO daily_activity (user_id, date, action) VALUES (?, ?, 'done')`).bind(assignee, todayStr).run();
+						}
+					}
 
 					const task = {
 						id, title, description, status, assignee, dueDate: due_date, startDate: start_date, priority, custom: JSON.parse(custom), space_id

@@ -144,6 +144,71 @@ export default {
 		const today = now.toISOString().split('T')[0];
 		const nowTime = now.getTime();
 
+		// Priority Mandate "Daily Check"
+		if (event.cron === "0 0 * * *") {
+			try {
+				const { results: users } = await env.DB.prepare("SELECT id, email FROM users WHERE active = 1").all();
+				const { results: allSpaces } = await env.DB.prepare("SELECT id FROM spaces").all();
+
+				let usersToCheck = users as { id: string, email: string }[];
+				if (usersToCheck.length === 0) {
+					// Fallback to two hardcoded users per mandate if none exist
+					usersToCheck = [{ id: 'user_1', email: 'user1@example.com' }, { id: 'user_2', email: 'user2@example.com' }];
+				}
+
+				for (const user of usersToCheck) {
+					const uId = user.id;
+					let createdCount = 0;
+					let doneCount = 0;
+
+					for (const space of allSpaces) {
+						const sId = (space.id as string).replace(/[^a-zA-Z0-9_]/g, '');
+						try {
+							const { results: tasks } = await env.DB.prepare(`SELECT * FROM tasks_${sId}`).all();
+							for (const t of tasks) {
+								const task = t as any;
+								const isToday = (task.start_date === today || task.due_date === today);
+								if (task.assignee === uId && isToday) {
+									createdCount++;
+									if (task.status === 'done') {
+										doneCount++;
+									}
+								}
+							}
+						} catch (e) {
+							// Ignore missing tables
+						}
+					}
+
+					if (createdCount < 1 || doneCount < 1) {
+						console.log(`Triggering notification for user ${uId}`);
+						if (env.SMTP_USER && env.SMTP_PASS && user.email) {
+							ctx.waitUntil((async () => {
+								try {
+									const transport = nodemailer.createTransport({
+										host: env.SMTP_HOST || "smtp.gmail.com",
+										port: Number(env.SMTP_PORT) || 465,
+										secure: true,
+										auth: { user: env.SMTP_USER, pass: env.SMTP_PASS }
+									});
+									await transport.sendMail({
+										from: env.SMTP_USER,
+										to: user.email,
+										subject: "Daily Task Check",
+										text: "You have not created and completed a task today."
+									});
+								} catch (e) {
+									console.error("Failed sending daily check email", e);
+								}
+							})());
+						}
+					}
+				}
+			} catch (e) {
+				console.error("Daily check failed", e);
+			}
+		}
+
 		// 1. Evaluate automations to create events
 		const { results: automations } = await env.DB.prepare("SELECT * FROM automation_rules").all();
 		const { results: allSpaces } = await env.DB.prepare("SELECT id FROM spaces").all();

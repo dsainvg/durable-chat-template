@@ -1,44 +1,49 @@
 {
-	"compatibility_date": "2024-11-01",
-	"compatibility_flags": ["nodejs_compat"],
-	"main": "src/server/index.ts",
-	"name": "durable-chat-template",
-	"assets": {
-		"directory": "./dist/client",
-		"binding": "ASSETS",
-		"not_found_handling": "none"
-	},
-	"build": {
-		"command": "npm run build"
-	},
-	"migrations": [
-		{
-			"new_sqlite_classes": ["Chat"],
-			"tag": "v1"
-		}
-	],
-	"durable_objects": {
-		"bindings": [
-			{
-				"class_name": "Chat",
-				"name": "Chat"
-			}
-		]
-	},
-	"d1_databases": [
-		{
-			"binding": "DB",
-			"database_name": "db0",
-			"database_id": "4d0da6f1-b2a1-4837-a2f5-2b0bfd422c1a"
-		}
-	],
-	"observability": {
-		"enabled": true
-	},
-	"triggers": {
-		"crons": [
-			"*/30 7-23 * * *"
-		]
-	},
-	"upload_source_maps": true
+  "compatibility_date": "2024-11-01",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "main": "src/server/index.ts",
+  "name": "durable-chat-template",
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    "not_found_handling": "none"
+  },
+  "build": {
+    "command": "npm run build"
+  },
+  "migrations": [
+    {
+      "new_sqlite_classes": [
+        "Chat"
+      ],
+      "tag": "v1"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "Chat",
+        "name": "Chat"
+      }
+    ]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "db0",
+      "database_id": "4d0da6f1-b2a1-4837-a2f5-2b0bfd422c1a"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "triggers": {
+    "crons": [
+      "*/30 7-23 * * *",
+      "0 0 * * *"
+    ]
+  },
+  "upload_source_maps": true
 }

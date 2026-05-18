@@ -32,7 +32,8 @@ export function CalendarView({ space, viewId, onOpen, onMove }: { space: Space; 
   }, [space.tasks]);
 
   const today = new Date();
-  const hiddenFields = space.settings?.calendar?.hiddenFields || {};
+  const settings = viewId ? space.views.find(v => v.id === viewId)?.settings : undefined;
+  const hiddenFields = settings?.hiddenFields || {};
 
   return (
     <div className="p-6">

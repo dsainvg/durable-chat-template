@@ -7,6 +7,7 @@ export interface ViewConfig {
   id: string;
   name: string;
   type: ViewType;
+  settings?: Record<string, any>;
 }
 
 export interface CustomField {
@@ -53,7 +54,6 @@ export interface Space {
   customFields: CustomField[];
   emailReminders: boolean;
   emailDigestTime: string;
-  settings: Record<string, any>;
   tasks: Task[];
   channel: ChatMessage[];
 }
@@ -81,7 +81,7 @@ export interface AppState {
   automations: Automation[];
 }
 
-export const STORAGE_KEY = "syncduo:v7";
+export const STORAGE_KEY = "syncduo:v8";
 
 const seed = (): AppState => ({
   currentUserId: "",

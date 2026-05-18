@@ -11,7 +11,7 @@ export function ListView({ space, viewId, onOpen, onMove }: { space: Space; view
   const { state } = useStore();
 
   // Use active settings from the selected view ID or default to "list" logic
-  const settings = viewId && space.settings?.[viewId] ? space.settings[viewId] : space.settings?.list;
+  const settings = viewId ? space.views.find(v => v.id === viewId)?.settings : undefined;
   const hiddenFields = settings?.hiddenFields || {};
   const groupBy = settings?.groupBy || "status";
   const fieldOrder = settings?.fieldOrder || [

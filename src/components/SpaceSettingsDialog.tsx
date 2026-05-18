@@ -131,7 +131,6 @@ export function SpaceSettingsDialog({
             customFields: localSpace.customFields,
             emailReminders: localSpace.emailReminders,
             emailDigestTime: localSpace.emailDigestTime,
-            settings: localSpace.settings,
           })
         });
         toast.success("Settings saved");
@@ -230,17 +229,17 @@ export function SpaceSettingsDialog({
                     <div className="bg-card border border-border rounded-lg p-4 space-y-3">
                       <h3 className="text-sm font-medium">Group By</h3>
                       <Select
-                        value={localSpace.settings?.[viewObj.id]?.groupBy || "status"}
+                        value={viewObj.settings?.groupBy || "status"}
                         onValueChange={(val) =>
                           patchLocal((sp) => ({
                             ...sp,
-                            settings: {
-                              ...sp.settings,
-                              [viewObj.id]: {
-                                ...(sp.settings?.[viewObj.id] || {}),
+                            views: sp.views.map(v => v.id === viewObj.id ? {
+                              ...v,
+                              settings: {
+                                ...(v.settings || {}),
                                 groupBy: val
                               }
-                            }
+                            } : v)
                           }))
                         }
                       >
@@ -265,7 +264,7 @@ export function SpaceSettingsDialog({
                           { id: "dueDate", label: "Due Date" },
                           ...(localSpace.customFields || []).map(f => ({ id: f.id, label: f.name }))
                         ];
-                        const fieldOrder = localSpace.settings?.[viewObj.id]?.fieldOrder || allFields.map(f => f.id);
+                        const fieldOrder = viewObj.settings?.fieldOrder || allFields.map(f => f.id);
                         const orderedFields = fieldOrder.map((id: string) => allFields.find(f => f.id === id)).filter(Boolean);
                         const remainingFields = allFields.filter(f => !fieldOrder.includes(f.id));
                         const finalFields = [...orderedFields, ...remainingFields];
@@ -274,20 +273,20 @@ export function SpaceSettingsDialog({
                           <div key={field.id} className="flex items-center justify-between bg-muted/50 p-2 rounded">
                             <label className="flex items-center gap-2 text-sm cursor-pointer">
                               <Switch
-                                checked={localSpace.settings?.[viewObj.id]?.hiddenFields?.[field.id] !== true}
+                                checked={viewObj.settings?.hiddenFields?.[field.id] !== true}
                                 onCheckedChange={(c) =>
                                   patchLocal((sp) => ({
                                     ...sp,
-                                    settings: {
-                                      ...sp.settings,
-                                      [viewObj.id]: {
-                                        ...(sp.settings?.[viewObj.id] || {}),
+                                    views: sp.views.map(v => v.id === viewObj.id ? {
+                                      ...v,
+                                      settings: {
+                                        ...(v.settings || {}),
                                         hiddenFields: {
-                                          ...(sp.settings?.[viewObj.id]?.hiddenFields || {}),
+                                          ...(v.settings?.hiddenFields || {}),
                                           [field.id]: !c
                                         }
                                       }
-                                    }
+                                    } : v)
                                   }))
                                 }
                               />
@@ -308,13 +307,13 @@ export function SpaceSettingsDialog({
                                   [newOrder[currentIdx - 1], newOrder[currentIdx]] = [newOrder[currentIdx], newOrder[currentIdx - 1]];
                                   patchLocal((sp) => ({
                                     ...sp,
-                                    settings: {
-                                      ...sp.settings,
-                                      [viewObj.id]: {
-                                        ...(sp.settings?.[viewObj.id] || {}),
+                                    views: sp.views.map(v => v.id === viewObj.id ? {
+                                      ...v,
+                                      settings: {
+                                        ...(v.settings || {}),
                                         fieldOrder: newOrder
                                       }
-                                    }
+                                    } : v)
                                   }));
                                 }}
                               >
@@ -334,13 +333,13 @@ export function SpaceSettingsDialog({
                                   [newOrder[currentIdx], newOrder[currentIdx + 1]] = [newOrder[currentIdx + 1], newOrder[currentIdx]];
                                   patchLocal((sp) => ({
                                     ...sp,
-                                    settings: {
-                                      ...sp.settings,
-                                      [viewObj.id]: {
-                                        ...(sp.settings?.[viewObj.id] || {}),
+                                    views: sp.views.map(v => v.id === viewObj.id ? {
+                                      ...v,
+                                      settings: {
+                                        ...(v.settings || {}),
                                         fieldOrder: newOrder
                                       }
-                                    }
+                                    } : v)
                                   }));
                                 }}
                               >

@@ -16,8 +16,9 @@ export function KanbanView({
   onMove: (t: Task) => void;
 }) {
   const { state } = useStore();
-  const hiddenFields = space.settings?.kanban?.hiddenFields || {};
-  const groupBy = space.settings?.kanban?.groupBy || "status";
+  const settings = viewId ? space.views.find(v => v.id === viewId)?.settings : undefined;
+  const hiddenFields = settings?.hiddenFields || {};
+  const groupBy = settings?.groupBy || "status";
   const userMap = useMemo(() => Object.fromEntries(state.users.map((u) => [u.id, u])), [state.users]);
   const [dragId, setDragId] = useState<string | null>(null);
 

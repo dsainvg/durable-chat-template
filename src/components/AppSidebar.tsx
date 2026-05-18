@@ -81,7 +81,6 @@ export function AppSidebar() {
             customFields,
             emailReminders: false,
             emailDigestTime: "09:00",
-            settings: {},
             tasks: [],
             channel: [],
           },

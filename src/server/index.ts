@@ -124,7 +124,8 @@ async function initDb(db: D1Database) {
 	if (dbInitialized) return;
 
 	await db.prepare("CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, initials TEXT NOT NULL, hash TEXT NOT NULL, active INTEGER DEFAULT 0, last_seen INTEGER DEFAULT 0)").run();
-	await db.prepare("CREATE TABLE IF NOT EXISTS spaces (id TEXT PRIMARY KEY, name TEXT NOT NULL, color TEXT, emoji TEXT, enabledViews TEXT, columns TEXT, customFields TEXT, emailReminders INTEGER, emailDigestTime TEXT, settings TEXT, spacesettings TEXT)").run();
+	await db.prepare("CREATE TABLE IF NOT EXISTS spaces (id TEXT PRIMARY KEY, name TEXT NOT NULL, color TEXT, emoji TEXT, columns TEXT, customFields TEXT, emailReminders INTEGER, emailDigestTime TEXT)").run();
+	await db.prepare("CREATE TABLE IF NOT EXISTS space_views (id TEXT NOT NULL, space_id TEXT NOT NULL, name TEXT NOT NULL, type TEXT NOT NULL, settings TEXT NOT NULL, PRIMARY KEY (id, space_id))").run();
 	await db.prepare("CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)").run();
 
 	// Create tables for automations
@@ -133,7 +134,7 @@ async function initDb(db: D1Database) {
 	await db.prepare(`CREATE TABLE IF NOT EXISTS recurring_events (id TEXT PRIMARY KEY, automation_id TEXT NOT NULL, task_id TEXT NOT NULL, space_id TEXT NOT NULL, status TEXT NOT NULL, action_type TEXT NOT NULL, config TEXT NOT NULL, last_run INTEGER DEFAULT 0, next_run INTEGER NOT NULL)`).run();
 	await db.prepare(`CREATE TABLE IF NOT EXISTS executed_events (id TEXT PRIMARY KEY, automation_id TEXT NOT NULL, task_id TEXT NOT NULL, space_id TEXT NOT NULL, status TEXT NOT NULL, action_type TEXT NOT NULL, config TEXT NOT NULL, executed_at INTEGER NOT NULL)`).run();
 
-	try { await db.prepare("ALTER TABLE spaces ADD COLUMN spacesettings TEXT").run(); } catch (e) {} dbInitialized = true;
+	dbInitialized = true;
 }
 
 export default {
@@ -506,44 +507,34 @@ export default {
 				return new Response(JSON.stringify(results), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 			}
 
-			const parseSettings = (r: any) => {
-				try {
-					const ss = r.spacesettings ? JSON.parse(r.spacesettings) : null;
-					if (ss && Object.keys(ss).length > 0) return ss;
-				} catch (e) {}
-				try {
-					const s = r.settings ? JSON.parse(r.settings) : null;
-					if (s && Object.keys(s).length > 0) return s;
-				} catch (e) {}
-				return {};
-			};
-
 			if (url.pathname === '/api/spaces' && request.method === 'GET') {
-				const { results } = await env.DB.prepare("SELECT * FROM spaces").all();
-				const parsed = results.map((r: any) => {
-					let views = [];
-					if (r.enabledViews) {
-						try {
-							const parsedViews = JSON.parse(r.enabledViews);
-							if (Array.isArray(parsedViews)) {
-								views = parsedViews;
-							} else {
-								// Migrate old enabledViews record to views array
-								for (const [key, enabled] of Object.entries(parsedViews)) {
-									if (enabled) {
-										views.push({ id: key, name: key.charAt(0).toUpperCase() + key.slice(1), type: key });
-									}
-								}
-							}
-						} catch (e) { }
-					}
+				const { results: spaces } = await env.DB.prepare("SELECT * FROM spaces").all();
+				const { results: allViews } = await env.DB.prepare("SELECT * FROM space_views").all();
+
+				const viewsBySpace = allViews.reduce((acc: any, view: any) => {
+					if (!acc[view.space_id]) acc[view.space_id] = [];
+					let parsedSettings = {};
+					try {
+						parsedSettings = JSON.parse(view.settings);
+					} catch (e) {}
+					acc[view.space_id].push({
+						id: view.id,
+						name: view.name,
+						type: view.type,
+						settings: parsedSettings
+					});
+					return acc;
+				}, {});
+
+				const parsed = spaces.map((r: any) => {
+					let views = viewsBySpace[r.id] || [];
 					if (views.length === 0) {
 						views = [
-							{ id: "list", name: "List", type: "list" },
-							{ id: "kanban", name: "Kanban", type: "kanban" },
-							{ id: "calendar", name: "Calendar", type: "calendar" },
-							{ id: "gantt", name: "Gantt", type: "gantt" },
-							{ id: "table", name: "Table", type: "table" }
+							{ id: "list", name: "List", type: "list", settings: {} },
+							{ id: "kanban", name: "Kanban", type: "kanban", settings: {} },
+							{ id: "calendar", name: "Calendar", type: "calendar", settings: {} },
+							{ id: "gantt", name: "Gantt", type: "gantt", settings: {} },
+							{ id: "table", name: "Table", type: "table", settings: {} }
 						];
 					}
 
@@ -553,34 +544,41 @@ export default {
 						columns: r.columns ? JSON.parse(r.columns) : [{ id: "todo", name: "To Do" }, { id: "doing", name: "Doing" }, { id: "done", name: "Done" }],
 						customFields: r.customFields ? JSON.parse(r.customFields) : [],
 						emailReminders: Boolean(r.emailReminders),
-						settings: parseSettings(r),
 						tasks: [], // fetched separately
 						channel: [] // fetched separately or handled by party socket
 					};
 				});
 				return new Response(JSON.stringify(parsed), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 			}
+
 			if (url.pathname === '/api/spaces' && request.method === 'POST') {
 				const body = await request.json() as any;
 				const id = body.id || Math.random().toString(36).substring(2, 10);
 				const name = body.name || 'New Space';
 				const color = body.color || 'brand';
 				const emoji = body.emoji || '✨';
-				const enabledViews = JSON.stringify(body.views || [
-					{ id: "list", name: "List", type: "list" },
-					{ id: "kanban", name: "Kanban", type: "kanban" },
-					{ id: "calendar", name: "Calendar", type: "calendar" },
-					{ id: "gantt", name: "Gantt", type: "gantt" },
-					{ id: "table", name: "Table", type: "table" }
-				]);
 				const columns = JSON.stringify(body.columns || [{ id: "todo", name: "To Do" }, { id: "doing", name: "Doing" }, { id: "done", name: "Done" }]);
 				const customFields = JSON.stringify(body.customFields || []);
 				const emailReminders = body.emailReminders ? 1 : 0;
 				const emailDigestTime = body.emailDigestTime || '09:00';
-				const settings = JSON.stringify(body.settings || {}); const spacesettings = JSON.stringify(body.settings || {});
+				const views = body.views || [
+					{ id: "list", name: "List", type: "list", settings: {} },
+					{ id: "kanban", name: "Kanban", type: "kanban", settings: {} },
+					{ id: "calendar", name: "Calendar", type: "calendar", settings: {} },
+					{ id: "gantt", name: "Gantt", type: "gantt", settings: {} },
+					{ id: "table", name: "Table", type: "table", settings: {} }
+				];
 
-				await env.DB.prepare("INSERT INTO spaces (id, name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime, settings, spacesettings) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-					.bind(id, name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime, settings, spacesettings).run();
+				await env.DB.prepare("INSERT INTO spaces (id, name, color, emoji, columns, customFields, emailReminders, emailDigestTime) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+					.bind(id, name, color, emoji, columns, customFields, emailReminders, emailDigestTime).run();
+
+				const viewStatements = views.map((v: any) =>
+					env.DB.prepare("INSERT INTO space_views (id, space_id, name, type, settings) VALUES (?, ?, ?, ?, ?)")
+						.bind(v.id, id, v.name, v.type, JSON.stringify(v.settings || {}))
+				);
+				if (viewStatements.length > 0) {
+					await env.DB.batch(viewStatements);
+				}
 
 				const safeId = id.replace(/[^a-zA-Z0-9_]/g, '');
 				await env.DB.prepare(`CREATE TABLE IF NOT EXISTS tasks_${safeId} (id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT, status TEXT NOT NULL, assignee TEXT, due_date TEXT, start_date TEXT, priority TEXT, custom TEXT)`).run();
@@ -631,16 +629,27 @@ export default {
 					const name = body.name;
 					const color = body.color;
 					const emoji = body.emoji;
-					const enabledViews = JSON.stringify(body.views);
+					const views = body.views || [];
 					const columns = JSON.stringify(body.columns);
 					const customFields = JSON.stringify(body.customFields);
 					const emailReminders = body.emailReminders ? 1 : 0;
 					const emailDigestTime = body.emailDigestTime;
-					const settingsStr = JSON.stringify(body.settings || {});
-					const spacesettingsStr = JSON.stringify(body.settings || {});
 
-					await env.DB.prepare("UPDATE spaces SET name = ?, color = ?, emoji = ?, enabledViews = ?, columns = ?, customFields = ?, emailReminders = ?, emailDigestTime = ?, settings = ?, spacesettings = ? WHERE id = ?")
-						.bind(name, color, emoji, enabledViews, columns, customFields, emailReminders, emailDigestTime, settingsStr, spacesettingsStr, id).run();
+					await env.DB.prepare("UPDATE spaces SET name = ?, color = ?, emoji = ?, columns = ?, customFields = ?, emailReminders = ?, emailDigestTime = ? WHERE id = ?")
+						.bind(name, color, emoji, columns, customFields, emailReminders, emailDigestTime, id).run();
+
+					if (views.length > 0) {
+						// Delete old views for this space
+						await env.DB.prepare("DELETE FROM space_views WHERE space_id = ?").bind(id).run();
+						// Insert new views
+						const viewStatements = views.map((v: any) =>
+							env.DB.prepare("INSERT INTO space_views (id, space_id, name, type, settings) VALUES (?, ?, ?, ?, ?)")
+								.bind(v.id, id, v.name, v.type, JSON.stringify(v.settings || {}))
+						);
+						if (viewStatements.length > 0) {
+							await env.DB.batch(viewStatements);
+						}
+					}
 
 					const idStr = env.Chat.idFromName(id);
 					const chatStub = env.Chat.get(idStr);
@@ -648,12 +657,13 @@ export default {
 						method: "POST",
 						body: JSON.stringify({ 
 							type: "space_updated", 
-							space: { id, name, color, emoji, views: body.views, columns: body.columns, customFields: body.customFields, emailReminders: body.emailReminders, emailDigestTime, settings: body.settings || {} }
+							space: { id, name, color, emoji, views: views, columns: body.columns, customFields: body.customFields, emailReminders: body.emailReminders, emailDigestTime }
 						})
 					}));
 
 					return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 				} catch (e) {
+					console.error("PUT space error:", e);
 					return new Response(JSON.stringify({ error: "Bad request" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 				}
 			}

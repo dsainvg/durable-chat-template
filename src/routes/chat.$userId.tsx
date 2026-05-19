@@ -122,7 +122,12 @@ function ChatPage() {
             placeholder={`Message ${other.name}…`}
             className="flex-1 bg-transparent py-3 text-sm outline-none"
           />
-          <button onClick={send} className="text-primary hover:text-primary/80 p-1">
+          <button
+            onClick={send}
+            disabled={!text.trim()}
+            aria-label="Send message"
+            className="text-primary hover:text-primary/80 p-1 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+          >
             <Send className="size-4" />
           </button>
         </div>

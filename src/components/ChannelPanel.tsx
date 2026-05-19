@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import type { Space } from "@/lib/store";
 import { useStore, uid } from "@/lib/store";
 import { X, Send } from "lucide-react";
@@ -8,7 +8,8 @@ const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minu
 export function ChannelPanel({ space, onClose, onSend }: { space: Space; onClose: () => void; onSend?: (t: string) => void }) {
   const { state, update } = useStore();
   const [text, setText] = useState("");
-  const userMap = Object.fromEntries(state.users.map((u) => [u.id, u]));
+  // ⚡ Bolt: Memoize userMap calculation to prevent creating a new object on every render
+  const userMap = useMemo(() => Object.fromEntries(state.users.map((u) => [u.id, u])), [state.users]);
   const me = state.currentUserId;
   const endRef = useRef<HTMLDivElement>(null);
 

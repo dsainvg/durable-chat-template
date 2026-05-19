@@ -10,3 +10,6 @@
 ## 2024-11-20 - Chat Message Render Performance
 **Learning:** Similar to list views, native `Date.toLocaleTimeString` calls inside `.map()` loops for rendering chat messages (e.g., in `ChannelPanel` and `chat.$userId`) cause noticeable performance degradation as they instantiate formatters for every message on each re-render.
 **Action:** Define static `Intl.DateTimeFormat` instances outside the component scope and use `.format(timestamp)` to avoid costly instantiations inside chat loops.
+## 2024-05-19 - Unmemoized Hashmap Creation in Chat Views
+**Learning:** Object.fromEntries mapping over arrays to create hashmaps (like `userMap`) within React render functions (e.g., in `ChannelPanel` and `chat.$userId`) forces O(N) recalculations on every single keystroke due to controlled text inputs.
+**Action:** Always wrap state-derived object maps (like user lookup dictionaries) in `useMemo` hooks, ensuring they only recalculate when the source array (e.g. `state.users`) actually changes, decoupling them from frequent state updates like input typing.

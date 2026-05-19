@@ -144,25 +144,28 @@ export default {
 		const today = now.toISOString().split('T')[0];
 		const nowTime = now.getTime();
 
-		// Priority Mandate "Daily Check"
-		if (event.cron === "0 0 * * *") {
-			try {
+		// 1. Evaluate automations to create events
+		const { results: automations } = await env.DB.prepare("SELECT * FROM automation_rules").all();
+		const { results: allSpaces } = await env.DB.prepare("SELECT id FROM spaces").all();
+
+		for (const auto of automations) {
+			const targetSpaces = JSON.parse(auto.target_spaces as string) as string[];
+			const conditions = JSON.parse(auto.conditions as string) as { type: string; config?: any }[];
+			const actionType = auto.action_type as string;
+			const configStr = auto.config as string;
+			const isRecurring = auto.is_recurring === 1;
+
+			if (actionType === 'daily_user_check') {
 				const { results: users } = await env.DB.prepare("SELECT id, email FROM users WHERE active = 1").all();
-				const { results: allSpaces } = await env.DB.prepare("SELECT id FROM spaces").all();
-
-				let usersToCheck = users as { id: string, email: string }[];
-				if (usersToCheck.length === 0) {
-					// Fallback to two hardcoded users per mandate if none exist
-					usersToCheck = [{ id: 'user_1', email: 'user1@example.com' }, { id: 'user_2', email: 'user2@example.com' }];
-				}
-
-				for (const user of usersToCheck) {
-					const uId = user.id;
+				for (const user of users) {
+					const uId = user.id as string;
 					let createdCount = 0;
 					let doneCount = 0;
 
-					for (const space of allSpaces) {
-						const sId = (space.id as string).replace(/[^a-zA-Z0-9_]/g, '');
+					const spacesToQuery = targetSpaces.length > 0 ? targetSpaces : allSpaces.map(s => s.id as string);
+
+					for (const spaceId of spacesToQuery) {
+						const sId = spaceId.replace(/[^a-zA-Z0-9_]/g, '');
 						try {
 							const { results: tasks } = await env.DB.prepare(`SELECT * FROM tasks_${sId}`).all();
 							for (const t of tasks) {
@@ -175,13 +178,10 @@ export default {
 									}
 								}
 							}
-						} catch (e) {
-							// Ignore missing tables
-						}
+						} catch (e) {}
 					}
 
 					if (createdCount < 1 || doneCount < 1) {
-						console.log(`Triggering notification for user ${uId}`);
 						if (env.SMTP_USER && env.SMTP_PASS && user.email) {
 							ctx.waitUntil((async () => {
 								try {
@@ -193,7 +193,7 @@ export default {
 									});
 									await transport.sendMail({
 										from: env.SMTP_USER,
-										to: user.email,
+										to: user.email as string,
 										subject: "Daily Task Check",
 										text: "You have not created and completed a task today."
 									});
@@ -204,21 +204,8 @@ export default {
 						}
 					}
 				}
-			} catch (e) {
-				console.error("Daily check failed", e);
+				continue;
 			}
-		}
-
-		// 1. Evaluate automations to create events
-		const { results: automations } = await env.DB.prepare("SELECT * FROM automation_rules").all();
-		const { results: allSpaces } = await env.DB.prepare("SELECT id FROM spaces").all();
-
-		for (const auto of automations) {
-			const targetSpaces = JSON.parse(auto.target_spaces as string) as string[];
-			const conditions = JSON.parse(auto.conditions as string) as { type: string; config?: any }[];
-			const actionType = auto.action_type as string;
-			const configStr = auto.config as string;
-			const isRecurring = auto.is_recurring === 1;
 
 			// Determine spaces to query
 			const spacesToQuery = targetSpaces.length > 0 ? targetSpaces : allSpaces.map(s => s.id as string);

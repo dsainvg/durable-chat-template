@@ -214,12 +214,14 @@ export function GlobalAutomationsDialog({
                 if (v === "send_email") setActionConfig({ target_user_id: state.currentUserId });
                 else if (v === "change_status") setActionConfig({ new_status: "done" });
                 else if (v === "move_space") setActionConfig({ new_space_id: state.spaces[0]?.id || "" });
+                else if (v === "daily_user_check") setActionConfig({});
               }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="send_email">Send Email To User</SelectItem>
                   <SelectItem value="change_status">Change Status</SelectItem>
                   <SelectItem value="move_space">Move Space</SelectItem>
+                  <SelectItem value="daily_user_check">Daily User Check (Mandate)</SelectItem>
                 </SelectContent>
               </Select>
 

@@ -143,6 +143,10 @@ export default {
 		await initDb(env.DB);
 		const now = new Date();
 		const today = now.toISOString().split('T')[0];
+
+		const yesterdayDate = new Date(now);
+		yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+		const yesterday = yesterdayDate.toISOString().split('T')[0];
 		const nowTime = now.getTime();
 
 		// Daily Check Automation - run only around midnight
@@ -150,7 +154,8 @@ export default {
 		if (currentHour === 0 && env.SMTP_USER && env.SMTP_PASS) {
 			const { results: users } = await env.DB.prepare("SELECT * FROM users LIMIT 2").all();
 			for (const user of users) {
-				const { results: activities } = await env.DB.prepare("SELECT action FROM daily_activity WHERE user_id = ? AND date = ?").bind(user.id, today).all();
+				// At midnight, we evaluate the activity of the *previous* day (yesterday)
+				const { results: activities } = await env.DB.prepare("SELECT action FROM daily_activity WHERE user_id = ? AND date = ?").bind(user.id, yesterday).all();
 
 				const hasCreated = activities.some((a: any) => a.action === 'created');
 				const hasDone = activities.some((a: any) => a.action === 'done');
@@ -171,8 +176,8 @@ export default {
 							subject: "SyncDuo Daily Reminder",
 							text: "Hello! You haven't created and completed at least one task today. Let's keep the momentum going!"
 						});
-						// Mark that we sent the email today so we don't spam
-						await env.DB.prepare("INSERT INTO daily_activity (user_id, date, action) VALUES (?, ?, 'email_sent')").bind(user.id, today).run();
+						// Mark that we sent the email for yesterday so we don't spam
+						await env.DB.prepare("INSERT INTO daily_activity (user_id, date, action) VALUES (?, ?, 'email_sent')").bind(user.id, yesterday).run();
 					} catch (err) {
 						console.error("Daily check email failed", err);
 					}
@@ -331,6 +336,9 @@ export default {
 							body: JSON.stringify({ type: "task_updated", task: updatedTask })
 						}));
 					}
+				} else if (actionType === 'system_agent' && config.agent) {
+					// For external system agents, we just log execution; they might be picked up by external cron or webhook
+					console.log(`[System Agent] Automation triggered agent: ${config.agent}`);
 				}
 
 				if (isRecurring) {

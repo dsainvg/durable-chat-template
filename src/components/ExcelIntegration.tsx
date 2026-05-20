@@ -27,7 +27,7 @@ import { Download, Upload, FileSpreadsheet, Loader2, AlertCircle } from "lucide-
 interface ExcelIntegrationProps {
   space: Space;
   users: User[];
-  onImport: (tasks: Task[], newCustomFields?: { id: string; name: string; type: "text" }[]) => Promise<void>;
+  onImport: (tasks: Task[], newCustomFields?: { id: string; name: string; type: any }[]) => Promise<void>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -72,8 +72,11 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
   const [file, setFile] = React.useState<File | null>(null);
   const [data, setData] = React.useState<any[]>([]);
   const [headers, setHeaders] = React.useState<string[]>([]);
-  const [step, setStep] = React.useState<"upload" | "mapping" | "preview">("upload");
+  const [step, setStep] = React.useState<"upload" | "mapping" | "options" | "preview">("upload");
   const [mapping, setMapping] = React.useState<Record<string, string>>({});
+  const [extraFieldTypes, setExtraFieldTypes] = React.useState<Record<string, any>>({});
+  const [optionMappings, setOptionMappings] = React.useState<Record<string, Record<string, string>>>({});
+  const [uniqueValues, setUniqueValues] = React.useState<Record<string, string[]>>({});
   const [importing, setImporting] = React.useState(false);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -113,6 +116,9 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
           }
         });
         setMapping(initialMapping);
+        const initialTypes: Record<string, any> = {};
+        h.forEach(header => initialTypes[header] = "text");
+        setExtraFieldTypes(initialTypes);
         setStep("mapping");
       }
     };
@@ -122,7 +128,7 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
   const finalizeImport = async () => {
     setImporting(true);
     try {
-      const newCustomFieldsToCreate: { id: string; name: string; type: "text" }[] = [];
+      const newCustomFieldsToCreate: { id: string; name: string; type: any }[] = [];
       const extraHeaderToId: Record<string, string> = {};
 
       // Prepare new custom fields IDs
@@ -130,7 +136,7 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
         if (target === "extra") {
           const newId = uid();
           extraHeaderToId[header] = newId;
-          newCustomFieldsToCreate.push({ id: newId, name: header, type: "text" });
+          newCustomFieldsToCreate.push({ id: newId, name: header, type: extraFieldTypes[header] || "text" });
         }
       });
 
@@ -156,7 +162,8 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
           if (mapTo === "title") task.title = String(val);
           else if (mapTo === "description") task.description = String(val);
           else if (mapTo === "status") {
-            const col = space.columns.find(c => c.name.toLowerCase() === String(val).toLowerCase() || c.id === String(val));
+            const mappedVal = optionMappings[h]?.[String(val)];
+            const col = space.columns.find(c => c.id === mappedVal || c.name === mappedVal || c.name.toLowerCase() === String(val).toLowerCase());
             task.status = col ? col.id : space.columns[0]?.id || "todo";
           }
           else if (mapTo === "assignee") {
@@ -169,20 +176,53 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
                 const d = XLSX.SSF.parse_date_code(val);
                 task.dueDate = new Date(d.y, d.m - 1, d.d).toISOString();
               } else {
-                task.dueDate = new Date(val).toISOString();
+                const s = String(val);
+                const parsed = new Date(s);
+                if (!isNaN(parsed.getTime())) {
+                  task.dueDate = parsed.toISOString();
+                } else {
+                  // Try common formats like DD/MM/YYYY, MM/DD/YYYY, YYYY/MM/DD
+                  const parts = s.split(/[\/\-\.]/).map(p => parseInt(p));
+                  if (parts.length === 3) {
+                    let d, m, y;
+                    if (parts[0] > 1000) { // YYYY-MM-DD
+                      y = parts[0]; m = parts[1] - 1; d = parts[2];
+                    } else if (parts[2] > 1000) { // DD-MM-YYYY or MM-DD-YYYY
+                      y = parts[2];
+                      // Ambiguous. We'll guess DD-MM-YYYY unless m > 12
+                      if (parts[1] > 12) { // must be MM-DD-YYYY? No, wait, if m > 12 it's invalid unless it's DD.
+                         // If parts[0] > 12, it's definitely DD-MM-YYYY.
+                         // If parts[1] > 12, it's definitely MM-DD-YYYY.
+                         if (parts[0] > 12) { d = parts[0]; m = parts[1] - 1; }
+                         else { d = parts[1]; m = parts[0] - 1; }
+                      } else {
+                         // Default to DD-MM-YYYY
+                         d = parts[0]; m = parts[1] - 1;
+                      }
+                    }
+                    if (y && m !== undefined && d) {
+                      task.dueDate = new Date(y, m, d).toISOString();
+                    }
+                  }
+                }
               }
             } catch {
               task.dueDate = "";
             }
           }
           else if (mapTo === "priority") {
-            const p = String(val).toLowerCase();
-            if (["high", "medium", "low"].includes(p)) task.priority = p;
+            const mappedVal = optionMappings[h]?.[String(val)] || String(val).toLowerCase();
+            if (["high", "medium", "low"].includes(mappedVal)) task.priority = mappedVal;
             else task.priority = "medium";
           }
           else if (mapTo.startsWith("custom_")) {
             const fieldId = mapTo.replace("custom_", "");
-            task.custom[fieldId] = String(val);
+            const customField = space.customFields.find(f => f.id === fieldId);
+            if (customField?.type === "select") {
+              task.custom[fieldId] = optionMappings[h]?.[String(val)] || String(val);
+            } else {
+              task.custom[fieldId] = String(val);
+            }
           }
           else if (mapTo === "extra") {
             const newId = extraHeaderToId[h];
@@ -207,6 +247,53 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
 
   const handleMappingChange = (header: string, value: string) => {
     setMapping(prev => ({ ...prev, [header]: value }));
+  };
+
+  const prepareOptionsStep = () => {
+    const newUniqueValues: Record<string, string[]> = {};
+    const newOptionMappings: Record<string, Record<string, string>> = { ...optionMappings };
+    let hasOptions = false;
+
+    headers.forEach((h, i) => {
+      const mapTo = mapping[h];
+      if (mapTo === "status" || mapTo === "priority" || mapTo.startsWith("custom_")) {
+        let isSelect = mapTo === "status" || mapTo === "priority";
+        if (mapTo.startsWith("custom_")) {
+          const field = space.customFields.find(f => f.id === mapTo.replace("custom_", ""));
+          if (field?.type === "select") isSelect = true;
+        }
+
+        if (isSelect) {
+          const values = Array.from(new Set(data.map(row => String(row[i] || "")))).filter(Boolean);
+          newUniqueValues[h] = values;
+          if (!newOptionMappings[h]) newOptionMappings[h] = {};
+
+          // Initial intelligent option mapping
+          values.forEach(val => {
+            if (!newOptionMappings[h][val]) {
+               if (mapTo === "status") {
+                 const col = space.columns.find(c => c.name.toLowerCase() === val.toLowerCase());
+                 if (col) newOptionMappings[h][val] = col.id;
+               } else if (mapTo === "priority") {
+                 if (["high", "medium", "low"].includes(val.toLowerCase())) newOptionMappings[h][val] = val.toLowerCase();
+               } else {
+                 const fieldId = mapTo.replace("custom_", "");
+                 const field = space.customFields.find(f => f.id === fieldId);
+                 const opt = field?.options?.find(o => o.toLowerCase() === val.toLowerCase());
+                 if (opt) newOptionMappings[h][val] = opt;
+               }
+            }
+          });
+          hasOptions = true;
+        }
+      }
+    });
+
+    setUniqueValues(newUniqueValues);
+    setOptionMappings(newOptionMappings);
+
+    if (hasOptions) setStep("options");
+    else setStep("preview");
   };
 
   return (
@@ -247,9 +334,10 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
               </div>
 
               <ScrollArea className="flex-1">
-                <div className="grid grid-cols-2 gap-x-8 gap-y-4 pr-4">
+                <div className="grid grid-cols-[1fr_1fr_auto] gap-x-4 gap-y-4 pr-4">
                   <div className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Excel Column</div>
                   <div className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">SyncDuo Field</div>
+                  <div className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Type</div>
 
                   {headers.map((header) => (
                     <React.Fragment key={header}>
@@ -274,6 +362,17 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
                           ))}
                         </SelectContent>
                       </Select>
+
+                      {mapping[header] === "extra" ? (
+                        <Select value={extraFieldTypes[header]} onValueChange={(v) => setExtraFieldTypes(prev => ({ ...prev, [header]: v }))}>
+                          <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="text">Text</SelectItem>
+                            <SelectItem value="number">Number</SelectItem>
+                            <SelectItem value="date">Date</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : <div />}
                     </React.Fragment>
                   ))}
                 </div>
@@ -281,6 +380,68 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
 
               <div className="flex justify-between items-center pt-4">
                 <Button variant="ghost" onClick={() => setStep("upload")}>Back</Button>
+                <Button onClick={prepareOptionsStep}>Next</Button>
+              </div>
+            </div>
+          )}
+
+          {step === "options" && (
+            <div className="space-y-4 flex flex-col flex-1 overflow-hidden">
+              <div className="flex items-start gap-3 p-3 bg-primary/5 rounded-lg border border-primary/10">
+                <AlertCircle className="size-5 text-primary shrink-0 mt-0.5" />
+                <p className="text-xs text-muted-foreground">
+                  Map values from your Excel columns to the available options in SyncDuo.
+                </p>
+              </div>
+
+              <ScrollArea className="flex-1">
+                <div className="space-y-6 pr-4">
+                  {Object.entries(uniqueValues).map(([header, values]) => {
+                    const mapTo = mapping[header];
+                    let options: { id: string; name: string }[] = [];
+                    if (mapTo === "status") options = space.columns;
+                    else if (mapTo === "priority") options = [{ id: "high", name: "High" }, { id: "medium", name: "Medium" }, { id: "low", name: "Low" }];
+                    else {
+                      const field = space.customFields.find(f => f.id === mapTo.replace("custom_", ""));
+                      options = (field?.options || []).map(o => ({ id: o, name: o }));
+                    }
+
+                    return (
+                      <div key={header} className="space-y-2">
+                        <h4 className="text-sm font-semibold border-b pb-1">Column: {header}</h4>
+                        <div className="grid grid-cols-2 gap-x-8 gap-y-2">
+                           <div className="text-[10px] uppercase text-muted-foreground font-bold">Excel Value</div>
+                           <div className="text-[10px] uppercase text-muted-foreground font-bold">SyncDuo Option</div>
+                           {values.map(val => (
+                             <React.Fragment key={val}>
+                               <div className="text-sm italic">{val}</div>
+                               <Select
+                                 value={optionMappings[header]?.[val]}
+                                 onValueChange={(v) => setOptionMappings(prev => ({
+                                   ...prev,
+                                   [header]: { ...prev[header], [val]: v }
+                                 }))}
+                               >
+                                 <SelectTrigger className="h-8">
+                                   <SelectValue placeholder="Select option..." />
+                                 </SelectTrigger>
+                                 <SelectContent>
+                                   {options.map(opt => (
+                                     <SelectItem key={opt.id} value={opt.id}>{opt.name}</SelectItem>
+                                   ))}
+                                 </SelectContent>
+                               </Select>
+                             </React.Fragment>
+                           ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+
+              <div className="flex justify-between items-center pt-4">
+                <Button variant="ghost" onClick={() => setStep("mapping")}>Back</Button>
                 <Button onClick={() => setStep("preview")}>Preview Data</Button>
               </div>
             </div>

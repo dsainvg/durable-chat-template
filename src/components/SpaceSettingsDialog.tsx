@@ -151,7 +151,7 @@ export function SpaceSettingsDialog({
     navigate({ to: "/" });
   };
 
-  const handleImport = async (tasks: import("@/lib/store").Task[], newFields?: { id: string; name: string; type: "text" }[]) => {
+  const handleImport = async (tasks: import("@/lib/store").Task[], newFields?: { id: string; name: string; type: any }[]) => {
     const token = localStorage.getItem("syncduo_token");
     if (!token) return;
 

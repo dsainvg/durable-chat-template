@@ -15,7 +15,9 @@ import { TableView } from "@/components/views/TableView";
 import { TaskDialog } from "@/components/TaskDialog";
 import { ChannelPanel } from "@/components/ChannelPanel";
 import { SpaceSettingsDialog } from "@/components/SpaceSettingsDialog";
+import { ExcelImportDialog } from "@/components/import/ExcelImportDialog";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 
 export const Route = createFileRoute("/space/$spaceId")({
   component: SpacePage,
@@ -129,6 +131,7 @@ function SpacePage() {
   const [creating, setCreating] = useState(false);
   const [channelOpen, setChannelOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   if (!space) {
     return (
@@ -254,6 +257,69 @@ function SpacePage() {
     } catch (e) {
       console.error("Failed to update task", e);
     }
+  };
+
+  const importTasks = async (tasks: Task[]) => {
+    const token = localStorage.getItem("syncduo_token");
+    if (!token) return;
+
+    try {
+      const payload = tasks.map(t => ({ ...t, space_id: spaceId }));
+      const promises = payload.map(task =>
+        fetch(`/api/tasks`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify(task),
+        })
+      );
+
+      await Promise.all(promises);
+
+      // Optimistic update
+      update((s) => ({
+        ...s,
+        spaces: s.spaces.map((sp) =>
+          sp.id === spaceId
+            ? { ...sp, tasks: [...sp.tasks, ...tasks] }
+            : sp
+        ),
+      }));
+
+      toast.success(`Imported ${tasks.length} tasks successfully`);
+    } catch (e) {
+      console.error("Failed to import tasks", e);
+      toast.error("Failed to import some tasks");
+    }
+  };
+
+  const exportTasks = () => {
+    if (!processedSpace || !processedSpace.tasks.length) {
+      toast.error("No tasks to export in the current view");
+      return;
+    }
+
+    const data = processedSpace.tasks.map(t => {
+      const row: any = {
+        Title: t.title,
+        Description: t.description,
+        Status: processedSpace.columns.find(c => c.id === t.status)?.name || t.status,
+        Assignee: t.assignee, // would map user email here ideally
+        Priority: t.priority,
+        "Due Date": t.dueDate,
+        "Start Date": t.startDate,
+      };
+
+      processedSpace.customFields.forEach(f => {
+        row[f.name] = t.custom?.[f.id] || "";
+      });
+
+      return row;
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Tasks");
+    XLSX.writeFile(workbook, `${processedSpace.name || "Space"}-tasks.xlsx`);
   };
 
   const deleteTask = async (id: string) => {
@@ -426,6 +492,22 @@ function SpacePage() {
             </DropdownMenuContent>
           </DropdownMenu>
 
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="hidden sm:flex px-2">
+                Import/Export <ChevronDown className="ml-1 size-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setImportOpen(true)}>
+                Import Excel/CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportTasks}>
+                Export to Excel
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Button
             variant="ghost"
             size="sm"
@@ -476,6 +558,15 @@ function SpacePage() {
           spaceId={spaceId}
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
+        />
+      )}
+
+      {importOpen && (
+        <ExcelImportDialog
+          space={space}
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          onImport={importTasks}
         />
       )}
     </>

@@ -420,7 +420,7 @@ export default {
 			const sessionId = crypto.randomUUID();
 			await env.DB.prepare("INSERT INTO sessions (id, user_id, created_at, updated_at) VALUES (?, ?, ?, ?)").bind(sessionId, id, now, now).run();
 
-			const token = btoa(`${id}:${sessionId}`);
+			const token = sessionId;
 			return new Response(JSON.stringify({ token }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 		}
 
@@ -441,7 +441,7 @@ export default {
 				const sessionId = crypto.randomUUID();
 				await env.DB.prepare("INSERT INTO sessions (id, user_id, created_at, updated_at) VALUES (?, ?, ?, ?)").bind(sessionId, id, now, now).run();
 
-				const token = btoa(`${id}:${sessionId}`);
+				const token = sessionId;
 				return new Response(JSON.stringify({ id, token, name, email, initials }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 			} catch (e) {
 				return new Response(JSON.stringify({ error: "Bad request" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
@@ -474,7 +474,7 @@ export default {
 						const sessionId = crypto.randomUUID();
 						await env.DB.prepare("INSERT INTO sessions (id, user_id, created_at, updated_at) VALUES (?, ?, ?, ?)").bind(sessionId, id, now, now).run();
 
-						const token = btoa(`${id}:${sessionId}`);
+						const token = sessionId;
 						return new Response(JSON.stringify({ token }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 					}
 				}
@@ -498,37 +498,26 @@ export default {
 			const token = authHeader.substring(7);
 			let currentUserId = "";
 			try {
-				const decoded = atob(token);
-				const [id, sessionId] = decoded.split(':');
+				const sessionId = token;
 				await initDb(env.DB);
 
-				// Fallback/legacy support for tokens that used id:hash
-				const { results: userResults } = await env.DB.prepare("SELECT hash FROM users WHERE id = ?").bind(id).all();
-				if (userResults.length > 0 && (userResults[0] as any).hash === sessionId) {
-					currentUserId = id;
-				} else {
-					// Verify using sessions table
-					const { results } = await env.DB.prepare("SELECT user_id, updated_at FROM sessions WHERE id = ?").bind(sessionId).all();
-					if (results.length === 0) {
-						throw new Error("Invalid session");
-					}
-
-					const session = results[0] as { user_id: string, updated_at: number };
-					const now = Date.now();
-					// Expire if older than 1 day (86400000 ms)
-					if (now - session.updated_at > 86400000) {
-						await env.DB.prepare("DELETE FROM sessions WHERE id = ?").bind(sessionId).run();
-						throw new Error("Session expired");
-					}
-
-					// Session is valid, update updated_at
-					await env.DB.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").bind(now, sessionId).run();
-					currentUserId = session.user_id;
-
-					if (currentUserId !== id) {
-						throw new Error("User ID mismatch");
-					}
+				// Verify using sessions table
+				const { results } = await env.DB.prepare("SELECT user_id, updated_at FROM sessions WHERE id = ?").bind(sessionId).all();
+				if (results.length === 0) {
+					throw new Error("Invalid session");
 				}
+
+				const session = results[0] as { user_id: string, updated_at: number };
+				const now = Date.now();
+				// Expire if older than 1 day (86400000 ms)
+				if (now - session.updated_at > 86400000) {
+					await env.DB.prepare("DELETE FROM sessions WHERE id = ?").bind(sessionId).run();
+					throw new Error("Session expired");
+				}
+
+				// Session is valid, update updated_at
+				await env.DB.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").bind(now, sessionId).run();
+				currentUserId = session.user_id;
 			} catch (e) {
 				return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 			}

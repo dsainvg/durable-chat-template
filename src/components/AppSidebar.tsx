@@ -37,7 +37,6 @@ export function AppSidebar() {
     
     const token = localStorage.getItem("syncduo_token");
     if (!token) {
-      console.error("No token found");
       return;
     }
 

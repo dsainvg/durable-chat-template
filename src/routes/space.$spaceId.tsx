@@ -5,7 +5,7 @@ import usePartySocket from "partysocket/react";
 import { Button } from "@/components/ui/button";
 import { Settings, Plus, MessageSquare } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { Filter, ArrowUpDown, SlidersHorizontal, ChevronDown } from "lucide-react";
 import { ListView } from "@/components/views/ListView";
 import { KanbanView } from "@/components/views/KanbanView";

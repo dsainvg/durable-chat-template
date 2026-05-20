@@ -39,6 +39,11 @@ export function CalendarView({ space, viewId, onOpen, onMove }: { space: Space; 
   const settings = viewId ? space.views.find(v => v.id === viewId)?.settings : undefined;
   const hiddenFields = settings?.hiddenFields || {};
 
+  const visibleCustomFields = useMemo(() => {
+    if (!space.customFields) return [];
+    return space.customFields.filter(f => !hiddenFields[f.id]);
+  }, [space.customFields, hiddenFields]);
+
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-4">
@@ -102,8 +107,8 @@ export function CalendarView({ space, viewId, onOpen, onMove }: { space: Space; 
                     )}
                     <span className="truncate flex-1">
                       {!hiddenFields["title"] ? t.title : "..."}
-                      {space.customFields && space.customFields.filter(f => !hiddenFields[f.id]).length > 0 &&
-                        ` | ${space.customFields.filter(f => !hiddenFields[f.id]).map(f => t.custom?.[f.id] || "-").join(", ")}`}
+                      {visibleCustomFields.length > 0 &&
+                        ` | ${visibleCustomFields.map(f => t.custom?.[f.id] || "-").join(", ")}`}
                     </span>
                   </button>
                 ))}

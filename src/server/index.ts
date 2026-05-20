@@ -37,15 +37,32 @@ async function hashPassword(password: string): Promise<string> {
 	return `${saltHex}$${hashHex}`;
 }
 
+// Helper to compare two strings in constant time
+function timingSafeEqual(a: string, b: string): boolean {
+	if (a.length !== b.length) {
+		return false;
+	}
+	let result = 0;
+	for (let i = 0; i < a.length; i++) {
+		result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+	}
+	return result === 0;
+}
+
+type VerifyResult = {
+	isValid: boolean;
+	needsUpgrade: boolean;
+};
+
 // Helper to verify a password against a stored hash (legacy or PBKDF2)
-async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+async function verifyPassword(password: string, storedHash: string): Promise<VerifyResult> {
 	if (!storedHash.includes('$')) {
 		// Legacy SHA-256 check
 		const msgUint8 = new TextEncoder().encode(password);
 		const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
 		const hashArray = Array.from(new Uint8Array(hashBuffer));
 		const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-		return hashHex === storedHash;
+		return { isValid: timingSafeEqual(hashHex, storedHash), needsUpgrade: true };
 	}
 
 	const [saltHex, originalHash] = storedHash.split('$');
@@ -72,7 +89,7 @@ async function verifyPassword(password: string, storedHash: string): Promise<boo
 
 	const hashArray = Array.from(new Uint8Array(hashBuffer));
 	const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-	return hashHex === originalHash;
+	return { isValid: timingSafeEqual(hashHex, originalHash), needsUpgrade: false };
 }
 
 
@@ -443,11 +460,16 @@ export default {
 
 				if (results.length > 0) {
 					const storedHash = (results[0] as any).hash;
-					const isValid = await verifyPassword(password, storedHash);
+					const verification = await verifyPassword(password, storedHash);
 
-					if (isValid) {
+					if (verification.isValid) {
 						const now = Date.now();
-						await env.DB.prepare("UPDATE users SET active = 1, last_seen = ? WHERE id = ?").bind(now, id).run();
+						if (verification.needsUpgrade) {
+							const newHash = await hashPassword(password);
+							await env.DB.prepare("UPDATE users SET active = 1, last_seen = ?, hash = ? WHERE id = ?").bind(now, newHash, id).run();
+						} else {
+							await env.DB.prepare("UPDATE users SET active = 1, last_seen = ? WHERE id = ?").bind(now, id).run();
+						}
 
 						const sessionId = crypto.randomUUID();
 						await env.DB.prepare("INSERT INTO sessions (id, user_id, created_at, updated_at) VALUES (?, ?, ?, ?)").bind(sessionId, id, now, now).run();

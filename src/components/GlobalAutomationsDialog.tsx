@@ -9,6 +9,8 @@ import { Trash2, Plus, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 
+const SYSTEM_AGENTS = ["daily_check", "shield", "coverage", "reaper", "contract", "trim"];
+
 export function GlobalAutomationsDialog({
   open,
   onOpenChange,
@@ -154,6 +156,9 @@ export function GlobalAutomationsDialog({
                       <div>
                         <span className="font-semibold text-primary">THEN </span>
                         {a.action_type.replace('_', ' ')}
+                        {a.action_type === 'system_agent' && a.config?.agent && (
+                          <span className="ml-1 text-yellow-600 font-bold">[{a.config.agent}]</span>
+                        )}
                       </div>
                     </div>
                     <Button variant="ghost" size="icon" aria-label="Delete automation" className="text-destructive shrink-0" onClick={() => handleDeleteAutomation(a.id)}>
@@ -220,6 +225,7 @@ export function GlobalAutomationsDialog({
                   <SelectItem value="send_email">Send Email To User</SelectItem>
                   <SelectItem value="change_status">Change Status</SelectItem>
                   <SelectItem value="move_space">Move Space</SelectItem>
+                  <SelectItem value="system_agent">Enable System Agent</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -247,6 +253,19 @@ export function GlobalAutomationsDialog({
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {state.spaces.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {actionType === "system_agent" && (
+                <div className="mt-2 space-y-1">
+                  <Label className="text-xs">Select Agent / Process</Label>
+                  <Select value={actionConfig.agent || ""} onValueChange={(v) => setActionConfig({ ...actionConfig, agent: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {SYSTEM_AGENTS.map(agent => (
+                         <SelectItem key={agent} value={agent}>{agent.replace('_', ' ').toUpperCase()}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

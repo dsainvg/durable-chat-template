@@ -185,7 +185,7 @@ export function SpaceSettingsDialog({
                     }
                   />
                   <div className="text-xs text-muted-foreground w-16">{v.type}</div>
-                  <Button variant="ghost" size="icon" onClick={() => patchLocal((sp) => ({ ...sp, views: sp.views.filter(x => x.id !== v.id) }))}>
+                  <Button variant="ghost" size="icon" aria-label="Delete view" onClick={() => patchLocal((sp) => ({ ...sp, views: sp.views.filter(x => x.id !== v.id) }))}>
                     <Trash2 className="size-4" />
                   </Button>
                 </div>
@@ -297,6 +297,7 @@ export function SpaceSettingsDialog({
                                 variant="ghost"
                                 size="icon"
                                 className="h-6 w-6"
+                                aria-label="Move field up"
                                 disabled={idx === 0}
                                 onClick={() => {
                                   const newOrder = [...fieldOrder];
@@ -323,6 +324,7 @@ export function SpaceSettingsDialog({
                                 variant="ghost"
                                 size="icon"
                                 className="h-6 w-6"
+                                aria-label="Move field down"
                                 disabled={idx === finalFields.length - 1}
                                 onClick={() => {
                                   const newOrder = [...fieldOrder];

@@ -22,7 +22,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { type Task, type Space, type User, uid } from "@/lib/store";
 import { toast } from "sonner";
-import { Download, Upload, FileSpreadsheet, Loader2, AlertCircle } from "lucide-react";
+import { Download, Upload, FileSpreadsheet, Loader2, AlertCircle, Plus, X } from "lucide-react";
 
 interface ExcelIntegrationProps {
   space: Space;
@@ -78,6 +78,7 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
   const [optionMappings, setOptionMappings] = React.useState<Record<string, Record<string, string>>>({});
   const [uniqueValues, setUniqueValues] = React.useState<Record<string, string[]>>({});
   const [importing, setImporting] = React.useState(false);
+  const [constantMappings, setConstantMappings] = React.useState<{ id: string; field: string; type: 'constant' | 'date_plus_rowid'; value: string }[]>([]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -97,6 +98,7 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
         const d = json.slice(1);
         setHeaders(h);
         setData(d);
+        setConstantMappings([]);
 
         // Initial intelligent mapping
         const initialMapping: Record<string, string> = {};
@@ -140,7 +142,7 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
         }
       });
 
-      const tasksToImport: Task[] = data.map((row) => {
+      const tasksToImport: Task[] = data.map((row, rowIndex) => {
         const task: any = {
           id: uid(),
           title: "",
@@ -227,6 +229,46 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
           else if (mapTo === "extra") {
             const newId = extraHeaderToId[h];
             if (newId) task.custom[newId] = String(val);
+          }
+        });
+
+        constantMappings.forEach(c => {
+          let val = c.value;
+          if (c.type === "date_plus_rowid") {
+             const d = new Date(c.value);
+             if (!isNaN(d.getTime())) {
+                d.setDate(d.getDate() + rowIndex);
+                val = d.toISOString();
+             } else {
+                val = "";
+             }
+          }
+
+          if (val === undefined || val === null || val === "") return;
+
+          if (c.field === "title") task.title = String(val);
+          else if (c.field === "description") task.description = String(val);
+          else if (c.field === "status") {
+            const col = space.columns.find(col => col.name.toLowerCase() === String(val).toLowerCase());
+            if (col) task.status = col.id;
+          }
+          else if (c.field === "assignee") {
+            const user = users.find(u => u.name.toLowerCase() === String(val).toLowerCase() || u.email.toLowerCase() === String(val).toLowerCase() || u.id === String(val));
+            if (user) task.assignee = user.id;
+          }
+          else if (c.field === "dueDate") {
+            const parsed = new Date(val);
+            if (!isNaN(parsed.getTime())) {
+              task.dueDate = parsed.toISOString();
+            }
+          }
+          else if (c.field === "priority") {
+            const lower = String(val).toLowerCase();
+            if (["high", "medium", "low"].includes(lower)) task.priority = lower;
+          }
+          else if (c.field.startsWith("custom_")) {
+            const fieldId = c.field.replace("custom_", "");
+            task.custom[fieldId] = String(val);
           }
         });
 
@@ -378,7 +420,86 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
                 </div>
               </ScrollArea>
 
-              <div className="flex justify-between items-center pt-4">
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-medium">Constant Fields</h4>
+                  <Button variant="outline" size="sm" onClick={() => setConstantMappings(prev => [...prev, { id: uid(), field: STANDARD_FIELDS[0].id, type: 'constant', value: '' }])}>
+                    <Plus className="size-4 mr-1" /> Add Constant
+                  </Button>
+                </div>
+                {constantMappings.length > 0 && (
+                  <div className="grid grid-cols-[1fr_auto_1fr_auto] gap-x-4 gap-y-2">
+                    <div className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Field</div>
+                    <div className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Type</div>
+                    <div className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Value</div>
+                    <div></div>
+
+                    {constantMappings.map((c, idx) => {
+                      const isDate = c.field === "dueDate" || space.customFields.find(f => `custom_${f.id}` === c.field)?.type === "date";
+                      return (
+                        <React.Fragment key={c.id}>
+                          <Select
+                            value={c.field}
+                            onValueChange={(val) => {
+                              const newMappings = [...constantMappings];
+                              newMappings[idx].field = val;
+                              if (val !== "dueDate" && space.customFields.find(f => `custom_${f.id}` === val)?.type !== "date") {
+                                newMappings[idx].type = "constant";
+                              }
+                              setConstantMappings(newMappings);
+                            }}
+                          >
+                            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {STANDARD_FIELDS.map(f => (
+                                <SelectItem key={f.id} value={f.id}>{f.label}</SelectItem>
+                              ))}
+                              <Separator className="my-1" />
+                              {space.customFields.map(f => (
+                                <SelectItem key={f.id} value={`custom_${f.id}`}>Custom: {f.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+
+                          {isDate ? (
+                            <Select value={c.type} onValueChange={(val: any) => {
+                              const newMappings = [...constantMappings];
+                              newMappings[idx].type = val;
+                              setConstantMappings(newMappings);
+                            }}>
+                              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="constant">Constant</SelectItem>
+                                <SelectItem value="date_plus_rowid">Base + Row ID</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <div className="w-32" /> // placeholder
+                          )}
+
+                          <Input
+                            placeholder={isDate && c.type === 'date_plus_rowid' ? "Base Date (e.g., 2024-01-01)" : "Value"}
+                            value={c.value}
+                            onChange={(e) => {
+                              const newMappings = [...constantMappings];
+                              newMappings[idx].value = e.target.value;
+                              setConstantMappings(newMappings);
+                            }}
+                          />
+
+                          <Button variant="ghost" size="icon" onClick={() => {
+                            setConstantMappings(prev => prev.filter(m => m.id !== c.id));
+                          }}>
+                            <X className="size-4" />
+                          </Button>
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-between items-center pt-4 border-t">
                 <Button variant="ghost" onClick={() => setStep("upload")}>Back</Button>
                 <Button onClick={prepareOptionsStep}>Next</Button>
               </div>
@@ -456,6 +577,10 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
                       {headers.map(h => (
                         mapping[h] !== "skip" && <TableHead key={h}>{h}</TableHead>
                       ))}
+                      {constantMappings.map(c => {
+                        const fieldName = STANDARD_FIELDS.find(f => f.id === c.field)?.label || space.customFields.find(f => `custom_${f.id}` === c.field)?.name || c.field;
+                        return <TableHead key={c.id}>[Const] {fieldName}</TableHead>;
+                      })}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -464,6 +589,17 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
                         {headers.map((h, j) => (
                           mapping[h] !== "skip" && <TableCell key={j} className="text-xs max-w-[200px] truncate">{String(row[j] || "")}</TableCell>
                         ))}
+                        {constantMappings.map(c => {
+                           let val = c.value;
+                           if (c.type === "date_plus_rowid") {
+                              const d = new Date(c.value);
+                              if (!isNaN(d.getTime())) {
+                                 d.setDate(d.getDate() + i);
+                                 val = d.toISOString().split("T")[0];
+                              }
+                           }
+                           return <TableCell key={c.id} className="text-xs max-w-[200px] truncate italic text-muted-foreground">{val}</TableCell>;
+                        })}
                       </TableRow>
                     ))}
                   </TableBody>

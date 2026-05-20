@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Settings, Plus, MessageSquare, Hash, Trash2 } from "lucide-react";
+import { Settings, Plus, Trash2 } from "lucide-react";
 import { useStore, uid, type CustomField, type FieldType } from "@/lib/store";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

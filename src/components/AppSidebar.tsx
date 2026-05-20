@@ -90,7 +90,7 @@ export function AppSidebar() {
       resetForm();
       setIsSpaceDialogOpen(false);
     } catch (err) {
-      console.error("Error creating space:", err);
+      // Ignore error to prevent logging in production
     }
   };
 

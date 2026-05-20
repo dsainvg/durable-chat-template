@@ -818,6 +818,40 @@ export default {
 				}
 			}
 
+			if (url.pathname === '/api/tasks/bulk' && request.method === 'POST') {
+				try {
+					const { tasks, space_id } = await request.json() as { tasks: any[], space_id: string };
+					if (!space_id || !Array.isArray(tasks)) {
+						return new Response(JSON.stringify({ error: "space_id and tasks array required" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+					}
+					const safeId = space_id.replace(/[^a-zA-Z0-9_]/g, '');
+
+					const statements = tasks.map(t => {
+						const custom = JSON.stringify(t.custom || {});
+						return env.DB.prepare(`INSERT OR REPLACE INTO tasks_${safeId} (id, title, description, status, assignee, due_date, start_date, priority, custom) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`)
+							.bind(t.id, t.title, t.description, t.status, t.assignee, t.dueDate, t.startDate, t.priority, custom);
+					});
+
+					if (statements.length > 0) {
+						await env.DB.batch(statements);
+					}
+
+					// Broadcast update (optional: broadcast a bulk message or just multiple)
+					const idStr = env.Chat.idFromName(space_id);
+					const chatStub = env.Chat.get(idStr);
+					// For simplicity in the client, we might want to tell it to refetch everything
+					await chatStub.fetch(new Request("http://internal/broadcast_task", {
+						method: "POST",
+						body: JSON.stringify({ type: "space_updated", space: { id: space_id } }) // Triggering a refresh
+					}));
+
+					return new Response(JSON.stringify({ ok: true, count: tasks.length }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				} catch (e) {
+					console.error("Bulk import error:", e);
+					return new Response(JSON.stringify({ error: "Bulk import failed" }), { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				}
+			}
+
 			const taskMatch = url.pathname.match(/^\/api\/tasks\/([^/]+)$/);
 			if (taskMatch && request.method === 'DELETE') {
 				const id = taskMatch[1];

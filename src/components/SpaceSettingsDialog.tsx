@@ -10,9 +10,10 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Trash2, Plus } from "lucide-react";
+import { Trash2, Plus, Download, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "@tanstack/react-router";
+import { ExcelImportDialog, exportToExcel } from "./ExcelIntegration";
 
 const VIEWS: { id: ViewType; label: string }[] = [
   { id: "list", label: "List" },
@@ -41,6 +42,7 @@ export function SpaceSettingsDialog({
   const [newAutoTrigger, setNewAutoTrigger] = useState("due_today_with_assignee");
   const [newAutoAction, setNewAutoAction] = useState("send_email");
   const [newAutoConfig, setNewAutoConfig] = useState<Record<string, any>>({ email: me?.email || "" });
+  const [importOpen, setImportOpen] = useState(false);
 
   useEffect(() => {
     if (open && space) {
@@ -149,7 +151,54 @@ export function SpaceSettingsDialog({
     navigate({ to: "/" });
   };
 
+  const handleImport = async (tasks: import("@/lib/store").Task[], newFields?: { id: string; name: string; type: any }[]) => {
+    const token = localStorage.getItem("syncduo_token");
+    if (!token) return;
+
+    let updatedSpace = { ...localSpace };
+    if (newFields && newFields.length > 0) {
+      updatedSpace = {
+        ...updatedSpace,
+        customFields: [...updatedSpace.customFields, ...newFields.map(f => ({ id: f.id, name: f.name, type: f.type as import("@/lib/store").FieldType }))]
+      };
+
+      // Save updated space with new fields first
+      try {
+        await fetch(`/api/spaces/${spaceId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+          body: JSON.stringify(updatedSpace)
+        });
+      } catch (e) {
+        console.error("Failed to update space fields", e);
+      }
+    }
+
+    try {
+      const res = await fetch("/api/tasks/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ space_id: spaceId, tasks })
+      });
+
+      if (res.ok) {
+        // Optimistically update frontend store
+        update(s => ({
+          ...s,
+          spaces: s.spaces.map(sp => sp.id === spaceId ? { ...updatedSpace, tasks: [...sp.tasks, ...tasks] } : sp)
+        }));
+        setLocalSpace(updatedSpace);
+      } else {
+        throw new Error("Bulk import failed");
+      }
+    } catch (e) {
+      toast.error("Failed to import tasks");
+      throw e;
+    }
+  };
+
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -496,6 +545,17 @@ export function SpaceSettingsDialog({
             <p className="text-sm text-muted-foreground">Automations are now managed globally. Please access Automations from the sidebar.</p>
           </Section>
 
+          <Section title="Data Management" subtitle="Export or import space data.">
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => exportToExcel(space.tasks, space, state.users)}>
+                <Download className="size-3.5 mr-2" /> Export to Excel
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+                <Upload className="size-3.5 mr-2" /> Import from Excel
+              </Button>
+            </div>
+          </Section>
+
           <Section title="Danger zone">
             <Button variant="destructive" onClick={removeSpace}>Delete space</Button>
           </Section>
@@ -506,6 +566,15 @@ export function SpaceSettingsDialog({
         </div>
       </DialogContent>
     </Dialog>
+
+    <ExcelImportDialog
+      open={importOpen}
+      onOpenChange={setImportOpen}
+      space={localSpace}
+      users={state.users}
+      onImport={handleImport}
+    />
+    </>
   );
 }
 

@@ -376,7 +376,6 @@ export default {
 					}
 				} else if (actionType === 'system_agent' && config.agent) {
 					// For external system agents, we just log execution; they might be picked up by external cron or webhook
-					console.log(`[System Agent] Automation triggered agent: ${config.agent}`);
 				}
 
 				if (isRecurring) {

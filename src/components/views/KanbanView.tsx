@@ -22,6 +22,11 @@ export function KanbanView({
   const userMap = useMemo(() => Object.fromEntries(state.users.map((u) => [u.id, u])), [state.users]);
   const [dragId, setDragId] = useState<string | null>(null);
 
+  const visibleCustomFields = useMemo(() => {
+    if (!space.customFields) return [];
+    return space.customFields.filter((f) => !hiddenFields[f.id]);
+  }, [space.customFields, hiddenFields]);
+
   const columns = useMemo(() => {
     if (groupBy === "assignee") {
       return state.users.map(u => ({ id: u.id, name: u.name })).concat([{ id: "unassigned", name: "Unassigned" }]);
@@ -80,9 +85,9 @@ export function KanbanView({
                   }`}
                 >
                   <p className="text-sm leading-snug">{t.title}</p>
-                  {space.customFields && space.customFields.filter(f => !hiddenFields[f.id]).length > 0 && (
+                  {visibleCustomFields.length > 0 && (
                     <div className="space-y-1">
-                      {space.customFields.map(f => !hiddenFields[f.id] && (
+                      {visibleCustomFields.map(f => (
                         <div key={f.id} className="text-[10px] text-muted-foreground truncate flex justify-between items-center">
                           <span className="font-semibold">{f.name}:</span> <span className="truncate ml-2">{t.custom?.[f.id] || "-"}</span>
                         </div>

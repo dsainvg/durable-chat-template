@@ -13,3 +13,7 @@
 ## 2024-05-19 - Unmemoized Hashmap Creation in Chat Views
 **Learning:** Object.fromEntries mapping over arrays to create hashmaps (like `userMap`) within React render functions (e.g., in `ChannelPanel` and `chat.$userId`) forces O(N) recalculations on every single keystroke due to controlled text inputs.
 **Action:** Always wrap state-derived object maps (like user lookup dictionaries) in `useMemo` hooks, ensuring they only recalculate when the source array (e.g. `state.users`) actually changes, decoupling them from frequent state updates like input typing.
+
+## 2024-05-24 - Extracted Field Filtering from Task Iteration Loop
+**Learning:** In the views architecture (KanbanView, ListView, TableView), custom field filtering and ordering was happening *inside* the task mapping loops. For large spaces with many tasks (T) and custom fields (F), this caused an O(T * F) complexity bottleneck on every render.
+**Action:** Always precalculate layout arrays or visible fields outside the render loops using `useMemo` (e.g. `visibleCustomFields = useMemo(() => customFields.filter(f => !hiddenFields[f.id]), [...])`) before mapping over items, changing complexity to O(F) + O(T).

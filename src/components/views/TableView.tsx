@@ -14,6 +14,11 @@ export function TableView({ space, viewId, onOpen }: { space: Space; viewId?: st
   const settings = viewId ? space.views.find(v => v.id === viewId)?.settings : undefined;
   const hiddenFields = settings?.hiddenFields || {};
 
+  const visibleCustomFields = useMemo(() => {
+    if (!space.customFields) return [];
+    return space.customFields.filter(f => !hiddenFields[f.id]);
+  }, [space.customFields, hiddenFields]);
+
   return (
     <div className="p-6">
       <div className="rounded-lg border border-border overflow-hidden bg-card">
@@ -26,8 +31,8 @@ export function TableView({ space, viewId, onOpen }: { space: Space; viewId?: st
                 {!hiddenFields["assignee"] && <th className="px-4 py-3 font-medium">Assignee</th>}
                 {!hiddenFields["priority"] && <th className="px-4 py-3 font-medium">Priority</th>}
                 {!hiddenFields["dueDate"] && <th className="px-4 py-3 font-medium">Due Date</th>}
-                {space.customFields?.map(f => (
-                  !hiddenFields[f.id] && <th key={f.id} className="px-4 py-3 font-medium">{f.name}</th>
+                {visibleCustomFields.map(f => (
+                  <th key={f.id} className="px-4 py-3 font-medium">{f.name}</th>
                 ))}
               </tr>
             </thead>
@@ -80,12 +85,10 @@ export function TableView({ space, viewId, onOpen }: { space: Space; viewId?: st
                         {t.dueDate ? dateFormatter.format(new Date(t.dueDate)) : "-"}
                       </td>
                     )}
-                    {space.customFields?.map(f => (
-                      !hiddenFields[f.id] && (
-                        <td key={f.id} className="px-4 py-3 text-muted-foreground text-xs truncate max-w-[150px]">
-                          {t.custom[f.id] || "-"}
-                        </td>
-                      )
+                    {visibleCustomFields.map(f => (
+                      <td key={f.id} className="px-4 py-3 text-muted-foreground text-xs truncate max-w-[150px]">
+                        {t.custom[f.id] || "-"}
+                      </td>
                     ))}
                   </tr>
                 ))

@@ -21,6 +21,11 @@ export function ListView({ space, viewId, onOpen, onMove }: { space: Space; view
     "dueDate",
     ...(space.customFields || []).map(f => f.id)
   ];
+
+  const leftSideFields = useMemo(() => fieldOrder.filter((id: string) => id === "priority"), [fieldOrder]);
+  const customFieldsToRender = useMemo(() => fieldOrder.filter((id: string) => id !== "priority" && id !== "dueDate" && id !== "assignee" && id !== "status"), [fieldOrder]);
+  const rightSideFields = useMemo(() => fieldOrder.filter((id: string) => id === "dueDate" || id === "assignee"), [fieldOrder]);
+
   const userMap = useMemo(() => Object.fromEntries(state.users.map((u) => [u.id, u])), [state.users]);
 
   const columns = useMemo(() => {
@@ -116,9 +121,6 @@ export function ListView({ space, viewId, onOpen, onMove }: { space: Space; view
 
                 // Split standard fields from custom fields to maintain core layout:
                 // priority indicator on the left, then title/desc + custom fields, then due date/assignee on the right
-                const leftSideFields = fieldOrder.filter((id: string) => id === "priority");
-                const customFieldsToRender = fieldOrder.filter((id: string) => id !== "priority" && id !== "dueDate" && id !== "assignee" && id !== "status");
-                const rightSideFields = fieldOrder.filter((id: string) => id === "dueDate" || id === "assignee");
 
                 return (
                   <div

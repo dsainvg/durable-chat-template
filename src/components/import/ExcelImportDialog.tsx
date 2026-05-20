@@ -13,14 +13,16 @@ interface Props {
   space: Space;
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  onImport: (tasks: Task[]) => void;
+  onImport: (tasks: Task[], newlyCreatedFields?: { id: string; name: string; type: any }[]) => void;
 }
 
 export function ExcelImportDialog({ space, open, onOpenChange, onImport }: Props) {
-  const [step, setStep] = useState<"upload" | "map">("upload");
+  const [step, setStep] = useState<"upload" | "map" | "value_map">("upload");
   const [data, setData] = useState<any[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
+  const [valueMapping, setValueMapping] = useState<Record<string, Record<string, string>>>({});
+  const [valueMapFields, setValueMapFields] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const availableFields = [
@@ -43,7 +45,7 @@ export function ExcelImportDialog({ space, open, onOpenChange, onImport }: Props
     reader.onload = (evt) => {
       try {
         const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: "binary" });
+        const wb = XLSX.read(bstr, { type: "binary", cellDates: true });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
         const jsonData = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
@@ -92,6 +94,69 @@ export function ExcelImportDialog({ space, open, onOpenChange, onImport }: Props
     reader.readAsBinaryString(file);
   };
 
+
+  const handleMapNext = () => {
+    // Check if any mapped columns require value mapping (status, priority, select custom fields)
+    const fieldsToMapValues: string[] = [];
+    Object.entries(mapping).forEach(([col, field]) => {
+      if (field === "status" || field === "priority") {
+        fieldsToMapValues.push(col);
+      } else if (field.startsWith("custom_")) {
+        const cid = field.replace("custom_", "");
+        const customField = space.customFields.find((f) => f.id === cid);
+        if (customField?.type === "select") {
+          fieldsToMapValues.push(col);
+        }
+      }
+    });
+
+    if (fieldsToMapValues.length > 0) {
+      // Auto-map values where possible
+      const initialValueMapping: Record<string, Record<string, string>> = {};
+
+      fieldsToMapValues.forEach(col => {
+        initialValueMapping[col] = {};
+        const uniqueValues = Array.from(new Set(data.map(row => String(row[col] || "")).filter(v => v)));
+
+        const field = mapping[col];
+        let options: { id: string; name: string }[] = [];
+
+        if (field === "status") {
+          options = space.columns.map(c => ({ id: c.id, name: c.name }));
+        } else if (field === "priority") {
+          options = [
+            { id: "low", name: "Low" },
+            { id: "medium", name: "Medium" },
+            { id: "high", name: "High" }
+          ];
+        } else if (field.startsWith("custom_")) {
+          const cid = field.replace("custom_", "");
+          const customField = space.customFields.find((f) => f.id === cid);
+          options = (customField?.options || []).map(opt => ({ id: opt, name: opt }));
+        }
+
+        uniqueValues.forEach(val => {
+          // Attempt to auto-match by name
+          const match = options.find(opt => opt.name.toLowerCase() === val.toLowerCase());
+          if (match) {
+            initialValueMapping[col][val] = match.id;
+          } else {
+            // Default to first option if no match, or leave blank if we want to force user to map
+            initialValueMapping[col][val] = options[0]?.id || "";
+          }
+        });
+      });
+
+      setValueMapping(initialValueMapping);
+      setValueMapFields(fieldsToMapValues);
+      setStep("value_map");
+    } else {
+      // No value mapping needed, go straight to import
+      handleImport();
+    }
+  };
+
+
   const handleImport = async () => {
     // Need to find title mapping
     const titleCol = Object.keys(mapping).find((k) => mapping[k] === "title");
@@ -106,20 +171,21 @@ export function ExcelImportDialog({ space, open, onOpenChange, onImport }: Props
     // Check if we need to create new custom fields
     const colsToCreate = Object.keys(mapping).filter(k => mapping[k] === "create_custom");
     let updatedSpace = { ...space };
+    let createdCustomFields: { id: string; name: string; type: any }[] = [];
 
     if (colsToCreate.length > 0) {
-      const newFields = colsToCreate.map(col => ({
+      createdCustomFields = colsToCreate.map(col => ({
         id: uid(),
         name: col,
         type: "text" as const, // Default to text
       }));
 
-      updatedSpace.customFields = [...updatedSpace.customFields, ...newFields];
+      updatedSpace.customFields = [...updatedSpace.customFields, ...createdCustomFields];
 
       // We also update the mapping to map to these new custom fields
       const newMapping = { ...mapping };
       colsToCreate.forEach((col, idx) => {
-        newMapping[col] = `custom_${newFields[idx].id}`;
+        newMapping[col] = `custom_${createdCustomFields[idx].id}`;
       });
       setMapping(newMapping); // though we don't strictly need to setState here since we use it below
 
@@ -139,7 +205,7 @@ export function ExcelImportDialog({ space, open, onOpenChange, onImport }: Props
 
       // We override mapping for task creation
       colsToCreate.forEach((col, idx) => {
-        mapping[col] = `custom_${newFields[idx].id}`;
+        mapping[col] = `custom_${createdCustomFields[idx].id}`;
       });
     }
 
@@ -162,34 +228,42 @@ export function ExcelImportDialog({ space, open, onOpenChange, onImport }: Props
 
         if (field === "description") task.description = val;
         else if (field === "status") {
-          const st = updatedSpace.columns.find((c) => c.name.toLowerCase() === val.toLowerCase());
-          if (st) task.status = st.id;
+          const mappedVal = valueMapping[col]?.[val];
+          if (mappedVal) task.status = mappedVal;
         }
         else if (field === "assignee") {
           task.assignee = val; // Assuming we map emails to assignee fields and we can resolve on server or let it be
         }
         else if (field === "priority") {
-          const p = val.toLowerCase();
-          if (p === "low" || p === "medium" || p === "high") task.priority = p;
+          const mappedVal = valueMapping[col]?.[val];
+          if (mappedVal === "low" || mappedVal === "medium" || mappedVal === "high") task.priority = mappedVal;
         }
         else if (field === "dueDate") {
-          const d = new Date(val);
+          // If the cell was parsed as a Date object by XLSX (due to cellDates: true)
+          // `row[col]` might actually be a Date object. Let's handle it safely.
+          const d = row[col] instanceof Date ? row[col] : new Date(val);
           if (!isNaN(d.getTime())) task.dueDate = d.toISOString();
         }
         else if (field === "startDate") {
-          const d = new Date(val);
+          const d = row[col] instanceof Date ? row[col] : new Date(val);
           if (!isNaN(d.getTime())) task.startDate = d.toISOString();
         }
         else if (field.startsWith("custom_")) {
           const cid = field.replace("custom_", "");
-          task.custom[cid] = val;
+          const customField = space.customFields.find((f) => f.id === cid);
+          if (customField?.type === "select") {
+            const mappedVal = valueMapping[col]?.[val];
+            if (mappedVal) task.custom[cid] = mappedVal;
+          } else {
+            task.custom[cid] = val;
+          }
         }
       });
 
       return task;
     });
 
-    onImport(tasks);
+    onImport(tasks, createdCustomFields);
     onOpenChange(false);
   };
 
@@ -258,10 +332,77 @@ export function ExcelImportDialog({ space, open, onOpenChange, onImport }: Props
             </ScrollArea>
             <DialogFooter>
               <Button variant="outline" onClick={() => setStep("upload")}>Back</Button>
+              <Button onClick={handleMapNext}>Next</Button>
+            </DialogFooter>
+          </div>
+        )}
+
+        {step === "value_map" && (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Map the values in your spreadsheet to the options available in Sync Duo.
+            </p>
+            <ScrollArea className="h-[300px] border rounded-md p-4">
+              <div className="space-y-6">
+                {valueMapFields.map((col) => {
+                  const fieldId = mapping[col];
+                  let fieldName = col;
+                  let options: { id: string; name: string }[] = [];
+
+                  if (fieldId === "status") {
+                    fieldName = "Status";
+                    options = space.columns.map(c => ({ id: c.id, name: c.name }));
+                  } else if (fieldId === "priority") {
+                    fieldName = "Priority";
+                    options = [
+                      { id: "low", name: "Low" },
+                      { id: "medium", name: "Medium" },
+                      { id: "high", name: "High" }
+                    ];
+                  } else if (fieldId.startsWith("custom_")) {
+                    const cid = fieldId.replace("custom_", "");
+                    const customField = space.customFields.find((f) => f.id === cid);
+                    fieldName = customField?.name || col;
+                    options = (customField?.options || []).map(opt => ({ id: opt, name: opt }));
+                  }
+
+                  const uniqueValues = Object.keys(valueMapping[col] || {});
+
+                  if (uniqueValues.length === 0) return null;
+
+                  return (
+                    <div key={col} className="space-y-3">
+                      <h4 className="font-semibold text-sm border-b pb-1">{col} ➔ {fieldName}</h4>
+                      {uniqueValues.map(val => (
+                        <div key={val} className="grid grid-cols-2 items-center gap-4 pl-2">
+                          <Label className="truncate text-sm" title={val}>"{val}"</Label>
+                          <Select
+                            value={valueMapping[col]?.[val] || ""}
+                            onValueChange={(newVal) => setValueMapping(prev => ({ ...prev, [col]: { ...prev[col], [val]: newVal } }))}
+                          >
+                            <SelectTrigger className="h-8 text-sm">
+                              <SelectValue placeholder="Select option" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {options.map((opt) => (
+                                <SelectItem key={opt.id} value={opt.id}>{opt.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setStep("map")}>Back</Button>
               <Button onClick={handleImport}>Import {data.length} Tasks</Button>
             </DialogFooter>
           </div>
         )}
+
       </DialogContent>
     </Dialog>
   );

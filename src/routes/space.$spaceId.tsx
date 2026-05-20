@@ -259,11 +259,23 @@ function SpacePage() {
     }
   };
 
-  const importTasks = async (tasks: Task[]) => {
+  const importTasks = async (tasks: Task[], newlyCreatedFields?: { id: string; name: string; type: any }[]) => {
     const token = localStorage.getItem("syncduo_token");
     if (!token) return;
 
     try {
+      // First, update the state with any newly created custom fields from the import dialog
+      if (newlyCreatedFields && newlyCreatedFields.length > 0) {
+        update((s) => ({
+          ...s,
+          spaces: s.spaces.map((sp) =>
+            sp.id === spaceId
+              ? { ...sp, customFields: [...sp.customFields, ...newlyCreatedFields] }
+              : sp
+          ),
+        }));
+      }
+
       const payload = tasks.map(t => ({ ...t, space_id: spaceId }));
       const promises = payload.map(task =>
         fetch(`/api/tasks`, {

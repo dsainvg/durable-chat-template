@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useStore, uid } from "@/lib/store";
 import usePartySocket from "partysocket/react";
 import { Send } from "lucide-react";
@@ -19,7 +19,8 @@ function ChatPage() {
   const messages = state.dms[userId] ?? [];
   const [text, setText] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
-  const userMap = Object.fromEntries(state.users.map((u) => [u.id, u]));
+  // ⚡ Bolt: Memoize userMap calculation to prevent creating a new object on every render
+  const userMap = useMemo(() => Object.fromEntries(state.users.map((u) => [u.id, u])), [state.users]);
 
   const roomName = [me, userId].sort().join("_");
 

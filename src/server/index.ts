@@ -666,6 +666,28 @@ export default {
 			}
 
 			const spacePutMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)$/);
+			if (spacePutMatch && request.method === 'DELETE') {
+				const id = spacePutMatch[1];
+				const safeId = id.replace(/[^a-zA-Z0-9_]/g, '');
+				try {
+					await env.DB.prepare("DELETE FROM spaces WHERE id = ?").bind(id).run();
+					await env.DB.prepare("DELETE FROM space_views WHERE space_id = ?").bind(id).run();
+					await env.DB.prepare(`DROP TABLE IF EXISTS tasks_${safeId}`).run();
+
+					const idStr = env.Chat.idFromName(id);
+					const chatStub = env.Chat.get(idStr);
+					await chatStub.fetch(new Request("http://internal/broadcast_task", {
+						method: "POST",
+						body: JSON.stringify({ type: "space_deleted", space: { id } })
+					}));
+
+					return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				} catch (e) {
+					console.error("DELETE space error:", e);
+					return new Response(JSON.stringify({ error: "Failed to delete space" }), { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				}
+			}
+
 			if (spacePutMatch && request.method === 'PUT') {
 				const id = spacePutMatch[1];
 				try {

@@ -10,6 +10,17 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Trash2, Plus, Download, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "@tanstack/react-router";
@@ -144,11 +155,28 @@ export function SpaceSettingsDialog({
     onOpenChange(false);
   };
 
-  const removeSpace = () => {
-    if (!confirm(`Delete "${localSpace.name}"?`)) return;
-    update((s) => ({ ...s, spaces: s.spaces.filter((sp) => sp.id !== spaceId) }));
-    onOpenChange(false);
-    navigate({ to: "/" });
+  const removeSpace = async () => {
+    const token = localStorage.getItem("syncduo_token");
+    if (!token) return;
+
+    try {
+      const response = await fetch(`/api/spaces/${spaceId}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        // The websocket space_deleted broadcast will handle store update and navigation
+        onOpenChange(false);
+        toast.success("Space deleted");
+      } else {
+        const err = await response.json() as any;
+        toast.error(err.error || "Failed to delete space");
+      }
+    } catch (e) {
+      toast.error("An error occurred");
+    }
   };
 
   const handleImport = async (tasks: import("@/lib/store").Task[], newFields?: { id: string; name: string; type: any }[]) => {
@@ -557,7 +585,23 @@ export function SpaceSettingsDialog({
           </Section>
 
           <Section title="Danger zone">
-            <Button variant="destructive" onClick={removeSpace}>Delete space</Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive">Delete space</Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete the space "{localSpace.name}" and all of its tasks. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={removeSpace} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete Space</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </Section>
 
           <div className="flex justify-end pt-4 border-t border-border mt-8">

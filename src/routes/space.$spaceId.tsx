@@ -87,6 +87,12 @@ function SpacePage() {
                 : sp
             ),
           }));
+        } else if (msg.type === "space_deleted") {
+          update((s) => ({
+            ...s,
+            spaces: s.spaces.filter((sp) => sp.id !== msg.space.id),
+          }));
+          navigate({ to: "/" });
         } else if (msg.type === "task_deleted") {
           update((s) => ({
             ...s,

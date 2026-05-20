@@ -151,6 +151,33 @@ async function initDb(db: D1Database) {
 	await db.prepare(`CREATE TABLE IF NOT EXISTS recurring_events (id TEXT PRIMARY KEY, automation_id TEXT NOT NULL, task_id TEXT NOT NULL, space_id TEXT NOT NULL, status TEXT NOT NULL, action_type TEXT NOT NULL, config TEXT NOT NULL, last_run INTEGER DEFAULT 0, next_run INTEGER NOT NULL)`).run();
 	await db.prepare(`CREATE TABLE IF NOT EXISTS executed_events (id TEXT PRIMARY KEY, automation_id TEXT NOT NULL, task_id TEXT NOT NULL, space_id TEXT NOT NULL, status TEXT NOT NULL, action_type TEXT NOT NULL, config TEXT NOT NULL, executed_at INTEGER NOT NULL)`).run();
 	await db.prepare(`CREATE TABLE IF NOT EXISTS daily_activity (user_id TEXT NOT NULL, date TEXT NOT NULL, action TEXT NOT NULL, PRIMARY KEY (user_id, date, action))`).run();
+	await db.prepare(`CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, space_id TEXT NOT NULL, title TEXT NOT NULL, description TEXT, status TEXT NOT NULL, assignee TEXT, due_date TEXT, start_date TEXT, priority TEXT, custom TEXT)`).run();
+
+	// Migrate old dynamic tables to unified tasks table
+	const { results: tables } = await db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'tasks_%' AND name != 'tasks_old'").all();
+	if (tables && tables.length > 0) {
+		const { results: spaces } = await db.prepare("SELECT id FROM spaces").all();
+		for (const table of tables) {
+			const tableName = table.name as string;
+			const safeId = tableName.replace('tasks_', '');
+
+			let originalSpaceId = safeId;
+			for (const space of spaces) {
+				const sId = space.id as string;
+				if (sId.replace(/[^a-zA-Z0-9_]/g, '') === safeId) {
+					originalSpaceId = sId;
+					break;
+				}
+			}
+
+			try {
+				await db.prepare(`INSERT OR IGNORE INTO tasks (id, space_id, title, description, status, assignee, due_date, start_date, priority, custom) SELECT id, ?, title, description, status, assignee, due_date, start_date, priority, custom FROM ${tableName}`).bind(originalSpaceId).run();
+				await db.prepare(`DROP TABLE ${tableName}`).run();
+			} catch (err) {
+				console.error(`Failed to migrate table ${tableName}`, err);
+			}
+		}
+	}
 
 	dbInitialized = true;
 }
@@ -217,11 +244,9 @@ export default {
 			const spacesToQuery = targetSpaces.length > 0 ? targetSpaces : allSpaces.map(s => s.id as string);
 
 			for (const spaceId of spacesToQuery) {
-				const safeId = spaceId.replace(/[^a-zA-Z0-9_]/g, '');
-
 				try {
 					// Query tasks dynamically
-					const { results: tasks } = await env.DB.prepare(`SELECT * FROM tasks_${safeId}`).all();
+				const { results: tasks } = await env.DB.prepare(`SELECT * FROM tasks WHERE space_id = ?`).bind(spaceId).all();
 
 					for (const task of tasks) {
 						const taskId = task.id as string;
@@ -267,7 +292,7 @@ export default {
 						}
 					}
 				} catch (e) {
-					// Table tasks_${safeId} might not exist yet
+					// Tasks table querying failed
 				}
 			}
 		}
@@ -285,7 +310,6 @@ export default {
 			const eventId = event.id as string;
 			const taskId = event.task_id as string;
 			const spaceId = event.space_id as string;
-			const safeId = spaceId.replace(/[^a-zA-Z0-9_]/g, '');
 			const actionType = event.action_type as string;
 			const config = JSON.parse(event.config as string);
 			const automationId = event.automation_id as string;
@@ -313,9 +337,9 @@ export default {
 						});
 					}
 				} else if (actionType === 'change_status' && config.new_status) {
-					await env.DB.prepare(`UPDATE tasks_${safeId} SET status = ? WHERE id = ?`).bind(config.new_status, taskId).run();
+					await env.DB.prepare(`UPDATE tasks SET status = ? WHERE id = ? AND space_id = ?`).bind(config.new_status, taskId, spaceId).run();
 					// Broadcast update
-					const { results: taskData } = await env.DB.prepare(`SELECT * FROM tasks_${safeId} WHERE id = ?`).bind(taskId).all();
+					const { results: taskData } = await env.DB.prepare(`SELECT * FROM tasks WHERE id = ? AND space_id = ?`).bind(taskId, spaceId).all();
 					if (taskData.length > 0) {
 						const r = taskData[0] as any;
 						const updatedTask = { ...r, dueDate: r.due_date, startDate: r.start_date, custom: r.custom ? JSON.parse(r.custom) : {} };
@@ -327,16 +351,13 @@ export default {
 						}));
 					}
 				} else if (actionType === 'move_space' && config.new_space_id) {
-					const destSafeId = config.new_space_id.replace(/[^a-zA-Z0-9_]/g, '');
 					// Fetch task
-					const { results: taskData } = await env.DB.prepare(`SELECT * FROM tasks_${safeId} WHERE id = ?`).bind(taskId).all();
+					const { results: taskData } = await env.DB.prepare(`SELECT * FROM tasks WHERE id = ? AND space_id = ?`).bind(taskId, spaceId).all();
 					if (taskData.length > 0) {
 						const t = taskData[0] as any;
 						// Insert into new space
-						await env.DB.prepare(`INSERT OR REPLACE INTO tasks_${destSafeId} (id, title, description, status, assignee, due_date, start_date, priority, custom) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`)
-							.bind(t.id, t.title, t.description, t.status, t.assignee, t.due_date, t.start_date, t.priority, t.custom).run();
-						// Delete from old
-						await env.DB.prepare(`DELETE FROM tasks_${safeId} WHERE id = ?`).bind(taskId).run();
+						await env.DB.prepare(`UPDATE tasks SET space_id = ? WHERE id = ? AND space_id = ?`)
+							.bind(config.new_space_id, taskId, spaceId).run();
 
 						// Broadcast updates
 						const oldStr = env.Chat.idFromName(spaceId);
@@ -635,9 +656,6 @@ export default {
 					await env.DB.batch(viewStatements);
 				}
 
-				const safeId = id.replace(/[^a-zA-Z0-9_]/g, '');
-				await env.DB.prepare(`CREATE TABLE IF NOT EXISTS tasks_${safeId} (id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT, status TEXT NOT NULL, assignee TEXT, due_date TEXT, start_date TEXT, priority TEXT, custom TEXT)`).run();
-
 				return new Response(JSON.stringify({ id }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 			}
 
@@ -751,9 +769,8 @@ export default {
 				if (!spaceId) {
 					return new Response(JSON.stringify([]), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 				}
-				const safeId = spaceId.replace(/[^a-zA-Z0-9_]/g, '');
 				try {
-					const { results } = await env.DB.prepare(`SELECT * FROM tasks_${safeId}`).all();
+				const { results } = await env.DB.prepare(`SELECT * FROM tasks WHERE space_id = ?`).bind(spaceId).all();
 					const parsedResults = results.map((r: any) => ({
 						...r,
 						dueDate: r.due_date,
@@ -786,10 +803,8 @@ export default {
 						return new Response(JSON.stringify({ error: "space_id is required" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 					}
 
-					const safeId = space_id.replace(/[^a-zA-Z0-9_]/g, '');
-
-					await env.DB.prepare(`INSERT OR REPLACE INTO tasks_${safeId} (id, title, description, status, assignee, due_date, start_date, priority, custom) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`)
-						.bind(id, title, description, status, assignee, due_date, start_date, priority, custom)
+				await env.DB.prepare(`INSERT OR REPLACE INTO tasks (id, space_id, title, description, status, assignee, due_date, start_date, priority, custom) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`)
+					.bind(id, space_id, title, description, status, assignee, due_date, start_date, priority, custom)
 						.run();
 
 					// Log daily activity for Daily Check automation
@@ -857,12 +872,11 @@ export default {
 					if (!space_id || !Array.isArray(tasks)) {
 						return new Response(JSON.stringify({ error: "space_id and tasks array required" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 					}
-					const safeId = space_id.replace(/[^a-zA-Z0-9_]/g, '');
 
 					const statements = tasks.map(t => {
 						const custom = JSON.stringify(t.custom || {});
-						return env.DB.prepare(`INSERT OR REPLACE INTO tasks_${safeId} (id, title, description, status, assignee, due_date, start_date, priority, custom) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`)
-							.bind(t.id, t.title, t.description, t.status, t.assignee, t.dueDate, t.startDate, t.priority, custom);
+					return env.DB.prepare(`INSERT OR REPLACE INTO tasks (id, space_id, title, description, status, assignee, due_date, start_date, priority, custom) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`)
+						.bind(t.id, space_id, t.title, t.description, t.status, t.assignee, t.dueDate, t.startDate, t.priority, custom);
 					});
 
 					if (statements.length > 0) {
@@ -894,8 +908,7 @@ export default {
 					if (!space_id) {
 						return new Response(JSON.stringify({ error: "space_id required" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 					}
-					const safeId = space_id.replace(/[^a-zA-Z0-9_]/g, '');
-					await env.DB.prepare(`DELETE FROM tasks_${safeId} WHERE id = ?`).bind(id).run();
+				await env.DB.prepare(`DELETE FROM tasks WHERE id = ? AND space_id = ?`).bind(id, space_id).run();
 
 					// Broadcast delete
 					const idStr = env.Chat.idFromName(space_id);

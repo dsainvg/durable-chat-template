@@ -16,6 +16,9 @@ import { TaskDialog } from "@/components/TaskDialog";
 import { ChannelPanel } from "@/components/ChannelPanel";
 import { SpaceSettingsDialog } from "@/components/SpaceSettingsDialog";
 import { toast } from "sonner";
+import { ImportDialog } from "@/components/import/ImportDialog";
+import { exportTasksToExcel } from "@/lib/ImportExportUtils";
+import { Download, Upload } from "lucide-react";
 
 export const Route = createFileRoute("/space/$spaceId")({
   component: SpacePage,
@@ -129,6 +132,7 @@ function SpacePage() {
   const [creating, setCreating] = useState(false);
   const [channelOpen, setChannelOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   if (!space) {
     return (
@@ -426,14 +430,28 @@ function SpacePage() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSettingsOpen(true)}
-            className="px-2 sm:px-3"
-          >
-            <Settings className="size-4" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="px-2 sm:px-3">
+                <Settings className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
+                <Settings className="mr-2 h-4 w-4" />
+                Space Settings
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setImportOpen(true)}>
+                <Upload className="mr-2 h-4 w-4" />
+                Import Tasks
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportTasksToExcel(space, space.tasks, state.users)}>
+                <Download className="mr-2 h-4 w-4" />
+                Export Tasks
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             size="sm"
             onClick={() => { setOpenTask(newTask()); setCreating(true); }}
@@ -478,6 +496,11 @@ function SpacePage() {
           onOpenChange={setSettingsOpen}
         />
       )}
+      <ImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        space={space}
+      />
     </>
   );
 }

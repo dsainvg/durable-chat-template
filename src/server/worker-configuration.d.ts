@@ -14,6 +14,7 @@ declare namespace Cloudflare {
 		SMTP_PORT?: string;
 		SMTP_USER?: string;
 		SMTP_PASS?: string;
+		ALLOWED_ORIGIN?: string;
 	}
 }
 interface Env extends Cloudflare.Env {}

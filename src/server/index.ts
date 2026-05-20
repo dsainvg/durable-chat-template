@@ -93,8 +93,7 @@ async function verifyPassword(password: string, storedHash: string): Promise<Ver
 }
 
 
-const CORS_HEADERS = {
-	"Access-Control-Allow-Origin": "*",
+const BASE_CORS_HEADERS = {
 	"Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
 	"Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
@@ -377,6 +376,10 @@ export default {
 
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
 		const url = new URL(request.url);
+		const CORS_HEADERS = {
+			...BASE_CORS_HEADERS,
+			"Access-Control-Allow-Origin": env.ALLOWED_ORIGIN || url.origin
+		};
 
 		if (request.method === "OPTIONS") {
 			return new Response(null, { headers: CORS_HEADERS });

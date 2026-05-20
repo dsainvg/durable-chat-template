@@ -341,8 +341,10 @@ export function SpaceSettingsDialog({
                           ...(localSpace.customFields || []).map(f => ({ id: f.id, label: f.name }))
                         ];
                         const fieldOrder = viewObj.settings?.fieldOrder || allFields.map(f => f.id);
-                        const orderedFields = fieldOrder.map((id: string) => allFields.find(f => f.id === id)).filter(Boolean);
-                        const remainingFields = allFields.filter(f => !fieldOrder.includes(f.id));
+                        const allFieldsMap = new Map(allFields.map(f => [f.id, f]));
+                        const fieldOrderSet = new Set(fieldOrder);
+                        const orderedFields = fieldOrder.map((id: string) => allFieldsMap.get(id)).filter(Boolean);
+                        const remainingFields = allFields.filter(f => !fieldOrderSet.has(f.id));
                         const finalFields = [...orderedFields, ...remainingFields];
 
                         return finalFields.map((field: any, idx: number) => (

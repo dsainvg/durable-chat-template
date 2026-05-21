@@ -4,6 +4,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Copy, Trash2, Key } from "lucide-react";
 
+// ⚡ Bolt: Cache Intl.DateTimeFormat outside the component to prevent expensive
+// reinitalization on every re-render of the API Keys dialog
+const dateFormatter = new Intl.DateTimeFormat();
+
 export function ApiKeysDialog({ isOpen, onOpenChange }: { isOpen: boolean, onOpenChange: (open: boolean) => void }) {
   const { state } = useStore();
   const [keys, setKeys] = useState<{key: string, created_at: number}[]>([]);
@@ -101,7 +105,7 @@ export function ApiKeysDialog({ isOpen, onOpenChange }: { isOpen: boolean, onOpe
                   <div key={k.key} className="flex items-center justify-between p-3 bg-muted/50 rounded-md border text-sm">
                     <div className="flex flex-col">
                       <span className="font-mono font-medium truncate w-[250px]">{k.key.substring(0, 8)}...{k.key.slice(-4)}</span>
-                      <span className="text-xs text-muted-foreground">Created {new Date(k.created_at).toLocaleDateString()}</span>
+                      <span className="text-xs text-muted-foreground">Created {dateFormatter.format(new Date(k.created_at))}</span>
                     </div>
                     <Button variant="ghost" size="icon" onClick={() => revokeKey(k.key)} className="text-destructive hover:bg-destructive/10" aria-label="Revoke key">
                       <Trash2 className="w-4 h-4" />

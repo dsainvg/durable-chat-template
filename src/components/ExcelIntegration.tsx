@@ -477,15 +477,77 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
                             <div className="w-32" /> // placeholder
                           )}
 
-                          <Input
-                            placeholder={isDate && c.type === 'date_plus_rowid' ? "Base Date (e.g., 2024-01-01)" : "Value"}
-                            value={c.value}
-                            onChange={(e) => {
-                              const newMappings = [...constantMappings];
-                              newMappings[idx].value = e.target.value;
-                              setConstantMappings(newMappings);
-                            }}
-                          />
+                          {(() => {
+                            if (c.field === "status") {
+                              return (
+                                <Select
+                                  value={c.value}
+                                  onValueChange={(val) => {
+                                    const newMappings = [...constantMappings];
+                                    newMappings[idx].value = val;
+                                    setConstantMappings(newMappings);
+                                  }}
+                                >
+                                  <SelectTrigger className="w-full"><SelectValue placeholder="Select Status" /></SelectTrigger>
+                                  <SelectContent>
+                                    {space.columns.map(col => (
+                                      <SelectItem key={col.id} value={col.id}>{col.name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              );
+                            }
+                            if (c.field === "priority") {
+                              return (
+                                <Select
+                                  value={c.value}
+                                  onValueChange={(val) => {
+                                    const newMappings = [...constantMappings];
+                                    newMappings[idx].value = val;
+                                    setConstantMappings(newMappings);
+                                  }}
+                                >
+                                  <SelectTrigger className="w-full"><SelectValue placeholder="Select Priority" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="low">Low</SelectItem>
+                                    <SelectItem value="medium">Medium</SelectItem>
+                                    <SelectItem value="high">High</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              );
+                            }
+                            const customField = space.customFields.find(f => `custom_${f.id}` === c.field);
+                            if (customField?.type === "select") {
+                              return (
+                                <Select
+                                  value={c.value}
+                                  onValueChange={(val) => {
+                                    const newMappings = [...constantMappings];
+                                    newMappings[idx].value = val;
+                                    setConstantMappings(newMappings);
+                                  }}
+                                >
+                                  <SelectTrigger className="w-full"><SelectValue placeholder="Select Option" /></SelectTrigger>
+                                  <SelectContent>
+                                    {customField.options?.map(opt => (
+                                      <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              );
+                            }
+                            return (
+                              <Input
+                                placeholder={isDate && c.type === 'date_plus_rowid' ? "Base Date (e.g., 2024-01-01)" : "Value"}
+                                value={c.value}
+                                onChange={(e) => {
+                                  const newMappings = [...constantMappings];
+                                  newMappings[idx].value = e.target.value;
+                                  setConstantMappings(newMappings);
+                                }}
+                              />
+                            );
+                          })()}
 
                           <Button variant="ghost" size="icon" onClick={() => {
                             setConstantMappings(prev => prev.filter(m => m.id !== c.id));

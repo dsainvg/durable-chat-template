@@ -124,6 +124,15 @@ export function GlobalAutomationsDialog({
     }
   };
 
+  const availableCustomFields = Array.from(new Set(
+    state.spaces
+      .filter(s => targetSpaces.length === 0 || targetSpaces.includes(s.id))
+      .flatMap(s => s.customFields?.map(f => f.id) || [])
+  )).map(id => {
+    const field = state.spaces.flatMap(s => s.customFields || []).find(f => f.id === id);
+    return { id: `custom_${id}`, name: field?.name || id };
+  });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
@@ -291,6 +300,9 @@ export function GlobalAutomationsDialog({
                                  <SelectItem value="priority">Priority</SelectItem>
                                  <SelectItem value="assignee">Assignee</SelectItem>
                                  <SelectItem value="due_date">Due Date</SelectItem>
+                                 {availableCustomFields.map(f => (
+                                   <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                                 ))}
                                </SelectContent>
                              </Select>
                              <Select value={c.config?.operator || "equals"} onValueChange={v => updateCondition(i, { config: { ...c.config, operator: v } })}>
@@ -330,6 +342,7 @@ export function GlobalAutomationsDialog({
                                    </Select>
                                  )}
                                  {c.config?.field === "due_date" && <Input type="date" className="h-8 text-xs w-full" value={c.config?.value || ""} onChange={e => updateCondition(i, { config: { ...c.config, value: e.target.value }})} />}
+                                 {c.config?.field?.startsWith("custom_") && <Input className="h-8 text-xs w-full" placeholder="Value" value={c.config?.value || ""} onChange={e => updateCondition(i, { config: { ...c.config, value: e.target.value }})} />}
                                </div>
                              )}
                            </div>

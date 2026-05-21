@@ -354,6 +354,15 @@ export default {
 								else if (field === "priority") taskVal = task.priority;
 								else if (field === "assignee") taskVal = task.assignee;
 								else if (field === "due_date") taskVal = task.due_date;
+								else if (field?.startsWith("custom_")) {
+									const customKey = field.replace("custom_", "");
+									try {
+										const customObj = task.custom ? JSON.parse(task.custom as string) : {};
+										taskVal = customObj[customKey] || "";
+									} catch {
+										taskVal = "";
+									}
+								}
 
 								if (operator === "equals" && taskVal !== value) allMatches = false;
 								else if (operator === "not_equals" && taskVal === value) allMatches = false;

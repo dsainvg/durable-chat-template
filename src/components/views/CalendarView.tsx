@@ -51,11 +51,11 @@ export function CalendarView({ space, viewId, onOpen, onMove }: { space: Space; 
           {monthYearFormatter.format(cursor)}
         </h2>
         <div className="flex gap-1">
-          <button onClick={() => setCursor(new Date(year, month - 1, 1))} aria-label="Previous month" className="p-1.5 rounded hover:bg-accent text-muted-foreground">
+          <button onClick={() => setCursor(new Date(year, month - 1, 1))} aria-label="Previous month" className="p-1.5 rounded hover:bg-accent text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
             <ChevronLeft className="size-4" />
           </button>
-          <button onClick={() => setCursor(new Date())} className="px-2 text-xs rounded hover:bg-accent text-muted-foreground">Today</button>
-          <button onClick={() => setCursor(new Date(year, month + 1, 1))} aria-label="Next month" className="p-1.5 rounded hover:bg-accent text-muted-foreground">
+          <button onClick={() => setCursor(new Date())} className="px-2 text-xs rounded hover:bg-accent text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Today</button>
+          <button onClick={() => setCursor(new Date(year, month + 1, 1))} aria-label="Next month" className="p-1.5 rounded hover:bg-accent text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
             <ChevronRight className="size-4" />
           </button>
         </div>
@@ -100,7 +100,7 @@ export function CalendarView({ space, viewId, onOpen, onMove }: { space: Space; 
                       setDragId(t.id);
                     }}
                     onClick={() => onOpen(t)}
-                    className="w-full flex items-center gap-1 text-left text-[10px] truncate px-1.5 py-0.5 rounded bg-primary/15 text-foreground hover:bg-primary/25 cursor-pointer active:cursor-grabbing"
+                    className="w-full flex items-center gap-1 text-left text-[10px] truncate px-1.5 py-0.5 rounded bg-primary/15 text-foreground hover:bg-primary/25 cursor-pointer active:cursor-grabbing focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                     {!hiddenFields["priority"] && (
                       <div className={`size-1.5 shrink-0 rounded-full ${t.priority === "high" ? "bg-destructive" : t.priority === "medium" ? "bg-primary" : "bg-muted-foreground/40"}`} />

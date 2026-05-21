@@ -40,3 +40,15 @@ A live public deployment of this template is available at [https://durable-chat-
    ```bash
    npx wrangler tail
    ```
+
+## API Access & CLI Tool
+
+You can generate API Keys from the **Settings > API Keys** section in the UI.
+
+API Keys can be provided via the `Authorization: Bearer <API_KEY>` or `x-api-key: <API_KEY>` header.
+
+Example using `curl`:
+
+```bash
+curl -H "x-api-key: sk_1234567890abcdef" http://localhost:8787/api/spaces
+```

@@ -169,7 +169,8 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
             task.status = col ? col.id : space.columns[0]?.id || "todo";
           }
           else if (mapTo === "assignee") {
-            const user = users.find(u => u.name.toLowerCase() === String(val).toLowerCase() || u.email.toLowerCase() === String(val).toLowerCase() || u.id === String(val));
+            const mappedVal = optionMappings[h]?.[String(val)];
+            const user = users.find(u => u.id === mappedVal || u.name === mappedVal || u.name.toLowerCase() === String(val).toLowerCase() || u.email.toLowerCase() === String(val).toLowerCase());
             task.assignee = user ? user.id : "";
           }
           else if (mapTo === "dueDate") {
@@ -298,8 +299,8 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
 
     headers.forEach((h, i) => {
       const mapTo = mapping[h];
-      if (mapTo === "status" || mapTo === "priority" || mapTo.startsWith("custom_")) {
-        let isSelect = mapTo === "status" || mapTo === "priority";
+      if (mapTo === "status" || mapTo === "priority" || mapTo === "assignee" || mapTo.startsWith("custom_")) {
+        let isSelect = mapTo === "status" || mapTo === "priority" || mapTo === "assignee";
         if (mapTo.startsWith("custom_")) {
           const field = space.customFields.find(f => f.id === mapTo.replace("custom_", ""));
           if (field?.type === "select") isSelect = true;
@@ -318,6 +319,9 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
                  if (col) newOptionMappings[h][val] = col.id;
                } else if (mapTo === "priority") {
                  if (["high", "medium", "low"].includes(val.toLowerCase())) newOptionMappings[h][val] = val.toLowerCase();
+               } else if (mapTo === "assignee") {
+                 const user = users.find(u => u.name.toLowerCase() === val.toLowerCase() || u.email.toLowerCase() === val.toLowerCase());
+                 if (user) newOptionMappings[h][val] = user.id;
                } else {
                  const fieldId = mapTo.replace("custom_", "");
                  const field = space.customFields.find(f => f.id === fieldId);
@@ -497,6 +501,25 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
                                 </Select>
                               );
                             }
+                            if (c.field === "assignee") {
+                              return (
+                                <Select
+                                  value={c.value}
+                                  onValueChange={(val) => {
+                                    const newMappings = [...constantMappings];
+                                    newMappings[idx].value = val;
+                                    setConstantMappings(newMappings);
+                                  }}
+                                >
+                                  <SelectTrigger className="w-full"><SelectValue placeholder="Select Assignee" /></SelectTrigger>
+                                  <SelectContent>
+                                    {users.map(u => (
+                                      <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              );
+                            }
                             if (c.field === "priority") {
                               return (
                                 <Select
@@ -584,6 +607,7 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
                     let options: { id: string; name: string }[] = [];
                     if (mapTo === "status") options = space.columns;
                     else if (mapTo === "priority") options = [{ id: "high", name: "High" }, { id: "medium", name: "Medium" }, { id: "low", name: "Low" }];
+                    else if (mapTo === "assignee") options = users.map(u => ({ id: u.id, name: u.name }));
                     else {
                       const field = space.customFields.find(f => f.id === mapTo.replace("custom_", ""));
                       options = (field?.options || []).map(o => ({ id: o, name: o }));

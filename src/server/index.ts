@@ -246,8 +246,8 @@ export default {
 			for (const spaceId of spacesToQuery) {
 				try {
 					// Separate space-level conditions and task-level conditions
-					const spaceConditions = conditions.filter(c => ['no_new_tasks_created', 'no_new_tasks_in_status', 'no_new_tasks_by_user_in_status', 'no_new_tasks_in_priority', 'no_new_tasks_by_user_in_priority'].includes(c.type));
-					const taskConditions = conditions.filter(c => !['no_new_tasks_created', 'no_new_tasks_in_status', 'no_new_tasks_by_user_in_status', 'no_new_tasks_in_priority', 'no_new_tasks_by_user_in_priority'].includes(c.type));
+					const spaceConditions = conditions.filter(c => ['no_new_tasks_created', 'no_new_tasks_in_status', 'no_new_tasks_by_user_in_status', 'no_new_tasks_in_priority', 'no_new_tasks_by_user_in_priority', 'space_activity'].includes(c.type));
+					const taskConditions = conditions.filter(c => !['no_new_tasks_created', 'no_new_tasks_in_status', 'no_new_tasks_by_user_in_status', 'no_new_tasks_in_priority', 'no_new_tasks_by_user_in_priority', 'space_activity'].includes(c.type));
 
 					let spaceConditionsMet = true;
 
@@ -268,6 +268,24 @@ export default {
 							} else if (cond.type === 'no_new_tasks_by_user_in_priority') {
 								const { results: userPriorityLogs } = await env.DB.prepare(`SELECT user_id FROM daily_activity WHERE user_id = ? AND date = ? AND action = ? LIMIT 1`).bind(cond.config?.user_id, today, `priority_${cond.config?.priority}`).all();
 								if (userPriorityLogs.length > 0) spaceConditionsMet = false;
+							} else if (cond.type === 'space_activity') {
+								const { event, user, value } = cond.config || {};
+								let actionTarget = "";
+								if (event === "no_created") actionTarget = "created";
+								else if (event === "no_status") actionTarget = `status_${value}`;
+								else if (event === "no_priority") actionTarget = `priority_${value}`;
+
+								let q = "";
+								let bindArgs: any[] = [];
+								if (user === "any") {
+									q = `SELECT user_id FROM daily_activity WHERE date = ? AND action = ? LIMIT 1`;
+									bindArgs = [today, actionTarget];
+								} else {
+									q = `SELECT user_id FROM daily_activity WHERE user_id = ? AND date = ? AND action = ? LIMIT 1`;
+									bindArgs = [user, today, actionTarget];
+								}
+								const { results: activityLogs } = await env.DB.prepare(q).bind(...bindArgs).all();
+								if (activityLogs.length > 0) spaceConditionsMet = false;
 							}
 							if (!spaceConditionsMet) break;
 						}
@@ -329,6 +347,22 @@ export default {
 								if (task.due_date !== cond.config?.dueDate) allMatches = false;
 							} else if (cond.type === 'assignee_equals') {
 								if (task.assignee !== cond.config?.assignee) allMatches = false;
+							} else if (cond.type === 'task_field') {
+								const { field, operator, value } = cond.config || {};
+								let taskVal: any = "";
+								if (field === "status") taskVal = task.status;
+								else if (field === "priority") taskVal = task.priority;
+								else if (field === "assignee") taskVal = task.assignee;
+								else if (field === "due_date") taskVal = task.due_date;
+
+								if (operator === "equals" && taskVal !== value) allMatches = false;
+								else if (operator === "not_equals" && taskVal === value) allMatches = false;
+								else if (operator === "is_empty" && (taskVal !== "" && taskVal !== null && taskVal !== undefined)) allMatches = false;
+								else if (operator === "not_empty" && (taskVal === "" || taskVal === null || taskVal === undefined)) allMatches = false;
+								else if (operator === "is_today" && field === "due_date" && taskVal !== today) allMatches = false;
+								else if (operator === "is_overdue" && field === "due_date") {
+									if (!taskVal || taskVal >= today) allMatches = false;
+								}
 							}
 							if (!allMatches) break;
 						}

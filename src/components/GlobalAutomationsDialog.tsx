@@ -58,7 +58,7 @@ export function GlobalAutomationsDialog({
   };
 
   const handleAddCondition = () => {
-    setConditions([...conditions, { type: "due_today" }]);
+    setConditions([...conditions, { type: "task_field", config: { field: "status", operator: "equals", value: "" } }]);
   };
 
   const updateCondition = (index: number, val: Partial<AutomationCondition>) => {
@@ -183,85 +183,198 @@ export function GlobalAutomationsDialog({
 
             <div className="space-y-2">
               <Label className="text-xs font-semibold">2. Conditions (ALL must be true)</Label>
-              {conditions.map((c, i) => (
+              {conditions.map((c, i) => {
+                const isLegacy = !c.type.startsWith('task_field') && !c.type.startsWith('space_activity');
+
+                return (
                 <div key={i} className="flex gap-2 items-start">
                   <div className="flex-1 space-y-2 bg-background p-2 rounded-md border border-border">
-                     <Select value={c.type} onValueChange={(v) => updateCondition(i, { type: v, config: {} })}>
-                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="due_today">Due Today</SelectItem>
-                          <SelectItem value="has_assignee">Has Assignee</SelectItem>
-                          <SelectItem value="no_assignee">No Assignee</SelectItem>
-                          <SelectItem value="status_equals">Status Equals...</SelectItem>
-                          <SelectItem value="status_not_equals">Status Not Equals...</SelectItem>
-                          <SelectItem value="priority_equals">Priority Equals...</SelectItem>
-                          <SelectItem value="priority_not_equals">Priority Not Equals...</SelectItem>
-                          <SelectItem value="due_date_equals">Due Date Equals...</SelectItem>
-                          <SelectItem value="assignee_equals">Assignee Equals...</SelectItem>
-                          <SelectItem value="no_new_tasks_created">No New Tasks Created</SelectItem>
-                          <SelectItem value="no_new_tasks_in_status">No New Tasks In Status...</SelectItem>
-                          <SelectItem value="no_new_tasks_by_user_in_status">No New Tasks By User In Status...</SelectItem>
-                          <SelectItem value="no_new_tasks_in_priority">No New Tasks In Priority...</SelectItem>
-                          <SelectItem value="no_new_tasks_by_user_in_priority">No New Tasks By User In Priority...</SelectItem>
-                        </SelectContent>
-                     </Select>
-                     {(c.type === 'status_equals' || c.type === 'status_not_equals' || c.type === 'no_new_tasks_in_status') && (
-                       <Input className="h-8 text-xs" placeholder="Status ID (e.g., done)" value={c.config?.status || ""} onChange={e => updateCondition(i, { config: { ...c.config, status: e.target.value }})} />
-                     )}
-                     {(c.type === 'priority_equals' || c.type === 'priority_not_equals' || c.type === 'no_new_tasks_in_priority') && (
-                       <Select value={c.config?.priority || "low"} onValueChange={v => updateCondition(i, { config: { ...c.config, priority: v } })}>
-                         <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Priority" /></SelectTrigger>
-                         <SelectContent>
-                           <SelectItem value="low">Low</SelectItem>
-                           <SelectItem value="medium">Medium</SelectItem>
-                           <SelectItem value="high">High</SelectItem>
-                         </SelectContent>
-                       </Select>
-                     )}
-                     {c.type === 'due_date_equals' && (
-                       <Input type="date" className="h-8 text-xs" value={c.config?.dueDate || ""} onChange={e => updateCondition(i, { config: { ...c.config, dueDate: e.target.value }})} />
-                     )}
-                     {c.type === 'assignee_equals' && (
-                       <Select value={c.config?.assignee || ""} onValueChange={v => updateCondition(i, { config: { ...c.config, assignee: v } })}>
-                         <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select Assignee" /></SelectTrigger>
-                         <SelectContent>
-                           {state.users.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
-                         </SelectContent>
-                       </Select>
-                     )}
-                     {c.type === 'no_new_tasks_by_user_in_status' && (
-                       <div className="flex gap-2 w-full mt-2">
-                         <Select value={c.config?.user_id || ""} onValueChange={v => updateCondition(i, { config: { ...c.config, user_id: v } })}>
-                           <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select User" /></SelectTrigger>
+                     {isLegacy ? (
+                       <>
+                         <Select value={c.type} onValueChange={(v) => updateCondition(i, { type: v, config: {} })}>
+                            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="due_today">Due Today</SelectItem>
+                              <SelectItem value="has_assignee">Has Assignee</SelectItem>
+                              <SelectItem value="no_assignee">No Assignee</SelectItem>
+                              <SelectItem value="status_equals">Status Equals...</SelectItem>
+                              <SelectItem value="status_not_equals">Status Not Equals...</SelectItem>
+                              <SelectItem value="priority_equals">Priority Equals...</SelectItem>
+                              <SelectItem value="priority_not_equals">Priority Not Equals...</SelectItem>
+                              <SelectItem value="due_date_equals">Due Date Equals...</SelectItem>
+                              <SelectItem value="assignee_equals">Assignee Equals...</SelectItem>
+                              <SelectItem value="no_new_tasks_created">No New Tasks Created</SelectItem>
+                              <SelectItem value="no_new_tasks_in_status">No New Tasks In Status...</SelectItem>
+                              <SelectItem value="no_new_tasks_by_user_in_status">No New Tasks By User In Status...</SelectItem>
+                              <SelectItem value="no_new_tasks_in_priority">No New Tasks In Priority...</SelectItem>
+                              <SelectItem value="no_new_tasks_by_user_in_priority">No New Tasks By User In Priority...</SelectItem>
+                              <SelectItem value="task_field">Task Property...</SelectItem>
+                              <SelectItem value="space_activity">Space Activity...</SelectItem>
+                            </SelectContent>
+                         </Select>
+                         {(c.type === 'status_equals' || c.type === 'status_not_equals' || c.type === 'no_new_tasks_in_status') && (
+                           <Input className="h-8 text-xs" placeholder="Status ID (e.g., done)" value={c.config?.status || ""} onChange={e => updateCondition(i, { config: { ...c.config, status: e.target.value }})} />
+                         )}
+                         {(c.type === 'priority_equals' || c.type === 'priority_not_equals' || c.type === 'no_new_tasks_in_priority') && (
+                           <Select value={c.config?.priority || "low"} onValueChange={v => updateCondition(i, { config: { ...c.config, priority: v } })}>
+                             <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Priority" /></SelectTrigger>
+                             <SelectContent>
+                               <SelectItem value="low">Low</SelectItem>
+                               <SelectItem value="medium">Medium</SelectItem>
+                               <SelectItem value="high">High</SelectItem>
+                             </SelectContent>
+                           </Select>
+                         )}
+                         {c.type === 'due_date_equals' && (
+                           <Input type="date" className="h-8 text-xs" value={c.config?.dueDate || ""} onChange={e => updateCondition(i, { config: { ...c.config, dueDate: e.target.value }})} />
+                         )}
+                         {c.type === 'assignee_equals' && (
+                           <Select value={c.config?.assignee || ""} onValueChange={v => updateCondition(i, { config: { ...c.config, assignee: v } })}>
+                             <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select Assignee" /></SelectTrigger>
+                             <SelectContent>
+                               {state.users.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                             </SelectContent>
+                           </Select>
+                         )}
+                         {c.type === 'no_new_tasks_by_user_in_status' && (
+                           <div className="flex gap-2 w-full mt-2">
+                             <Select value={c.config?.user_id || ""} onValueChange={v => updateCondition(i, { config: { ...c.config, user_id: v } })}>
+                               <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select User" /></SelectTrigger>
+                               <SelectContent>
+                                 {state.users.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                               </SelectContent>
+                             </Select>
+                             <Input className="h-8 text-xs w-1/2" placeholder="Status ID" value={c.config?.status || ""} onChange={e => updateCondition(i, { config: { ...c.config, status: e.target.value }})} />
+                           </div>
+                         )}
+                         {c.type === 'no_new_tasks_by_user_in_priority' && (
+                           <div className="flex gap-2 w-full mt-2">
+                             <Select value={c.config?.user_id || ""} onValueChange={v => updateCondition(i, { config: { ...c.config, user_id: v } })}>
+                               <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select User" /></SelectTrigger>
+                               <SelectContent>
+                                 {state.users.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                               </SelectContent>
+                             </Select>
+                             <Select value={c.config?.priority || "low"} onValueChange={v => updateCondition(i, { config: { ...c.config, priority: v } })}>
+                               <SelectTrigger className="h-8 text-xs w-1/2"><SelectValue placeholder="Priority" /></SelectTrigger>
+                               <SelectContent>
+                                 <SelectItem value="low">Low</SelectItem>
+                                 <SelectItem value="medium">Medium</SelectItem>
+                                 <SelectItem value="high">High</SelectItem>
+                               </SelectContent>
+                             </Select>
+                           </div>
+                         )}
+                       </>
+                     ) : (
+                       <div className="space-y-2">
+                         <Select value={c.type} onValueChange={(v) => {
+                           if (v === "task_field") {
+                             updateCondition(i, { type: v, config: { field: "status", operator: "equals", value: "" } });
+                           } else if (v === "space_activity") {
+                             updateCondition(i, { type: v, config: { event: "no_created", user: "any", value: "" } });
+                           }
+                         }}>
+                           <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                            <SelectContent>
-                             {state.users.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                             <SelectItem value="task_field">Task Property...</SelectItem>
+                             <SelectItem value="space_activity">Space Activity...</SelectItem>
                            </SelectContent>
                          </Select>
-                         <Input className="h-8 text-xs w-1/2" placeholder="Status ID" value={c.config?.status || ""} onChange={e => updateCondition(i, { config: { ...c.config, status: e.target.value }})} />
-                       </div>
-                     )}
-                     {c.type === 'no_new_tasks_by_user_in_priority' && (
-                       <div className="flex gap-2 w-full mt-2">
-                         <Select value={c.config?.user_id || ""} onValueChange={v => updateCondition(i, { config: { ...c.config, user_id: v } })}>
-                           <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select User" /></SelectTrigger>
-                           <SelectContent>
-                             {state.users.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
-                           </SelectContent>
-                         </Select>
-                         <Select value={c.config?.priority || "low"} onValueChange={v => updateCondition(i, { config: { ...c.config, priority: v } })}>
-                           <SelectTrigger className="h-8 text-xs w-1/2"><SelectValue placeholder="Priority" /></SelectTrigger>
-                           <SelectContent>
-                             <SelectItem value="low">Low</SelectItem>
-                             <SelectItem value="medium">Medium</SelectItem>
-                             <SelectItem value="high">High</SelectItem>
-                           </SelectContent>
-                         </Select>
+
+                         {c.type === "task_field" && (
+                           <div className="flex gap-2 w-full mt-2">
+                             <Select value={c.config?.field || "status"} onValueChange={v => updateCondition(i, { config: { ...c.config, field: v, value: "" } })}>
+                               <SelectTrigger className="h-8 text-xs flex-1"><SelectValue placeholder="Field" /></SelectTrigger>
+                               <SelectContent>
+                                 <SelectItem value="status">Status</SelectItem>
+                                 <SelectItem value="priority">Priority</SelectItem>
+                                 <SelectItem value="assignee">Assignee</SelectItem>
+                                 <SelectItem value="due_date">Due Date</SelectItem>
+                               </SelectContent>
+                             </Select>
+                             <Select value={c.config?.operator || "equals"} onValueChange={v => updateCondition(i, { config: { ...c.config, operator: v } })}>
+                               <SelectTrigger className="h-8 text-xs flex-1"><SelectValue placeholder="Operator" /></SelectTrigger>
+                               <SelectContent>
+                                 <SelectItem value="equals">Equals</SelectItem>
+                                 <SelectItem value="not_equals">Not Equals</SelectItem>
+                                 <SelectItem value="is_empty">Is Empty</SelectItem>
+                                 <SelectItem value="not_empty">Is Not Empty</SelectItem>
+                                 {c.config?.field === "due_date" && (
+                                   <>
+                                     <SelectItem value="is_today">Is Today</SelectItem>
+                                     <SelectItem value="is_overdue">Is Overdue</SelectItem>
+                                   </>
+                                 )}
+                               </SelectContent>
+                             </Select>
+                             {(!["is_empty", "not_empty", "is_today", "is_overdue"].includes(c.config?.operator || "equals")) && (
+                               <div className="flex-1">
+                                 {c.config?.field === "status" && <Input className="h-8 text-xs w-full" placeholder="Status ID" value={c.config?.value || ""} onChange={e => updateCondition(i, { config: { ...c.config, value: e.target.value }})} />}
+                                 {c.config?.field === "priority" && (
+                                   <Select value={c.config?.value || ""} onValueChange={v => updateCondition(i, { config: { ...c.config, value: v } })}>
+                                     <SelectTrigger className="h-8 text-xs w-full"><SelectValue placeholder="Priority" /></SelectTrigger>
+                                     <SelectContent>
+                                       <SelectItem value="low">Low</SelectItem>
+                                       <SelectItem value="medium">Medium</SelectItem>
+                                       <SelectItem value="high">High</SelectItem>
+                                     </SelectContent>
+                                   </Select>
+                                 )}
+                                 {c.config?.field === "assignee" && (
+                                   <Select value={c.config?.value || ""} onValueChange={v => updateCondition(i, { config: { ...c.config, value: v } })}>
+                                     <SelectTrigger className="h-8 text-xs w-full"><SelectValue placeholder="Select Assignee" /></SelectTrigger>
+                                     <SelectContent>
+                                       {state.users.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                                     </SelectContent>
+                                   </Select>
+                                 )}
+                                 {c.config?.field === "due_date" && <Input type="date" className="h-8 text-xs w-full" value={c.config?.value || ""} onChange={e => updateCondition(i, { config: { ...c.config, value: e.target.value }})} />}
+                               </div>
+                             )}
+                           </div>
+                         )}
+
+                         {c.type === "space_activity" && (
+                           <div className="flex gap-2 w-full mt-2">
+                             <Select value={c.config?.event || "no_created"} onValueChange={v => updateCondition(i, { config: { ...c.config, event: v, value: "" } })}>
+                               <SelectTrigger className="h-8 text-xs flex-1"><SelectValue placeholder="Event" /></SelectTrigger>
+                               <SelectContent>
+                                 <SelectItem value="no_created">No Tasks Created</SelectItem>
+                                 <SelectItem value="no_status">No Status Updates</SelectItem>
+                                 <SelectItem value="no_priority">No Priority Updates</SelectItem>
+                               </SelectContent>
+                             </Select>
+                             <Select value={c.config?.user || "any"} onValueChange={v => updateCondition(i, { config: { ...c.config, user: v } })}>
+                               <SelectTrigger className="h-8 text-xs flex-1"><SelectValue placeholder="By User" /></SelectTrigger>
+                               <SelectContent>
+                                 <SelectItem value="any">By Anyone</SelectItem>
+                                 {state.users.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                               </SelectContent>
+                             </Select>
+                             {["no_status", "no_priority"].includes(c.config?.event) && (
+                               <div className="flex-1">
+                                 {c.config?.event === "no_status" && <Input className="h-8 text-xs w-full" placeholder="Status ID" value={c.config?.value || ""} onChange={e => updateCondition(i, { config: { ...c.config, value: e.target.value }})} />}
+                                 {c.config?.event === "no_priority" && (
+                                   <Select value={c.config?.value || "low"} onValueChange={v => updateCondition(i, { config: { ...c.config, value: v } })}>
+                                     <SelectTrigger className="h-8 text-xs w-full"><SelectValue placeholder="Priority" /></SelectTrigger>
+                                     <SelectContent>
+                                       <SelectItem value="low">Low</SelectItem>
+                                       <SelectItem value="medium">Medium</SelectItem>
+                                       <SelectItem value="high">High</SelectItem>
+                                     </SelectContent>
+                                   </Select>
+                                 )}
+                               </div>
+                             )}
+                           </div>
+                         )}
                        </div>
                      )}
                   </div>
                   <Button variant="ghost" size="icon" aria-label="Remove condition" className="shrink-0 h-8 w-8 text-destructive" onClick={() => removeCondition(i)}><Trash2 className="h-4 w-4" /></Button>
                 </div>
-              ))}
+              )})}
               <Button variant="outline" size="sm" className="h-8 text-xs mt-1" onClick={handleAddCondition}>
                 <Plus className="h-3 w-3 mr-1" /> Add Condition
               </Button>

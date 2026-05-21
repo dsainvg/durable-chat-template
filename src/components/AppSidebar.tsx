@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarTrigger } from "@/components/ui/sidebar";
 import { GlobalAutomationsDialog } from "./GlobalAutomationsDialog";
+import { ApiKeysDialog } from "./ApiKeysDialog";
+import { Key } from "lucide-react";
 
 export function AppSidebar() {
   const { state, update } = useStore();
@@ -21,6 +23,7 @@ export function AppSidebar() {
 
   const [isSpaceDialogOpen, setIsSpaceDialogOpen] = useState(false);
   const [isAutomationsOpen, setIsAutomationsOpen] = useState(false);
+  const [isApiKeysOpen, setIsApiKeysOpen] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState("");
   const [columns, setColumns] = useState([{ id: "todo", name: "To Do" }, { id: "doing", name: "Doing" }, { id: "done", name: "Done" }]);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
@@ -276,6 +279,13 @@ export function AppSidebar() {
             <Settings className="size-4" />
             <span>Settings</span>
           </Link>
+          <button
+            onClick={() => setIsApiKeysOpen(true)}
+            className="w-full flex items-center gap-2 px-2 py-2 text-sm rounded-md transition-colors text-muted-foreground hover:text-foreground hover:bg-accent/50"
+          >
+            <Key className="size-4" />
+            <span>API Keys</span>
+          </button>
           <div className="flex items-center gap-2 px-2 py-1.5">
             <div className="size-7 rounded-full bg-muted ring-1 ring-border grid place-items-center text-[11px] font-medium">{me?.initials}</div>
             <div className="flex-1 min-w-0">
@@ -286,6 +296,7 @@ export function AppSidebar() {
         </SidebarFooter>
       </Sidebar>
       <GlobalAutomationsDialog open={isAutomationsOpen} onOpenChange={setIsAutomationsOpen} />
+      <ApiKeysDialog isOpen={isApiKeysOpen} onOpenChange={setIsApiKeysOpen} />
     </>
   );
 }

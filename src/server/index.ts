@@ -137,6 +137,7 @@ async function initDb(db: D1Database) {
 	await db.prepare("CREATE TABLE IF NOT EXISTS spaces (id TEXT PRIMARY KEY, name TEXT NOT NULL, color TEXT, emoji TEXT, columns TEXT, customFields TEXT, emailReminders INTEGER, emailDigestTime TEXT)").run();
 	await db.prepare("CREATE TABLE IF NOT EXISTS space_views (id TEXT NOT NULL, space_id TEXT NOT NULL, name TEXT NOT NULL, type TEXT NOT NULL, settings TEXT NOT NULL, PRIMARY KEY (id, space_id))").run();
 	await db.prepare("CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)").run();
+	await db.prepare("CREATE TABLE IF NOT EXISTS api_keys (key TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at INTEGER NOT NULL)").run();
 
 	// Create tables for automations
 	await db.prepare(`CREATE TABLE IF NOT EXISTS automation_rules (id TEXT PRIMARY KEY, target_spaces TEXT NOT NULL, conditions TEXT NOT NULL, action_type TEXT NOT NULL, config TEXT NOT NULL, is_recurring INTEGER DEFAULT 0)`).run();
@@ -625,43 +626,88 @@ export default {
 		}
 
 		if (url.pathname.startsWith('/api/')) {
+			await initDb(env.DB);
+
 			const authHeader = request.headers.get('Authorization');
-			if (!authHeader || !authHeader.startsWith('Bearer ')) {
+			const apiKeyHeader = request.headers.get('x-api-key');
+
+			let token = "";
+			if (authHeader && authHeader.startsWith('Bearer ')) {
+				token = authHeader.substring(7);
+			} else if (apiKeyHeader) {
+				token = apiKeyHeader;
+			}
+
+			if (!token) {
 				return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 			}
 
-			const token = authHeader.substring(7);
 			let currentUserId = "";
 			try {
-				const sessionId = token;
-				await initDb(env.DB);
+				// First check if it's an API Key
+				const { results: apiKeyResults } = await env.DB.prepare("SELECT user_id FROM api_keys WHERE key = ?").bind(token).all();
 
-				// Verify using sessions table
-				const { results } = await env.DB.prepare("SELECT user_id, updated_at FROM sessions WHERE id = ?").bind(sessionId).all();
-				if (results.length === 0) {
-					throw new Error("Invalid session");
+				if (apiKeyResults && apiKeyResults.length > 0) {
+					currentUserId = apiKeyResults[0].user_id as string;
+				} else {
+					// Fallback to Session check
+					const sessionId = token;
+					const { results } = await env.DB.prepare("SELECT user_id, updated_at FROM sessions WHERE id = ?").bind(sessionId).all();
+					if (results.length === 0) {
+						throw new Error("Invalid session or API key");
+					}
+
+					const session = results[0] as { user_id: string, updated_at: number };
+					const now = Date.now();
+					// Expire if older than 1 day (86400000 ms)
+					if (now - session.updated_at > 86400000) {
+						await env.DB.prepare("DELETE FROM sessions WHERE id = ?").bind(sessionId).run();
+						throw new Error("Session expired");
+					}
+
+					// Session is valid, update updated_at
+					await env.DB.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").bind(now, sessionId).run();
+					currentUserId = session.user_id;
 				}
-
-				const session = results[0] as { user_id: string, updated_at: number };
-				const now = Date.now();
-				// Expire if older than 1 day (86400000 ms)
-				if (now - session.updated_at > 86400000) {
-					await env.DB.prepare("DELETE FROM sessions WHERE id = ?").bind(sessionId).run();
-					throw new Error("Session expired");
-				}
-
-				// Session is valid, update updated_at
-				await env.DB.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").bind(now, sessionId).run();
-				currentUserId = session.user_id;
 			} catch (e) {
 				return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 			}
 
-			await initDb(env.DB);
-
 			if (url.pathname === '/api/heartbeat' && request.method === 'POST') {
 				await env.DB.prepare("UPDATE users SET active = 1, last_seen = ? WHERE id = ?").bind(Date.now(), currentUserId).run();
 				return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+			}
+
+			if (url.pathname === '/api/apikeys' && request.method === 'POST') {
+				const key = `sk_${crypto.randomUUID().replace(/-/g, '')}`;
+				const now = Date.now();
+				try {
+					await env.DB.prepare("INSERT INTO api_keys (key, user_id, created_at) VALUES (?, ?, ?)")
+						.bind(key, currentUserId, now).run();
+					return new Response(JSON.stringify({ key, created_at: now }), { status: 201, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				} catch (e) {
+					return new Response(JSON.stringify({ error: "Failed to create API key" }), { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				}
+			}
+
+			if (url.pathname === '/api/apikeys' && request.method === 'GET') {
+				try {
+					const { results } = await env.DB.prepare("SELECT key, created_at FROM api_keys WHERE user_id = ? ORDER BY created_at DESC").bind(currentUserId).all();
+					return new Response(JSON.stringify(results), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				} catch (e) {
+					return new Response(JSON.stringify({ error: "Failed to fetch API keys" }), { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				}
+			}
+
+			const apiKeyDeleteMatch = url.pathname.match(/^\/api\/apikeys\/([^/]+)$/);
+			if (apiKeyDeleteMatch && request.method === 'DELETE') {
+				const key = apiKeyDeleteMatch[1];
+				try {
+					await env.DB.prepare("DELETE FROM api_keys WHERE key = ? AND user_id = ?").bind(key, currentUserId).run();
+					return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				} catch (e) {
+					return new Response(JSON.stringify({ error: "Failed to delete API key" }), { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				}
 			}
 
 			const userPutMatch = url.pathname.match(/^\/api\/user\/([^/]+)$/);

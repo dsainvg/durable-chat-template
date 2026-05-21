@@ -92,13 +92,6 @@ async function verifyPassword(password: string, storedHash: string): Promise<Ver
 	return { isValid: timingSafeEqual(hashHex, originalHash), needsUpgrade: false };
 }
 
-
-const CORS_HEADERS = {
-	"Access-Control-Allow-Origin": "*",
-	"Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-	"Access-Control-Allow-Headers": "Content-Type, Authorization",
-};
-
 let dbInitialized = false;
 
 // Simple in-memory rate limiter for unauthenticated endpoints
@@ -512,6 +505,12 @@ export default {
 	},
 
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+		const CORS_HEADERS = {
+			"Access-Control-Allow-Origin": env.ALLOWED_ORIGIN || "",
+			"Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+			"Access-Control-Allow-Headers": "Content-Type, Authorization",
+		};
+
 		const url = new URL(request.url);
 
 		if (request.method === "OPTIONS") {

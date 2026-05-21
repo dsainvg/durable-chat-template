@@ -245,6 +245,57 @@ export default {
 
 			for (const spaceId of spacesToQuery) {
 				try {
+					// Separate space-level conditions and task-level conditions
+					const spaceConditions = conditions.filter(c => ['no_new_tasks_created', 'no_new_tasks_in_status', 'no_new_tasks_by_user_in_status'].includes(c.type));
+					const taskConditions = conditions.filter(c => !['no_new_tasks_created', 'no_new_tasks_in_status', 'no_new_tasks_by_user_in_status'].includes(c.type));
+
+					let spaceConditionsMet = true;
+
+					if (spaceConditions.length > 0) {
+						for (const cond of spaceConditions) {
+							if (cond.type === 'no_new_tasks_created') {
+								const { results: created } = await env.DB.prepare(`SELECT user_id FROM daily_activity WHERE date = ? AND action = 'created' LIMIT 1`).bind(today).all();
+								if (created.length > 0) spaceConditionsMet = false;
+							} else if (cond.type === 'no_new_tasks_in_status') {
+								const { results: statusLogs } = await env.DB.prepare(`SELECT user_id FROM daily_activity WHERE date = ? AND action = ? LIMIT 1`).bind(today, `status_${cond.config?.status}`).all();
+								if (statusLogs.length > 0) spaceConditionsMet = false;
+							} else if (cond.type === 'no_new_tasks_by_user_in_status') {
+								const { results: userStatusLogs } = await env.DB.prepare(`SELECT user_id FROM daily_activity WHERE user_id = ? AND date = ? AND action = ? LIMIT 1`).bind(cond.config?.user_id, today, `status_${cond.config?.status}`).all();
+								if (userStatusLogs.length > 0) spaceConditionsMet = false;
+							}
+							if (!spaceConditionsMet) break;
+						}
+					}
+
+					// If space conditions were defined but failed, skip to next space
+					if (spaceConditions.length > 0 && !spaceConditionsMet) continue;
+
+					// If there are space-level conditions and NO task-level conditions, we execute once per space
+					if (spaceConditions.length > 0 && taskConditions.length === 0) {
+						if (spaceConditionsMet) {
+							const taskId = "space-level"; // Generic ID for space-level executions
+
+							if (isRecurring) {
+								const { results: existingRec } = await env.DB.prepare(`SELECT id FROM recurring_events WHERE automation_id = ? AND task_id = ? AND space_id = ?`).bind(auto.id, taskId, spaceId).all();
+								if (existingRec.length === 0) {
+									await env.DB.prepare(`INSERT INTO recurring_events (id, automation_id, task_id, space_id, status, action_type, config, last_run, next_run) VALUES (?, ?, ?, ?, 'pending', ?, ?, 0, ?)`)
+										.bind(crypto.randomUUID(), auto.id, taskId, spaceId, actionType, configStr, nowTime).run();
+								}
+							} else {
+								const { results: existingUp } = await env.DB.prepare(`SELECT id FROM upcoming_events WHERE automation_id = ? AND task_id = ? AND space_id = ? AND scheduled_for >= ?`).bind(auto.id, taskId, spaceId, nowTime - 86400000).all(); // Last 24 hours
+								const { results: existingExec } = await env.DB.prepare(`SELECT id FROM executed_events WHERE automation_id = ? AND task_id = ? AND space_id = ?`).bind(auto.id, taskId, spaceId).all();
+
+								if (existingUp.length === 0 && existingExec.length === 0) {
+									await env.DB.prepare(`INSERT INTO upcoming_events (id, automation_id, task_id, space_id, status, action_type, config, scheduled_for) VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)`)
+										.bind(crypto.randomUUID(), auto.id, taskId, spaceId, actionType, configStr, nowTime).run();
+								}
+							}
+						}
+						// Continue to next space since task iteration is not needed
+						continue;
+					}
+
+					// If there are task-level conditions (whether or not there are space conditions that passed)
 					// Query tasks dynamically
 				const { results: tasks } = await env.DB.prepare(`SELECT * FROM tasks WHERE space_id = ?`).bind(spaceId).all();
 
@@ -252,8 +303,8 @@ export default {
 						const taskId = task.id as string;
 						let allMatches = true;
 
-						// Check complex conditions (AND logic)
-						for (const cond of conditions) {
+						// Check task complex conditions (AND logic)
+						for (const cond of taskConditions) {
 							if (cond.type === 'due_today') {
 								if (task.due_date !== today) allMatches = false;
 							} else if (cond.type === 'has_assignee') {
@@ -374,8 +425,6 @@ export default {
 							body: JSON.stringify({ type: "task_updated", task: updatedTask })
 						}));
 					}
-				} else if (actionType === 'system_agent' && config.agent) {
-					// For external system agents, we just log execution; they might be picked up by external cron or webhook
 				}
 
 				if (isRecurring) {
@@ -806,16 +855,20 @@ export default {
 					.bind(id, space_id, title, description, status, assignee, due_date, start_date, priority, custom)
 						.run();
 
-					// Log daily activity for Daily Check automation
+					// Log daily activity for Daily Check automation and space-level automations
 					if (assignee) {
 						const todayStr = new Date().toISOString().split('T')[0];
 						if (!body.id) {
 							// It's a new task
 							await env.DB.prepare(`INSERT OR IGNORE INTO daily_activity (user_id, date, action) VALUES (?, ?, 'created')`).bind(assignee, todayStr).run();
 						}
-						if (status === 'done') {
-							// Task marked as done
-							await env.DB.prepare(`INSERT OR IGNORE INTO daily_activity (user_id, date, action) VALUES (?, ?, 'done')`).bind(assignee, todayStr).run();
+						if (status) {
+							// Log specific status updates for automations (including 'done')
+							await env.DB.prepare(`INSERT OR IGNORE INTO daily_activity (user_id, date, action) VALUES (?, ?, ?)`).bind(assignee, todayStr, `status_${status}`).run();
+							if (status === 'done') {
+								// Legacy specific done track (kept for compatibility with old automations)
+								await env.DB.prepare(`INSERT OR IGNORE INTO daily_activity (user_id, date, action) VALUES (?, ?, 'done')`).bind(assignee, todayStr).run();
+							}
 						}
 					}
 

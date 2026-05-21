@@ -350,7 +350,20 @@ export function GlobalAutomationsDialog({
                                    </Select>
                                  )}
                                  {c.config?.field === "due_date" && <Input type="date" className="h-8 text-xs w-full" value={c.config?.value || ""} onChange={e => updateCondition(i, { config: { ...c.config, value: e.target.value }})} />}
-                                 {c.config?.field?.startsWith("custom_") && <Input className="h-8 text-xs w-full" placeholder="Value" value={c.config?.value || ""} onChange={e => updateCondition(i, { config: { ...c.config, value: e.target.value }})} />}
+                                 {c.config?.field?.startsWith("custom_") && (() => {
+                                   const customField = state.spaces.flatMap(s => s.customFields || []).find(f => `custom_${f.id}` === c.config?.field);
+                                   if (customField?.type === "select") {
+                                     return (
+                                       <Select value={c.config?.value || ""} onValueChange={v => updateCondition(i, { config: { ...c.config, value: v } })}>
+                                         <SelectTrigger className="h-8 text-xs w-full"><SelectValue placeholder="Select Option" /></SelectTrigger>
+                                         <SelectContent>
+                                           {customField.options?.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                                         </SelectContent>
+                                       </Select>
+                                     );
+                                   }
+                                   return <Input className="h-8 text-xs w-full" placeholder="Value" value={c.config?.value || ""} onChange={e => updateCondition(i, { config: { ...c.config, value: e.target.value }})} />;
+                                 })()}
                                </div>
                              )}
                            </div>

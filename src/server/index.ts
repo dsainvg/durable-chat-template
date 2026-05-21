@@ -246,8 +246,8 @@ export default {
 			for (const spaceId of spacesToQuery) {
 				try {
 					// Separate space-level conditions and task-level conditions
-					const spaceConditions = conditions.filter(c => ['no_new_tasks_created', 'no_new_tasks_in_status', 'no_new_tasks_by_user_in_status'].includes(c.type));
-					const taskConditions = conditions.filter(c => !['no_new_tasks_created', 'no_new_tasks_in_status', 'no_new_tasks_by_user_in_status'].includes(c.type));
+					const spaceConditions = conditions.filter(c => ['no_new_tasks_created', 'no_new_tasks_in_status', 'no_new_tasks_by_user_in_status', 'no_new_tasks_in_priority', 'no_new_tasks_by_user_in_priority'].includes(c.type));
+					const taskConditions = conditions.filter(c => !['no_new_tasks_created', 'no_new_tasks_in_status', 'no_new_tasks_by_user_in_status', 'no_new_tasks_in_priority', 'no_new_tasks_by_user_in_priority'].includes(c.type));
 
 					let spaceConditionsMet = true;
 
@@ -262,6 +262,12 @@ export default {
 							} else if (cond.type === 'no_new_tasks_by_user_in_status') {
 								const { results: userStatusLogs } = await env.DB.prepare(`SELECT user_id FROM daily_activity WHERE user_id = ? AND date = ? AND action = ? LIMIT 1`).bind(cond.config?.user_id, today, `status_${cond.config?.status}`).all();
 								if (userStatusLogs.length > 0) spaceConditionsMet = false;
+							} else if (cond.type === 'no_new_tasks_in_priority') {
+								const { results: priorityLogs } = await env.DB.prepare(`SELECT user_id FROM daily_activity WHERE date = ? AND action = ? LIMIT 1`).bind(today, `priority_${cond.config?.priority}`).all();
+								if (priorityLogs.length > 0) spaceConditionsMet = false;
+							} else if (cond.type === 'no_new_tasks_by_user_in_priority') {
+								const { results: userPriorityLogs } = await env.DB.prepare(`SELECT user_id FROM daily_activity WHERE user_id = ? AND date = ? AND action = ? LIMIT 1`).bind(cond.config?.user_id, today, `priority_${cond.config?.priority}`).all();
+								if (userPriorityLogs.length > 0) spaceConditionsMet = false;
 							}
 							if (!spaceConditionsMet) break;
 						}
@@ -313,6 +319,16 @@ export default {
 								if (task.assignee !== '' && task.assignee !== null) allMatches = false;
 							} else if (cond.type === 'status_equals') {
 								if (task.status !== cond.config?.status) allMatches = false;
+							} else if (cond.type === 'status_not_equals') {
+								if (task.status === cond.config?.status) allMatches = false;
+							} else if (cond.type === 'priority_equals') {
+								if (task.priority !== cond.config?.priority) allMatches = false;
+							} else if (cond.type === 'priority_not_equals') {
+								if (task.priority === cond.config?.priority) allMatches = false;
+							} else if (cond.type === 'due_date_equals') {
+								if (task.due_date !== cond.config?.dueDate) allMatches = false;
+							} else if (cond.type === 'assignee_equals') {
+								if (task.assignee !== cond.config?.assignee) allMatches = false;
 							}
 							if (!allMatches) break;
 						}
@@ -869,6 +885,10 @@ export default {
 								// Legacy specific done track (kept for compatibility with old automations)
 								await env.DB.prepare(`INSERT OR IGNORE INTO daily_activity (user_id, date, action) VALUES (?, ?, 'done')`).bind(assignee, todayStr).run();
 							}
+						}
+						if (priority) {
+							// Log priority updates for automations
+							await env.DB.prepare(`INSERT OR IGNORE INTO daily_activity (user_id, date, action) VALUES (?, ?, ?)`).bind(assignee, todayStr, `priority_${priority}`).run();
 						}
 					}
 

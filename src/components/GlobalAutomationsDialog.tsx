@@ -193,13 +193,41 @@ export function GlobalAutomationsDialog({
                           <SelectItem value="has_assignee">Has Assignee</SelectItem>
                           <SelectItem value="no_assignee">No Assignee</SelectItem>
                           <SelectItem value="status_equals">Status Equals...</SelectItem>
+                          <SelectItem value="status_not_equals">Status Not Equals...</SelectItem>
+                          <SelectItem value="priority_equals">Priority Equals...</SelectItem>
+                          <SelectItem value="priority_not_equals">Priority Not Equals...</SelectItem>
+                          <SelectItem value="due_date_equals">Due Date Equals...</SelectItem>
+                          <SelectItem value="assignee_equals">Assignee Equals...</SelectItem>
                           <SelectItem value="no_new_tasks_created">No New Tasks Created</SelectItem>
                           <SelectItem value="no_new_tasks_in_status">No New Tasks In Status...</SelectItem>
                           <SelectItem value="no_new_tasks_by_user_in_status">No New Tasks By User In Status...</SelectItem>
+                          <SelectItem value="no_new_tasks_in_priority">No New Tasks In Priority...</SelectItem>
+                          <SelectItem value="no_new_tasks_by_user_in_priority">No New Tasks By User In Priority...</SelectItem>
                         </SelectContent>
                      </Select>
-                     {(c.type === 'status_equals' || c.type === 'no_new_tasks_in_status') && (
+                     {(c.type === 'status_equals' || c.type === 'status_not_equals' || c.type === 'no_new_tasks_in_status') && (
                        <Input className="h-8 text-xs" placeholder="Status ID (e.g., done)" value={c.config?.status || ""} onChange={e => updateCondition(i, { config: { ...c.config, status: e.target.value }})} />
+                     )}
+                     {(c.type === 'priority_equals' || c.type === 'priority_not_equals' || c.type === 'no_new_tasks_in_priority') && (
+                       <Select value={c.config?.priority || "low"} onValueChange={v => updateCondition(i, { config: { ...c.config, priority: v } })}>
+                         <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Priority" /></SelectTrigger>
+                         <SelectContent>
+                           <SelectItem value="low">Low</SelectItem>
+                           <SelectItem value="medium">Medium</SelectItem>
+                           <SelectItem value="high">High</SelectItem>
+                         </SelectContent>
+                       </Select>
+                     )}
+                     {c.type === 'due_date_equals' && (
+                       <Input type="date" className="h-8 text-xs" value={c.config?.dueDate || ""} onChange={e => updateCondition(i, { config: { ...c.config, dueDate: e.target.value }})} />
+                     )}
+                     {c.type === 'assignee_equals' && (
+                       <Select value={c.config?.assignee || ""} onValueChange={v => updateCondition(i, { config: { ...c.config, assignee: v } })}>
+                         <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select Assignee" /></SelectTrigger>
+                         <SelectContent>
+                           {state.users.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                         </SelectContent>
+                       </Select>
                      )}
                      {c.type === 'no_new_tasks_by_user_in_status' && (
                        <div className="flex gap-2 w-full mt-2">
@@ -210,6 +238,24 @@ export function GlobalAutomationsDialog({
                            </SelectContent>
                          </Select>
                          <Input className="h-8 text-xs w-1/2" placeholder="Status ID" value={c.config?.status || ""} onChange={e => updateCondition(i, { config: { ...c.config, status: e.target.value }})} />
+                       </div>
+                     )}
+                     {c.type === 'no_new_tasks_by_user_in_priority' && (
+                       <div className="flex gap-2 w-full mt-2">
+                         <Select value={c.config?.user_id || ""} onValueChange={v => updateCondition(i, { config: { ...c.config, user_id: v } })}>
+                           <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select User" /></SelectTrigger>
+                           <SelectContent>
+                             {state.users.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                           </SelectContent>
+                         </Select>
+                         <Select value={c.config?.priority || "low"} onValueChange={v => updateCondition(i, { config: { ...c.config, priority: v } })}>
+                           <SelectTrigger className="h-8 text-xs w-1/2"><SelectValue placeholder="Priority" /></SelectTrigger>
+                           <SelectContent>
+                             <SelectItem value="low">Low</SelectItem>
+                             <SelectItem value="medium">Medium</SelectItem>
+                             <SelectItem value="high">High</SelectItem>
+                           </SelectContent>
+                         </Select>
                        </div>
                      )}
                   </div>

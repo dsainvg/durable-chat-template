@@ -200,7 +200,15 @@ export function GlobalAutomationsDialog({
                   <div className="flex-1 space-y-2 bg-background p-2 rounded-md border border-border">
                      {isLegacy ? (
                        <>
-                         <Select value={c.type} onValueChange={(v) => updateCondition(i, { type: v, config: {} })}>
+                         <Select value={c.type} onValueChange={(v) => {
+                           if (v === "task_field") {
+                             updateCondition(i, { type: v, config: { field: "status", operator: "equals", value: "" } });
+                           } else if (v === "space_activity") {
+                             updateCondition(i, { type: v, config: { event: "no_created", user: "any", value: "" } });
+                           } else {
+                             updateCondition(i, { type: v, config: {} });
+                           }
+                         }}>
                             <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="due_today">Due Today</SelectItem>

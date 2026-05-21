@@ -254,26 +254,26 @@ export default {
 					if (spaceConditions.length > 0) {
 						for (const cond of spaceConditions) {
 							if (cond.type === 'no_new_tasks_created') {
-								const { results: created } = await env.DB.prepare(`SELECT user_id FROM daily_activity WHERE date = ? AND action = 'created' LIMIT 1`).bind(today).all();
+								const { results: created } = await env.DB.prepare(`SELECT user_id FROM daily_activity WHERE date = ? AND action = ? LIMIT 1`).bind(today, `space_${spaceId}_created`).all();
 								if (created.length > 0) spaceConditionsMet = false;
 							} else if (cond.type === 'no_new_tasks_in_status') {
-								const { results: statusLogs } = await env.DB.prepare(`SELECT user_id FROM daily_activity WHERE date = ? AND action = ? LIMIT 1`).bind(today, `status_${cond.config?.status}`).all();
+								const { results: statusLogs } = await env.DB.prepare(`SELECT user_id FROM daily_activity WHERE date = ? AND action = ? LIMIT 1`).bind(today, `space_${spaceId}_status_${cond.config?.status}`).all();
 								if (statusLogs.length > 0) spaceConditionsMet = false;
 							} else if (cond.type === 'no_new_tasks_by_user_in_status') {
-								const { results: userStatusLogs } = await env.DB.prepare(`SELECT user_id FROM daily_activity WHERE user_id = ? AND date = ? AND action = ? LIMIT 1`).bind(cond.config?.user_id, today, `status_${cond.config?.status}`).all();
+								const { results: userStatusLogs } = await env.DB.prepare(`SELECT user_id FROM daily_activity WHERE user_id = ? AND date = ? AND action = ? LIMIT 1`).bind(cond.config?.user_id, today, `space_${spaceId}_status_${cond.config?.status}`).all();
 								if (userStatusLogs.length > 0) spaceConditionsMet = false;
 							} else if (cond.type === 'no_new_tasks_in_priority') {
-								const { results: priorityLogs } = await env.DB.prepare(`SELECT user_id FROM daily_activity WHERE date = ? AND action = ? LIMIT 1`).bind(today, `priority_${cond.config?.priority}`).all();
+								const { results: priorityLogs } = await env.DB.prepare(`SELECT user_id FROM daily_activity WHERE date = ? AND action = ? LIMIT 1`).bind(today, `space_${spaceId}_priority_${cond.config?.priority}`).all();
 								if (priorityLogs.length > 0) spaceConditionsMet = false;
 							} else if (cond.type === 'no_new_tasks_by_user_in_priority') {
-								const { results: userPriorityLogs } = await env.DB.prepare(`SELECT user_id FROM daily_activity WHERE user_id = ? AND date = ? AND action = ? LIMIT 1`).bind(cond.config?.user_id, today, `priority_${cond.config?.priority}`).all();
+								const { results: userPriorityLogs } = await env.DB.prepare(`SELECT user_id FROM daily_activity WHERE user_id = ? AND date = ? AND action = ? LIMIT 1`).bind(cond.config?.user_id, today, `space_${spaceId}_priority_${cond.config?.priority}`).all();
 								if (userPriorityLogs.length > 0) spaceConditionsMet = false;
 							} else if (cond.type === 'space_activity') {
 								const { event, user, value } = cond.config || {};
 								let actionTarget = "";
-								if (event === "no_created") actionTarget = "created";
-								else if (event === "no_status") actionTarget = `status_${value}`;
-								else if (event === "no_priority") actionTarget = `priority_${value}`;
+								if (event === "no_created") actionTarget = `space_${spaceId}_created`;
+								else if (event === "no_status") actionTarget = `space_${spaceId}_status_${value}`;
+								else if (event === "no_priority") actionTarget = `space_${spaceId}_priority_${value}`;
 
 								let q = "";
 								let bindArgs: any[] = [];
@@ -447,6 +447,9 @@ export default {
 						});
 					}
 				} else if (actionType === 'change_status' && config.new_status) {
+					if (taskId === "space-level") {
+						throw new Error("Cannot change_status on space-level execution");
+					}
 					await env.DB.prepare(`UPDATE tasks SET status = ? WHERE id = ? AND space_id = ?`).bind(config.new_status, taskId, spaceId).run();
 					// Broadcast update
 					const { results: taskData } = await env.DB.prepare(`SELECT * FROM tasks WHERE id = ? AND space_id = ?`).bind(taskId, spaceId).all();
@@ -461,6 +464,9 @@ export default {
 						}));
 					}
 				} else if (actionType === 'move_space' && config.new_space_id) {
+					if (taskId === "space-level") {
+						throw new Error("Cannot move_space on space-level execution");
+					}
 					// Fetch task
 					const { results: taskData } = await env.DB.prepare(`SELECT * FROM tasks WHERE id = ? AND space_id = ?`).bind(taskId, spaceId).all();
 					if (taskData.length > 0) {
@@ -484,6 +490,8 @@ export default {
 							body: JSON.stringify({ type: "task_updated", task: updatedTask })
 						}));
 					}
+				} else {
+					throw new Error(`Unsupported action_type: ${actionType}`);
 				}
 
 				if (isRecurring) {
@@ -917,21 +925,37 @@ export default {
 					// Log daily activity for Daily Check automation and space-level automations
 					if (assignee) {
 						const todayStr = new Date().toISOString().split('T')[0];
-						if (!body.id) {
-							// It's a new task
-							await env.DB.prepare(`INSERT OR IGNORE INTO daily_activity (user_id, date, action) VALUES (?, ?, 'created')`).bind(assignee, todayStr).run();
+
+						let isNewTask = !body.id;
+						let statusChanged = false;
+						let priorityChanged = false;
+
+						if (!isNewTask) {
+							const { results: existingTasks } = await env.DB.prepare(`SELECT status, priority FROM tasks WHERE id = ?`).bind(id).all();
+							if (existingTasks.length > 0) {
+								const existing = existingTasks[0] as any;
+								if (existing.status !== status) statusChanged = true;
+								if (existing.priority !== priority) priorityChanged = true;
+							} else {
+								isNewTask = true;
+							}
 						}
-						if (status) {
+
+						if (isNewTask) {
+							// It's a new task
+							await env.DB.prepare(`INSERT OR IGNORE INTO daily_activity (user_id, date, action) VALUES (?, ?, ?)`).bind(assignee, todayStr, `space_${space_id}_created`).run();
+						}
+						if (status && (isNewTask || statusChanged)) {
 							// Log specific status updates for automations (including 'done')
-							await env.DB.prepare(`INSERT OR IGNORE INTO daily_activity (user_id, date, action) VALUES (?, ?, ?)`).bind(assignee, todayStr, `status_${status}`).run();
+							await env.DB.prepare(`INSERT OR IGNORE INTO daily_activity (user_id, date, action) VALUES (?, ?, ?)`).bind(assignee, todayStr, `space_${space_id}_status_${status}`).run();
 							if (status === 'done') {
 								// Legacy specific done track (kept for compatibility with old automations)
 								await env.DB.prepare(`INSERT OR IGNORE INTO daily_activity (user_id, date, action) VALUES (?, ?, 'done')`).bind(assignee, todayStr).run();
 							}
 						}
-						if (priority) {
+						if (priority && (isNewTask || priorityChanged)) {
 							// Log priority updates for automations
-							await env.DB.prepare(`INSERT OR IGNORE INTO daily_activity (user_id, date, action) VALUES (?, ?, ?)`).bind(assignee, todayStr, `priority_${priority}`).run();
+							await env.DB.prepare(`INSERT OR IGNORE INTO daily_activity (user_id, date, action) VALUES (?, ?, ?)`).bind(assignee, todayStr, `space_${space_id}_priority_${priority}`).run();
 						}
 					}
 

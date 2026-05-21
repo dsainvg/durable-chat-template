@@ -143,7 +143,7 @@ export function LoginDialog({
                     key={u.id}
                     onClick={() => handleSelectUser(u)}
                     disabled={isLoading}
-                    className="flex flex-col items-center gap-3 p-4 rounded-xl hover:bg-accent transition-colors disabled:opacity-50"
+                    className="flex flex-col items-center gap-3 p-4 rounded-xl hover:bg-accent transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                     <div className="size-20 rounded-full bg-primary/10 text-primary ring-2 ring-primary/20 flex items-center justify-center text-2xl font-semibold shadow-sm">
                       {u.initials}

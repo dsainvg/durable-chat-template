@@ -133,6 +133,13 @@ export function GlobalAutomationsDialog({
     return { id: `custom_${id}`, name: field?.name || id };
   });
 
+  const availableStatuses = Array.from(new Map(
+    state.spaces
+      .filter(s => targetSpaces.length === 0 || targetSpaces.includes(s.id))
+      .flatMap(s => s.columns || [])
+      .map(col => [col.id, col])
+  ).values());
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
@@ -230,7 +237,14 @@ export function GlobalAutomationsDialog({
                             </SelectContent>
                          </Select>
                          {(c.type === 'status_equals' || c.type === 'status_not_equals' || c.type === 'no_new_tasks_in_status') && (
-                           <Input className="h-8 text-xs" placeholder="Status ID (e.g., done)" value={c.config?.status || ""} onChange={e => updateCondition(i, { config: { ...c.config, status: e.target.value }})} />
+                           <Select value={c.config?.status || ""} onValueChange={v => updateCondition(i, { config: { ...c.config, status: v } })}>
+                             <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select Status" /></SelectTrigger>
+                             <SelectContent>
+                               {availableStatuses.map(status => (
+                                 <SelectItem key={status.id} value={status.id}>{status.name}</SelectItem>
+                               ))}
+                             </SelectContent>
+                           </Select>
                          )}
                          {(c.type === 'priority_equals' || c.type === 'priority_not_equals' || c.type === 'no_new_tasks_in_priority') && (
                            <Select value={c.config?.priority || "low"} onValueChange={v => updateCondition(i, { config: { ...c.config, priority: v } })}>
@@ -261,7 +275,14 @@ export function GlobalAutomationsDialog({
                                  {state.users.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
                                </SelectContent>
                              </Select>
-                             <Input className="h-8 text-xs w-1/2" placeholder="Status ID" value={c.config?.status || ""} onChange={e => updateCondition(i, { config: { ...c.config, status: e.target.value }})} />
+                             <Select value={c.config?.status || ""} onValueChange={v => updateCondition(i, { config: { ...c.config, status: v } })}>
+                               <SelectTrigger className="h-8 text-xs w-1/2"><SelectValue placeholder="Select Status" /></SelectTrigger>
+                               <SelectContent>
+                                 {availableStatuses.map(status => (
+                                   <SelectItem key={status.id} value={status.id}>{status.name}</SelectItem>
+                                 ))}
+                               </SelectContent>
+                             </Select>
                            </div>
                          )}
                          {c.type === 'no_new_tasks_by_user_in_priority' && (
@@ -330,7 +351,16 @@ export function GlobalAutomationsDialog({
                              </Select>
                              {(!["is_empty", "not_empty", "is_today", "is_overdue"].includes(c.config?.operator || "equals")) && (
                                <div className="flex-1">
-                                 {c.config?.field === "status" && <Input className="h-8 text-xs w-full" placeholder="Status ID" value={c.config?.value || ""} onChange={e => updateCondition(i, { config: { ...c.config, value: e.target.value }})} />}
+                                 {c.config?.field === "status" && (
+                                   <Select value={c.config?.value || ""} onValueChange={v => updateCondition(i, { config: { ...c.config, value: v } })}>
+                                     <SelectTrigger className="h-8 text-xs w-full"><SelectValue placeholder="Select Status" /></SelectTrigger>
+                                     <SelectContent>
+                                       {availableStatuses.map(status => (
+                                         <SelectItem key={status.id} value={status.id}>{status.name}</SelectItem>
+                                       ))}
+                                     </SelectContent>
+                                   </Select>
+                                 )}
                                  {c.config?.field === "priority" && (
                                    <Select value={c.config?.value || ""} onValueChange={v => updateCondition(i, { config: { ...c.config, value: v } })}>
                                      <SelectTrigger className="h-8 text-xs w-full"><SelectValue placeholder="Priority" /></SelectTrigger>
@@ -388,7 +418,16 @@ export function GlobalAutomationsDialog({
                              </Select>
                              {["no_status", "no_priority"].includes(c.config?.event) && (
                                <div className="flex-1">
-                                 {c.config?.event === "no_status" && <Input className="h-8 text-xs w-full" placeholder="Status ID" value={c.config?.value || ""} onChange={e => updateCondition(i, { config: { ...c.config, value: e.target.value }})} />}
+                                 {c.config?.event === "no_status" && (
+                                   <Select value={c.config?.value || ""} onValueChange={v => updateCondition(i, { config: { ...c.config, value: v } })}>
+                                     <SelectTrigger className="h-8 text-xs w-full"><SelectValue placeholder="Select Status" /></SelectTrigger>
+                                     <SelectContent>
+                                       {availableStatuses.map(status => (
+                                         <SelectItem key={status.id} value={status.id}>{status.name}</SelectItem>
+                                       ))}
+                                     </SelectContent>
+                                   </Select>
+                                 )}
                                  {c.config?.event === "no_priority" && (
                                    <Select value={c.config?.value || "low"} onValueChange={v => updateCondition(i, { config: { ...c.config, value: v } })}>
                                      <SelectTrigger className="h-8 text-xs w-full"><SelectValue placeholder="Priority" /></SelectTrigger>
@@ -444,7 +483,14 @@ export function GlobalAutomationsDialog({
               {actionType === "change_status" && (
                 <div className="mt-2 space-y-1">
                   <Label className="text-xs">New Status ID</Label>
-                  <Input value={actionConfig.new_status || ""} onChange={(e) => setActionConfig({ ...actionConfig, new_status: e.target.value })} />
+                  <Select value={actionConfig.new_status || ""} onValueChange={(v) => setActionConfig({ ...actionConfig, new_status: v })}>
+                    <SelectTrigger><SelectValue placeholder="Select Status" /></SelectTrigger>
+                    <SelectContent>
+                      {availableStatuses.map(status => (
+                        <SelectItem key={status.id} value={status.id}>{status.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
               {actionType === "move_space" && (

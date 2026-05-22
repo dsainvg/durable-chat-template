@@ -35,14 +35,13 @@ This document describes the REST API endpoints available in the application. All
 - **GET /api/tasks/:id?space_id=<id>**: Retrieve all information for a specific task.
 - **POST /api/tasks**: Create or update a task.
   - Mandatory fields: `space_id`, `title`.
-  - Allowed optional fields: `id`, `description`, `status`, `assignee`, `dueDate`, `startDate`, `priority`, `custom`, `userEmail`.
-  - Rejects request with 400 Bad Request if validation fails or unknown fields are provided.
+  - Core optional fields: `id`, `description`, `status`, `assignee`, `dueDate`, `startDate`, `priority`, `custom`, `userEmail`.
+  - To support dynamic custom fields, the endpoint extracts core fields and does not strictly block unknown fields at the root. Custom fields can also be provided within the `custom` object, or managed dynamically.
+  - Rejects request with 400 Bad Request if `space_id` or `title` are missing.
 - **POST /api/tasks/bulk**: Create or update multiple tasks at once.
   - Body structure: `{ tasks: Array<Task>, space_id: string }`.
-  - Allowed body fields: `tasks`, `space_id`.
   - Each task must have a `title`.
-  - Allowed task fields: `id`, `title`, `description`, `status`, `assignee`, `dueDate`, `startDate`, `priority`, `custom`.
-  - Rejects request with 400 Bad Request if validation fails or unknown fields are provided.
+  - Rejects request with 400 Bad Request if `space_id` or `tasks` array are missing, or if any task is missing a `title`.
 - **DELETE /api/tasks/:id?space_id=<id>**: Delete a task.
 
 ## Automations

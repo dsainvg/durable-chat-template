@@ -246,7 +246,8 @@ async function evaluateConditions(
 	// Check task complex conditions (AND logic)
 	for (const cond of taskConditions) {
 		if (cond.type === 'due_today') {
-			if (task.due_date !== today) allMatches = false;
+			const isDueOrOverdue = task.due_date && (task.due_date === today || (task.due_date < today && task.status !== 'done'));
+			if (!isDueOrOverdue) allMatches = false;
 		} else if (cond.type === 'has_assignee') {
 			if (task.assignee === '' || task.assignee === null) allMatches = false;
 		} else if (cond.type === 'no_assignee') {
@@ -309,12 +310,18 @@ export default {
 		const yesterday = yesterdayDate.toISOString().split('T')[0];
 		const nowTime = now.getTime();
 
-		// Daily Check Automation - run only around midnight
+		// Format current local time to HH:MM in 30-minute intervals for scheduling checks
 		const currentHour = now.getHours();
-		if (currentHour === 0 && env.SMTP_USER && env.SMTP_PASS) {
+		const currentMinute = now.getMinutes();
+		const currentHourStr = String(currentHour).padStart(2, '0');
+		const currentMinuteStr = String(currentMinute >= 30 ? 30 : 0).padStart(2, '0');
+		const currentTimeStr = `${currentHourStr}:${currentMinuteStr}`;
+
+		// Daily Check Automation - run only around 9:00 AM
+		if (currentHour === 9 && currentMinute < 30 && env.SMTP_USER && env.SMTP_PASS) {
 			const { results: users } = await env.DB.prepare("SELECT * FROM users LIMIT 2").all();
 			for (const user of users) {
-				// At midnight, we evaluate the activity of the *previous* day (yesterday)
+				// At 9:00 AM morning, we evaluate the activity of the *previous* day (yesterday)
 				const { results: activities } = await env.DB.prepare("SELECT action FROM daily_activity WHERE user_id = ? AND date = ?").bind(user.id, yesterday).all();
 
 				const hasCreated = activities.some((a: any) => a.action === 'created');
@@ -347,7 +354,7 @@ export default {
 									<div style="background-color: #f8fafc; border-radius: 12px; padding: 24px; border: 1px solid #f1f5f9; margin-bottom: 24px; text-align: center;">
 										<span style="font-size: 48px; display: block; margin-bottom: 16px;">🎯</span>
 										<h3 style="margin-top: 0; margin-bottom: 12px; font-size: 18px; font-weight: 700; color: #1e293b;">Daily Action Call</h3>
-										<p style="margin: 0; font-size: 14px; color: #475569; line-height: 1.6;">You haven't created and completed at least one task today. Maintaining a daily streak is key to achieving your long-term goals!</p>
+										<p style="margin: 0; font-size: 14px; color: #475569; line-height: 1.6;">You didn't create and complete at least one task yesterday. Maintaining a daily streak is key to achieving your long-term goals!</p>
 									</div>
 									
 									<div style="margin: 32px 0 24px; text-align: center;">
@@ -363,8 +370,8 @@ export default {
 						await transport.sendMail({
 							from: env.SMTP_USER,
 							to: user.email as string,
-							subject: "SyncDuo Daily Reminder",
-							text: "Hello! You haven't created and completed at least one task today. Let's keep the momentum going!",
+							subject: "SyncDuo Daily Streak Reminder",
+							text: "Hello! You didn't create and complete at least one task yesterday. Let's keep the momentum going!",
 							html: emailHtml
 						});
 						// Mark that we sent the email for yesterday so we don't spam
@@ -376,11 +383,166 @@ export default {
 			}
 		}
 
+		// Space Daily Digest - Evaluated for each space that has emailReminders = 1 and emailDigestTime matching currentTimeStr
+		if (env.SMTP_USER && env.SMTP_PASS) {
+			const { results: activeDigestSpaces } = await env.DB.prepare("SELECT * FROM spaces WHERE emailReminders = 1").all();
+			for (const space of activeDigestSpaces as any[]) {
+				// Normalize digest time, defaulting to 09:00 if not specified or invalid
+				let digestTime = space.emailDigestTime || '09:00';
+				const parts = digestTime.split(':');
+				const hours = parseInt(parts[0], 10);
+				const minutes = parseInt(parts[1], 10);
+				if (isNaN(hours) || isNaN(minutes) || hours < 7 || hours > 23 || (hours === 23 && minutes > 30)) {
+					digestTime = '09:00';
+				}
+
+				if (digestTime === currentTimeStr) {
+					// Query tasks due today or overdue (past dates "old dates stuff")
+					const { results: dueTasks } = await env.DB.prepare(`
+						SELECT * FROM tasks 
+						WHERE space_id = ? 
+						  AND due_date IS NOT NULL 
+						  AND due_date != '' 
+						  AND (due_date = ? OR (due_date < ? AND status != 'done'))
+					`).bind(space.id, today, today).all();
+
+					if (dueTasks.length > 0) {
+						const { results: users } = await env.DB.prepare("SELECT * FROM users LIMIT 2").all();
+						for (const user of users as any[]) {
+							if (!user.email) continue;
+
+							const digestAction = `space_${space.id}_digest_sent`;
+							const { results: sentLogs } = await env.DB.prepare("SELECT user_id FROM daily_activity WHERE user_id = ? AND date = ? AND action = ?").bind(user.id, today, digestAction).all();
+							if (sentLogs.length > 0) continue; // Already sent today
+
+							try {
+								const transport = nodemailer.createTransport({
+									host: env.SMTP_HOST || "smtp.gmail.com",
+									port: Number(env.SMTP_PORT) || 465,
+									secure: true,
+									auth: { user: env.SMTP_USER, pass: env.SMTP_PASS }
+								});
+
+								const spaceName = space.name as string;
+								let dueTodayHtml = "";
+								let overdueHtml = "";
+
+								for (const t of dueTasks as any[]) {
+									const tTitle = t.title as string;
+									const tDesc = t.description as string || "No description provided.";
+									const tStatus = t.status as string;
+									const tPriority = t.priority as string || "None";
+									const tAssignee = t.assignee as string || "Unassigned";
+
+									let tStatusBadge = '';
+									if (tStatus === 'todo') {
+										tStatusBadge = `<span style="background-color: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; text-transform: uppercase;">To Do</span>`;
+									} else if (tStatus === 'doing') {
+										tStatusBadge = `<span style="background-color: #e0e7ff; color: #4338ca; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; text-transform: uppercase;">Doing</span>`;
+									} else if (tStatus === 'done') {
+										tStatusBadge = `<span style="background-color: #dcfce7; color: #15803d; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; text-transform: uppercase;">Done</span>`;
+									}
+
+									let tPriorityBadge = '';
+									if (tPriority === 'high') {
+										tPriorityBadge = `<span style="background-color: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; text-transform: uppercase;">🔥 High</span>`;
+									} else if (tPriority === 'medium') {
+										tPriorityBadge = `<span style="background-color: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; text-transform: uppercase;">⚡ Med</span>`;
+									} else if (tPriority === 'low') {
+										tPriorityBadge = `<span style="background-color: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; text-transform: uppercase;">🌱 Low</span>`;
+									}
+
+									const itemHtml = `
+									<div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.01);">
+										<div style="font-weight: 700; color: #1e293b; font-size: 15px; margin-bottom: 4px;">${tTitle}</div>
+										<div style="font-size: 13px; color: #64748b; margin-bottom: 8px;">${tDesc}</div>
+										<div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+											${tStatusBadge} ${tPriorityBadge}
+											<span style="font-size: 12px; color: #64748b; margin-left: auto;">👤 ${tAssignee}</span>
+										</div>
+									</div>`;
+
+									if (t.due_date === today) {
+										dueTodayHtml += itemHtml;
+									} else {
+										overdueHtml += itemHtml;
+									}
+								}
+
+								const emailHtml = `
+								<div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; padding: 40px 20px; text-align: center;">
+									<div style="max-width: 580px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px -10px rgba(2, 132, 199, 0.1), 0 1px 3px rgba(0, 0, 0, 0.05); text-align: left; border: 1px solid #e2e8f0;">
+										<div style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); padding: 35px 40px; color: #ffffff; position: relative; overflow: hidden;">
+											<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+												<span style="font-size: 24px; vertical-align: middle;">📅</span>
+												<span style="font-weight: 800; font-size: 11px; text-transform: uppercase; letter-spacing: 0.15em; color: #bae6fd;">SyncDuo Space Digest</span>
+											</div>
+											<h1 style="margin: 0; font-size: 24px; font-weight: 800; color: #ffffff; line-height: 1.25;">Space: ${spaceName}</h1>
+										</div>
+										<div style="padding: 40px; color: #334155; line-height: 1.6;">
+											<p style="margin-top: 0; font-size: 16px; color: #475569; font-weight: 500;">Hello ${user.name || 'there'},</p>
+											<p style="font-size: 15px; color: #64748b; margin-bottom: 24px;">Here is the daily task reminder summary for your space <strong>${spaceName}</strong>.</p>
+											
+											${dueTodayHtml ? `
+											<h3 style="color: #0284c7; margin-top: 24px; margin-bottom: 12px; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">⏰ Due Today</h3>
+											${dueTodayHtml}
+											` : ''}
+
+											${overdueHtml ? `
+											<h3 style="color: #b91c1c; margin-top: 24px; margin-bottom: 12px; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">⚠️ Overdue Tasks</h3>
+											${overdueHtml}
+											` : ''}
+
+											<div style="margin: 32px 0 24px; text-align: center;">
+												<a href="https://syncduo.app" style="display: inline-block; background-color: #0284c7; color: #ffffff; font-weight: 600; font-size: 14px; text-decoration: none; padding: 12px 32px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(2, 132, 199, 0.2);">Open Space</a>
+											</div>
+											
+											<hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 32px 0 24px;" />
+											<p style="font-size: 12px; color: #94a3b8; text-align: center; margin-bottom: 0;">This is an automated notification from SyncDuo. Please do not reply directly to this email.</p>
+										</div>
+									</div>
+								</div>`;
+
+								await transport.sendMail({
+									from: env.SMTP_USER,
+									to: user.email,
+									subject: `Daily Tasks Reminder: Space "${spaceName}"`,
+									text: `Space Digest for "${spaceName}". Please open SyncDuo to view outstanding tasks.`,
+									html: emailHtml
+								});
+
+								// Record sending digest
+								await env.DB.prepare("INSERT INTO daily_activity (user_id, date, action) VALUES (?, ?, ?)")
+									.bind(user.id, today, digestAction).run();
+							} catch (err) {
+								console.error(`Failed to send space digest to ${user.email}:`, err);
+							}
+						}
+					}
+				}
+			}
+		}
+
 		// 1. Evaluate automations to create events
 		const { results: automations } = await env.DB.prepare("SELECT * FROM automation_rules").all();
 		const { results: allSpaces } = await env.DB.prepare("SELECT id FROM spaces").all();
 
 		for (const auto of automations) {
+			// Backwards-compatible: parse run_time filter from automation rule's config JSON
+			let runTime: string | null = null;
+			try {
+				const configObj = JSON.parse(auto.config as string);
+				if (configObj && configObj.run_time) {
+					runTime = configObj.run_time;
+				}
+			} catch (e) {
+				// Ignore JSON parse errors
+			}
+
+			// If specific execution time is set, skip evaluating on any other time ticks
+			if (runTime && runTime !== currentTimeStr) {
+				continue;
+			}
 			const targetSpaces = JSON.parse(auto.target_spaces as string) as string[];
 			const conditions = JSON.parse(auto.conditions as string) as { type: string; config?: any }[];
 			const actionType = auto.action_type as string;
@@ -523,9 +685,11 @@ export default {
 					if (userRecord.length > 0 && userRecord[0].email) {
 						const email = userRecord[0].email as string;
 
-						// Fetch space name
-						const { results: spaceRecord } = await env.DB.prepare("SELECT name FROM spaces WHERE id = ?").bind(spaceId).all();
+						// Fetch space name and custom fields definitions
+						const { results: spaceRecord } = await env.DB.prepare("SELECT name, customFields FROM spaces WHERE id = ?").bind(spaceId).all();
 						const spaceName = spaceRecord.length > 0 ? spaceRecord[0].name as string : spaceId;
+						const spaceFieldsJson = spaceRecord.length > 0 ? spaceRecord[0].customFields as string : "[]";
+						const spaceCustomFields = spaceFieldsJson ? JSON.parse(spaceFieldsJson) : [];
 
 						// Construct realistic contextually tailored email
 						let emailSubject = `SyncDuo Automation Alert`;
@@ -579,10 +743,12 @@ export default {
 											<table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background-color: #f8fafc;">`;
 											for (const [key, value] of Object.entries(customObj)) {
 												const valStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
-												customFieldsText += `- ${key}: ${valStr}\n`;
+												const fieldDef = spaceCustomFields.find((f: any) => f.id === key);
+												const displayName = fieldDef ? fieldDef.name : key;
+												customFieldsText += `- ${displayName}: ${valStr}\n`;
 												customFieldsHtml += `
 												<tr>
-													<td style="padding: 10px 16px; color: #64748b; width: 150px; border-bottom: 1px solid #e2e8f0; font-weight: 500; background-color: #f8fafc;">${key}</td>
+													<td style="padding: 10px 16px; color: #64748b; width: 150px; border-bottom: 1px solid #e2e8f0; font-weight: 500; background-color: #f8fafc;">${displayName}</td>
 													<td style="padding: 10px 16px; color: #1e293b; font-weight: 600; border-bottom: 1px solid #e2e8f0; background-color: #ffffff;">${valStr}</td>
 												</tr>`;
 											}
@@ -1171,7 +1337,16 @@ export default {
 				const columns = JSON.stringify(body.columns || ["description", "priority", "assignee", "startDate", "dueDate"]);
 				const customFields = JSON.stringify(body.customFields || []);
 				const emailReminders = body.emailReminders ? 1 : 0;
-				const emailDigestTime = body.emailDigestTime || '09:00';
+				const rawEmailDigestTime = body.emailDigestTime || '09:00';
+				let emailDigestTime = '09:00';
+				if (rawEmailDigestTime) {
+					const parts = rawEmailDigestTime.split(':');
+					const hours = parseInt(parts[0], 10);
+					const minutes = parseInt(parts[1], 10);
+					if (!isNaN(hours) && !isNaN(minutes) && hours >= 7 && (hours < 23 || (hours === 23 && minutes <= 30))) {
+						emailDigestTime = rawEmailDigestTime;
+					}
+				}
 				const views = body.views || [
 					{ id: "list", name: "List", type: "list", settings: {} },
 					{ id: "kanban", name: "Kanban", type: "kanban", settings: {} },
@@ -1311,7 +1486,16 @@ export default {
 					const columns = JSON.stringify(body.columns);
 					const customFields = JSON.stringify(body.customFields);
 					const emailReminders = body.emailReminders ? 1 : 0;
-					const emailDigestTime = body.emailDigestTime;
+					const rawEmailDigestTime = body.emailDigestTime || '09:00';
+					let emailDigestTime = '09:00';
+					if (rawEmailDigestTime) {
+						const parts = rawEmailDigestTime.split(':');
+						const hours = parseInt(parts[0], 10);
+						const minutes = parseInt(parts[1], 10);
+						if (!isNaN(hours) && !isNaN(minutes) && hours >= 7 && (hours < 23 || (hours === 23 && minutes <= 30))) {
+							emailDigestTime = rawEmailDigestTime;
+						}
+					}
 
 					await env.DB.prepare("UPDATE spaces SET name = ?, emoji = ?, columns = ?, customFields = ?, emailReminders = ?, emailDigestTime = ? WHERE id = ?")
 						.bind(name, emoji, columns, customFields, emailReminders, emailDigestTime, id).run();
@@ -1466,8 +1650,10 @@ export default {
 
 					// Send email reminder if configured
 					if (userEmail && env.SMTP_USER && env.SMTP_PASS) {
-						const { results } = await env.DB.prepare("SELECT emailReminders FROM spaces WHERE id = ?").bind(space_id).all();
+						const { results } = await env.DB.prepare("SELECT emailReminders, customFields FROM spaces WHERE id = ?").bind(space_id).all();
 						if (results.length > 0 && results[0].emailReminders) {
+							const spaceFieldsJson = results[0].customFields as string;
+							const spaceCustomFields = spaceFieldsJson ? JSON.parse(spaceFieldsJson) : [];
 							ctx.waitUntil((async () => {
 								try {
 									const transport = nodemailer.createTransport({
@@ -1502,17 +1688,22 @@ export default {
 									}
 
 									let customFieldsHtml = "";
+									let customFieldsText = "";
 									if (custom) {
 										try {
 											const customObj = typeof custom === 'string' ? JSON.parse(custom) : custom;
 											if (Object.keys(customObj).length > 0) {
+												customFieldsText = "\nCustom Fields:\n";
 												customFieldsHtml = `<h4 style="color: #4f46e5; margin-bottom: 8px; margin-top: 24px; font-size: 16px; font-weight: 700;">Custom Fields</h4>
 												<table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background-color: #f8fafc;">`;
 												for (const [key, value] of Object.entries(customObj)) {
 													const valStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
+													const fieldDef = spaceCustomFields.find((f: any) => f.id === key);
+													const displayName = fieldDef ? fieldDef.name : key;
+													customFieldsText += `- ${displayName}: ${valStr}\n`;
 													customFieldsHtml += `
 													<tr>
-														<td style="padding: 10px 16px; color: #64748b; width: 150px; border-bottom: 1px solid #e2e8f0; font-weight: 500; background-color: #f8fafc;">${key}</td>
+														<td style="padding: 10px 16px; color: #64748b; width: 150px; border-bottom: 1px solid #e2e8f0; font-weight: 500; background-color: #f8fafc;">${displayName}</td>
 														<td style="padding: 10px 16px; color: #1e293b; font-weight: 600; border-bottom: 1px solid #e2e8f0; background-color: #ffffff;">${valStr}</td>
 													</tr>`;
 												}
@@ -1577,7 +1768,7 @@ export default {
 										from: env.SMTP_USER,
 										to: userEmail,
 										subject: `Task Reminder: ${title}`,
-										text: `You have an updated task in space ${space_id}.\n\nTitle: ${title}\nDescription: ${description}\nStatus: ${status}\nPriority: ${priority}\nDue Date: ${due_date || 'None'}\n\nCustom settings:\n${custom}`,
+										text: `You have an updated task in space ${space_id}.\n\nTitle: ${title}\nDescription: ${description}\nStatus: ${status}\nPriority: ${priority}\nDue Date: ${due_date || 'None'}\n${customFieldsText}`,
 										html: emailHtml,
 									});
 								} catch (emailErr) {

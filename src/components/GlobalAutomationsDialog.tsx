@@ -169,6 +169,11 @@ export function GlobalAutomationsDialog({
                       <div>
                         <span className="font-semibold text-primary">THEN </span>
                         {a.action_type.replace('_', ' ')}
+                        {a.config?.run_time && (
+                          <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[10px] font-semibold">
+                            ⏰ {a.config.run_time}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <Button variant="ghost" size="icon" aria-label="Delete automation" className="text-destructive shrink-0" onClick={() => handleDeleteAutomation(a.id)}>
@@ -503,6 +508,33 @@ export function GlobalAutomationsDialog({
                   </Select>
                 </div>
               )}
+            </div>
+
+            <div className="space-y-2 pt-2 border-t border-border">
+              <Label className="text-xs font-semibold">4. Execution Time (Optional)</Label>
+              <div className="space-y-1">
+                <Select value={actionConfig.run_time || "immediate"} onValueChange={(v) => setActionConfig({ ...actionConfig, run_time: v === "immediate" ? undefined : v })}>
+                  <SelectTrigger className="bg-card border-border">
+                    <SelectValue placeholder="Run immediately (on every event check)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="immediate">⚡ Run immediately (on every event check)</SelectItem>
+                    {Array.from({ length: 34 }).map((_, idx) => {
+                      const hour = Math.floor(7 + idx / 2);
+                      const min = idx % 2 === 0 ? "00" : "30";
+                      const timeStr = `${String(hour).padStart(2, "0")}:${min}`;
+                      return (
+                        <SelectItem key={timeStr} value={timeStr}>
+                          ⏰ Run at {timeStr}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <span>ℹ️</span> Evaluates this rule only at a specific 30-minute tick between 07:00 and 23:30.
+                </p>
+              </div>
             </div>
 
             <div className="flex items-center gap-2 pt-2">

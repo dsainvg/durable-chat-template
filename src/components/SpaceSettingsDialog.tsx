@@ -130,6 +130,16 @@ export function SpaceSettingsDialog({
   const handleSave = async () => {
     if (!localSpace) return;
 
+    if (localSpace.emailReminders && localSpace.emailDigestTime) {
+      const parts = localSpace.emailDigestTime.split(':');
+      const hours = parseInt(parts[0], 10);
+      const minutes = parseInt(parts[1], 10);
+      if (isNaN(hours) || isNaN(minutes) || hours < 7 || hours > 23 || (hours === 23 && minutes > 30)) {
+        toast.error("Digest delivery time must be between 07:00 and 23:30");
+        return;
+      }
+    }
+
     update((s) => ({ ...s, spaces: s.spaces.map((sp) => (sp.id === spaceId ? localSpace : sp)) }));
 
     const token = localStorage.getItem("syncduo_token");
@@ -559,26 +569,31 @@ export function SpaceSettingsDialog({
             </div>
           </Section>
 
-          <Section title="Email reminders" subtitle="Reminders for due tasks are mailed (no backend needed in this prototype).">
-            <div className="flex items-center justify-between bg-card border border-border rounded-lg p-3">
+          <Section title="Email reminders" subtitle="Configure daily summaries of due and overdue tasks sent straight to your inbox.">
+            <div className="flex items-center justify-between bg-card border border-border rounded-lg p-3.5 mb-4">
               <div>
-                <p className="text-sm">Daily digest</p>
-                <p className="text-xs text-muted-foreground">Sent to {me?.email}</p>
+                <p className="text-sm font-medium">Daily digest email</p>
+                <p className="text-xs text-muted-foreground">Dispatched daily to {me?.email}</p>
               </div>
               <Switch
                 checked={localSpace.emailReminders}
                 onCheckedChange={(c) => patchLocal((sp) => ({ ...sp, emailReminders: c }))}
               />
             </div>
-            <div>
-              <Label className="text-xs">Digest time</Label>
-              <Input
-                type="time"
-                value={localSpace.emailDigestTime}
-                onChange={(e) => patchLocal((sp) => ({ ...sp, emailDigestTime: e.target.value }))}
-                className="w-40"
-              />
-            </div>
+            {localSpace.emailReminders && (
+              <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
+                <Label className="text-xs font-semibold text-foreground/80">Digest Delivery Time</Label>
+                <Input
+                  type="time"
+                  value={localSpace.emailDigestTime || "09:00"}
+                  onChange={(e) => patchLocal((sp) => ({ ...sp, emailDigestTime: e.target.value }))}
+                  className="w-44 bg-card border-border text-sm"
+                />
+                <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-1">
+                  <span>⏰</span> Only times between <strong>07:00</strong> and <strong>23:30</strong> are supported.
+                </p>
+              </div>
+            )}
           </Section>
 
           <Section title="Automations" subtitle="Global Automations have moved.">

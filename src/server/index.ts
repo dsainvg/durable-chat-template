@@ -787,6 +787,65 @@ export default {
 				return new Response(JSON.stringify(parsed), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 			}
 
+						const spaceGetMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)$/);
+			if (spaceGetMatch && request.method === 'GET') {
+				const id = spaceGetMatch[1];
+				try {
+					const { results: spaceResults } = await env.DB.prepare("SELECT * FROM spaces WHERE id = ?").bind(id).all();
+					if (spaceResults.length === 0) {
+						return new Response(JSON.stringify({ error: "Space not found" }), { status: 404, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+					}
+					const space = spaceResults[0];
+
+					const { results: viewsResults } = await env.DB.prepare("SELECT * FROM space_views WHERE space_id = ?").bind(id).all();
+					let views = viewsResults.map((view: any) => {
+						let parsedSettings = {};
+						try {
+							parsedSettings = JSON.parse(view.settings);
+						} catch (e) {}
+						return {
+							id: view.id,
+							name: view.name,
+							type: view.type,
+							settings: parsedSettings
+						};
+					});
+
+					if (views.length === 0) {
+						views = [
+							{ id: "list", name: "List", type: "list", settings: {} },
+							{ id: "kanban", name: "Kanban", type: "kanban", settings: {} },
+							{ id: "calendar", name: "Calendar", type: "calendar", settings: {} },
+							{ id: "gantt", name: "Gantt", type: "gantt", settings: {} },
+							{ id: "table", name: "Table", type: "table", settings: {} }
+						];
+					}
+
+					const { results: tasksResults } = await env.DB.prepare("SELECT * FROM tasks WHERE space_id = ?").bind(id).all();
+					const tasks = tasksResults.map((r: any) => ({
+						...r,
+						dueDate: r.due_date,
+						startDate: r.start_date,
+						custom: r.custom ? JSON.parse(r.custom) : {}
+					}));
+
+					const parsedSpace = {
+						...space,
+						views,
+						columns: space.columns && typeof space.columns === 'string' ? JSON.parse(space.columns) : [{ id: "todo", name: "To Do" }, { id: "doing", name: "Doing" }, { id: "done", name: "Done" }],
+						customFields: space.customFields && typeof space.customFields === 'string' ? JSON.parse(space.customFields) : [],
+						emailReminders: Boolean(space.emailReminders),
+						tasks,
+						channel: []
+					};
+
+					return new Response(JSON.stringify(parsedSpace), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				} catch (e) {
+					console.error("GET space error:", e);
+					return new Response(JSON.stringify({ error: "Bad request" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				}
+			}
+
 			if (url.pathname === '/api/spaces' && request.method === 'POST') {
 				const body = await request.json() as any;
 				const id = body.id || Math.random().toString(36).substring(2, 10);
@@ -924,6 +983,34 @@ export default {
 			}
 
 
+						const taskGetMatch = url.pathname.match(/^\/api\/tasks\/([^/]+)$/);
+			if (taskGetMatch && request.method === 'GET') {
+				const id = taskGetMatch[1];
+				try {
+					const urlParams = new URLSearchParams(url.search);
+					const space_id = urlParams.get('space_id');
+					if (!space_id) {
+						return new Response(JSON.stringify({ error: "space_id required" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+					}
+
+					const { results } = await env.DB.prepare("SELECT * FROM tasks WHERE id = ? AND space_id = ?").bind(id, space_id).all();
+					if (results.length === 0) {
+						return new Response(JSON.stringify({ error: "Task not found" }), { status: 404, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+					}
+
+					const r: any = results[0];
+					const task = {
+						...r,
+						dueDate: r.due_date,
+						startDate: r.start_date,
+						custom: r.custom ? JSON.parse(r.custom) : {}
+					};
+					return new Response(JSON.stringify(task), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				} catch (e) {
+					return new Response(JSON.stringify({ error: "Bad request" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				}
+			}
+
 			if (url.pathname === '/api/tasks' && request.method === 'GET') {
 				const spaceId = url.searchParams.get('space_id');
 				if (!spaceId) {
@@ -947,15 +1034,20 @@ export default {
 			if (url.pathname === '/api/tasks' && request.method === 'POST') {
 				try {
 					const body = await request.json() as any;
+
+					if (!body.space_id || !body.title) {
+						return new Response(JSON.stringify({ error: "space_id and title are mandatory" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+					}
+
 					const id = body.id || Math.random().toString(36).substring(2, 10);
-					const title = body.title || 'New Task';
+					const title = body.title;
 					const description = body.description || '';
 					const status = body.status || 'todo';
 					const assignee = body.assignee || '';
 					const due_date = body.dueDate || null;
 					const start_date = body.startDate || null;
 					const priority = body.priority || 'medium';
-					const custom = JSON.stringify(body.custom || {});
+					const customObj = body.custom || {}; const standardFields = ['id', 'title', 'description', 'status', 'assignee', 'dueDate', 'startDate', 'priority', 'custom', 'space_id', 'userEmail']; for (const key of Object.keys(body)) { if (!standardFields.includes(key)) { customObj[key] = body[key]; } } const custom = JSON.stringify(customObj);
 					const space_id = body.space_id;
 					const userEmail = body.userEmail;
 
@@ -1052,13 +1144,28 @@ export default {
 
 			if (url.pathname === '/api/tasks/bulk' && request.method === 'POST') {
 				try {
-					const { tasks, space_id } = await request.json() as { tasks: any[], space_id: string };
+					const body = await request.json() as any;
+					const { tasks, space_id } = body;
+
 					if (!space_id || !Array.isArray(tasks)) {
 						return new Response(JSON.stringify({ error: "space_id and tasks array required" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 					}
 
+					for (const t of tasks) {
+						if (!t.title) {
+							return new Response(JSON.stringify({ error: "Task title is mandatory" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+						}
+						t.id = t.id || Math.random().toString(36).substring(2, 10);
+						t.description = t.description || '';
+						t.status = t.status || 'todo';
+						t.assignee = t.assignee || '';
+						t.dueDate = t.dueDate || null;
+						t.startDate = t.startDate || null;
+						t.priority = t.priority || 'medium';
+					}
+
 					const statements = tasks.map(t => {
-						const custom = JSON.stringify(t.custom || {});
+						const tCustomObj = t.custom || {}; const standardFields = ['id', 'title', 'description', 'status', 'assignee', 'dueDate', 'startDate', 'priority', 'custom', 'space_id', 'userEmail']; for (const key of Object.keys(t)) { if (!standardFields.includes(key)) { tCustomObj[key] = t[key]; } } const custom = JSON.stringify(tCustomObj);
 					return env.DB.prepare(`INSERT OR REPLACE INTO tasks (id, space_id, title, description, status, assignee, due_date, start_date, priority, custom) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`)
 						.bind(t.id, space_id, t.title, t.description, t.status, t.assignee, t.dueDate, t.startDate, t.priority, custom);
 					});
@@ -1109,6 +1216,25 @@ export default {
 			}
 
 			// Global Automations endpoints
+						const spaceAutomationsMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/automations$/);
+			if (spaceAutomationsMatch && request.method === 'GET') {
+				const spaceId = spaceAutomationsMatch[1];
+				try {
+					const { results } = await env.DB.prepare("SELECT * FROM automation_rules").all();
+					const automations = results.map((r: any) => ({
+						id: r.id,
+						targetSpaces: JSON.parse(r.target_spaces),
+						conditions: JSON.parse(r.conditions),
+						action_type: r.action_type,
+						config: JSON.parse(r.config),
+						isRecurring: r.is_recurring === 1
+					})).filter(auto => auto.targetSpaces.includes(spaceId));
+					return new Response(JSON.stringify(automations), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				} catch (e) {
+					return new Response(JSON.stringify({ error: "Failed to fetch automations" }), { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+				}
+			}
+
 			if (url.pathname === '/api/automations' && request.method === 'GET') {
 				try {
 					const { results } = await env.DB.prepare("SELECT * FROM automation_rules").all();

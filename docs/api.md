@@ -18,7 +18,7 @@ Create a new space.
 **Request Body:**
 - **Mandatory Fields:** `name`
 - **Optional Fields:** `id`, `color`, `emoji`, `columns`, `customFields`, `emailReminders`, `emailDigestTime`, `views`
-*Any unknown fields will be rejected with a 400 Bad Request.*
+*Any unknown fields (including undefined custom fields) will be rejected with a 400 Bad Request. Custom fields defined in the space can be passed as top-level fields.*
 
 **Response:**
 - `200 OK`: `{ "id": "..." }`
@@ -35,7 +35,7 @@ Update an existing space.
 **Request Body:**
 - **Mandatory Fields:** `name`
 - **Optional Fields:** `color`, `emoji`, `columns`, `customFields`, `emailReminders`, `emailDigestTime`, `views`
-*Any unknown fields will be rejected with a 400 Bad Request.*
+*Any unknown fields (including undefined custom fields) will be rejected with a 400 Bad Request. Custom fields defined in the space can be passed as top-level fields.*
 
 **Response:**
 - `200 OK`: `{ "ok": true }`
@@ -86,7 +86,7 @@ Retrieve all tasks for a specific space.
 - `space_id` (required): The ID of the space.
 
 **Response:**
-- `200 OK`: Array of Task objects.
+- `200 OK`: Array of Task objects. Custom fields are returned as top-level properties.
 
 ---
 
@@ -96,7 +96,7 @@ Create or completely replace a task (if an ID is provided).
 **Request Body:**
 - **Mandatory Fields:** `space_id`, `title`
 - **Optional Fields:** `id`, `description`, `status`, `assignee`, `dueDate`, `startDate`, `priority`, `custom`, `userEmail`
-*Any unknown fields will be rejected with a 400 Bad Request.*
+*Any unknown fields (including undefined custom fields) will be rejected with a 400 Bad Request. Custom fields defined in the space can be passed as top-level fields.*
 
 **Response:**
 - `200 OK`: The created/updated Task object.
@@ -126,7 +126,7 @@ Retrieve all information for a specific task.
 - `space_id` (required): The ID of the space containing the task.
 
 **Response:**
-- `200 OK`: The full Task object.
+- `200 OK`: The full Task object. Custom fields are returned as top-level properties.
 - `404 Not Found`: Task or space not found.
 
 ---
@@ -140,7 +140,7 @@ Update an existing task in full.
 **Request Body:**
 - **Mandatory Fields:** `space_id`, `title`, `status`
 - **Optional Fields:** `description`, `assignee`, `dueDate`, `startDate`, `priority`, `custom`, `userEmail`
-*Any unknown fields will be rejected with a 400 Bad Request.*
+*Any unknown fields (including undefined custom fields) will be rejected with a 400 Bad Request. Custom fields defined in the space can be passed as top-level fields.*
 
 **Response:**
 - `200 OK`: The updated Task object.

@@ -1001,12 +1001,16 @@ export default {
 				}
 				try {
 				const { results } = await env.DB.prepare(`SELECT * FROM tasks WHERE space_id = ?`).bind(spaceId).all();
-					const parsedResults = results.map((r: any) => ({
-						...r,
-						dueDate: r.due_date,
-						startDate: r.start_date,
-						custom: r.custom ? JSON.parse(r.custom) : {}
-					}));
+					const parsedResults = results.map((r: any) => {
+						const parsedCustom = r.custom ? JSON.parse(r.custom) : {};
+						return {
+							...r,
+							dueDate: r.due_date,
+							startDate: r.start_date,
+							custom: parsedCustom,
+							...parsedCustom
+						};
+					});
 					return new Response(JSON.stringify(parsedResults), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 				} catch (e) {
 					// Table might not exist yet
@@ -1023,8 +1027,22 @@ export default {
 						return new Response(JSON.stringify({ error: "space_id and title are required fields" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 					}
 
+					const space_id = body.space_id;
+
+					// Fetch space custom fields
+					let spaceCustomFields: any[] = [];
+					try {
+						const { results } = await env.DB.prepare("SELECT customFields FROM spaces WHERE id = ?").bind(space_id).all();
+						if (results.length > 0 && results[0].customFields) {
+							spaceCustomFields = JSON.parse(results[0].customFields as string);
+						}
+					} catch (e) {
+						console.error("Failed to fetch space custom fields", e);
+					}
+					const customFieldIds = spaceCustomFields.map(f => f.id);
+
 					// Reject unknown fields
-					const allowedFields = ['id', 'space_id', 'title', 'description', 'status', 'assignee', 'dueDate', 'startDate', 'priority', 'custom', 'userEmail'];
+					const allowedFields = ['id', 'space_id', 'title', 'description', 'status', 'assignee', 'dueDate', 'startDate', 'priority', 'custom', 'userEmail', ...customFieldIds];
 					const bodyKeys = Object.keys(body);
 					const unknownFields = bodyKeys.filter(key => !allowedFields.includes(key));
 
@@ -1040,8 +1058,15 @@ export default {
 					const due_date = body.dueDate || null;
 					const start_date = body.startDate || null;
 					const priority = body.priority || 'medium';
-					const custom = JSON.stringify(body.custom || {});
-					const space_id = body.space_id;
+
+					// Merge top-level custom fields into custom object
+					const customObj = body.custom || {};
+					for (const fieldId of customFieldIds) {
+						if (body[fieldId] !== undefined) {
+							customObj[fieldId] = body[fieldId];
+						}
+					}
+					const custom = JSON.stringify(customObj);
 					const userEmail = body.userEmail;
 
 					if (!space_id) {
@@ -1089,8 +1114,10 @@ export default {
 						}
 					}
 
+					const parsedCustom = JSON.parse(custom);
 					const task = {
-						id, title, description, status, assignee, dueDate: due_date, startDate: start_date, priority, custom: JSON.parse(custom), space_id
+						id, title, description, status, assignee, dueDate: due_date, startDate: start_date, priority, custom: parsedCustom, space_id,
+						...parsedCustom
 					};
 
 					// Send email reminder if configured
@@ -1184,11 +1211,13 @@ export default {
 						return new Response(JSON.stringify({ error: "Task not found" }), { status: 404, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 					}
 					const task = results[0] as any;
+					const parsedCustom = task.custom ? JSON.parse(task.custom) : {};
 					const parsedTask = {
 						...task,
 						dueDate: task.due_date,
 						startDate: task.start_date,
-						custom: task.custom ? JSON.parse(task.custom) : {}
+						custom: parsedCustom,
+						...parsedCustom
 					};
 					return new Response(JSON.stringify(parsedTask), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 				} catch (e) {
@@ -1207,8 +1236,22 @@ export default {
 						return new Response(JSON.stringify({ error: "space_id, title, and status are required fields" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 					}
 
+					const space_id = body.space_id;
+
+					// Fetch space custom fields
+					let spaceCustomFields: any[] = [];
+					try {
+						const { results } = await env.DB.prepare("SELECT customFields FROM spaces WHERE id = ?").bind(space_id).all();
+						if (results.length > 0 && results[0].customFields) {
+							spaceCustomFields = JSON.parse(results[0].customFields as string);
+						}
+					} catch (e) {
+						console.error("Failed to fetch space custom fields", e);
+					}
+					const customFieldIds = spaceCustomFields.map(f => f.id);
+
 					// Reject unknown fields
-					const allowedFields = ['id', 'space_id', 'title', 'description', 'status', 'assignee', 'dueDate', 'startDate', 'priority', 'custom', 'userEmail'];
+					const allowedFields = ['id', 'space_id', 'title', 'description', 'status', 'assignee', 'dueDate', 'startDate', 'priority', 'custom', 'userEmail', ...customFieldIds];
 					const bodyKeys = Object.keys(body);
 					const unknownFields = bodyKeys.filter(key => !allowedFields.includes(key));
 
@@ -1216,7 +1259,6 @@ export default {
 						return new Response(JSON.stringify({ error: "Unknown fields present in request", unknownFields }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 					}
 
-					const space_id = body.space_id;
 					const title = body.title;
 					const description = body.description || '';
 					const status = body.status;
@@ -1224,7 +1266,15 @@ export default {
 					const due_date = body.dueDate || null;
 					const start_date = body.startDate || null;
 					const priority = body.priority || 'medium';
-					const custom = JSON.stringify(body.custom || {});
+
+					// Merge top-level custom fields into custom object
+					const customObj = body.custom || {};
+					for (const fieldId of customFieldIds) {
+						if (body[fieldId] !== undefined) {
+							customObj[fieldId] = body[fieldId];
+						}
+					}
+					const custom = JSON.stringify(customObj);
 					const userEmail = body.userEmail;
 
 					const { results: existingTasks } = await env.DB.prepare("SELECT status, priority FROM tasks WHERE id = ? AND space_id = ?").bind(id, space_id).all();
@@ -1253,8 +1303,10 @@ export default {
 						}
 					}
 
+					const parsedCustom = JSON.parse(custom);
 					const task = {
-						id, title, description, status, assignee, dueDate: due_date, startDate: start_date, priority, custom: JSON.parse(custom), space_id
+						id, title, description, status, assignee, dueDate: due_date, startDate: start_date, priority, custom: parsedCustom, space_id,
+						...parsedCustom
 					};
 
 					// Send email reminder if configured

@@ -214,7 +214,7 @@ export function AppSidebar() {
           <div>
             <div className="px-2 mb-2 flex items-center justify-between">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Spaces</p>
-              <button onClick={() => setIsSpaceDialogOpen(true)} aria-label="Add space" className="text-muted-foreground hover:text-foreground">
+              <button onClick={() => setIsSpaceDialogOpen(true)} aria-label="Add space" className="text-muted-foreground hover:text-foreground rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
                 <Plus className="size-3.5" />
               </button>
             </div>
@@ -265,14 +265,14 @@ export function AppSidebar() {
         <SidebarFooter className="p-3 border-t border-border space-y-1">
           <button
             onClick={() => setIsAutomationsOpen(true)}
-            className="w-full flex items-center gap-2 px-2 py-2 text-sm rounded-md transition-colors text-muted-foreground hover:text-foreground hover:bg-accent/50"
+            className="w-full flex items-center gap-2 px-2 py-2 text-sm rounded-md transition-colors text-muted-foreground hover:text-foreground hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <Settings className="size-4" />
             <span>Automations</span>
           </button>
           <Link
             to="/settings"
-            className={`w-full flex items-center gap-2 px-2 py-2 text-sm rounded-md transition-colors ${
+            className={`w-full flex items-center gap-2 px-2 py-2 text-sm rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
               path === "/settings" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
             }`}
           >
@@ -281,7 +281,7 @@ export function AppSidebar() {
           </Link>
           <button
             onClick={() => setIsApiKeysOpen(true)}
-            className="w-full flex items-center gap-2 px-2 py-2 text-sm rounded-md transition-colors text-muted-foreground hover:text-foreground hover:bg-accent/50"
+            className="w-full flex items-center gap-2 px-2 py-2 text-sm rounded-md transition-colors text-muted-foreground hover:text-foreground hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <Key className="size-4" />
             <span>API Keys</span>

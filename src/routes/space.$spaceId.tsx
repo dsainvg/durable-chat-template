@@ -312,7 +312,7 @@ function SpacePage() {
               <button
                 key={v.id}
                 onClick={() => setViewId(v.id)}
-                className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                className={`px-3 py-1 text-xs font-medium rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                   activeViewId === v.id
                     ? "text-primary bg-primary/10 ring-1 ring-primary/20"
                     : "text-muted-foreground hover:text-foreground"

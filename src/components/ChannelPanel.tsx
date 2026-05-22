@@ -42,7 +42,7 @@ export function ChannelPanel({ space, onClose, onSend }: { space: Space; onClose
           <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Channel</p>
           <p className="text-xs font-medium">#{space.name.toLowerCase().replace(/\s+/g, "-")}</p>
         </div>
-        <button onClick={onClose} aria-label="Close channel" className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-accent">
+        <button onClick={onClose} aria-label="Close channel" className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
           <X className="size-4" />
         </button>
       </div>

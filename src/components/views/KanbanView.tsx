@@ -38,8 +38,12 @@ export function KanbanView({
         { id: "none", name: "None" }
       ];
     }
-    return space.columns;
-  }, [space.columns, state.users, groupBy]);
+    return [
+      { id: "todo", name: "To Do" },
+      { id: "doing", name: "Doing" },
+      { id: "done", name: "Done" }
+    ];
+  }, [state.users, groupBy]);
 
   const tasksByColumn = useMemo(() => {
     const map: Record<string, Task[]> = {};
@@ -81,12 +85,19 @@ export function KanbanView({
                   onDragStart={() => setDragId(t.id)}
                   onClick={() => onOpen(t)}
                   className={`bg-card p-3 rounded-lg ring-1 ring-border space-y-3 cursor-grab active:cursor-grabbing hover:ring-primary/30 transition-all ${
-                    t.priority === "high" ? "border-l-2 border-l-destructive" : t.priority === "medium" ? "border-l-2 border-l-primary" : ""
+                    space.columns.includes("priority")
+                      ? (t.priority === "high" ? "border-l-2 border-l-destructive" : t.priority === "medium" ? "border-l-2 border-l-primary" : "")
+                      : ""
                   }`}
                 >
-                  <p className="text-sm leading-snug">{t.title}</p>
+                  <div>
+                    <p className="text-sm leading-snug font-medium">{t.title}</p>
+                    {space.columns.includes("description") && t.description && (
+                      <p className="text-[11px] text-muted-foreground line-clamp-2 mt-1 leading-normal">{t.description}</p>
+                    )}
+                  </div>
                   {visibleCustomFields.length > 0 && (
-                    <div className="space-y-1">
+                    <div className="space-y-1 pt-1.5 border-t border-border/50">
                       {visibleCustomFields.map(f => (
                         <div key={f.id} className="text-[10px] text-muted-foreground truncate flex justify-between items-center">
                           <span className="font-semibold">{f.name}:</span> <span className="truncate ml-2">{t.custom?.[f.id] || "-"}</span>
@@ -94,13 +105,17 @@ export function KanbanView({
                       ))}
                     </div>
                   )}
-                  <div className="flex items-center justify-between">
-                    {!hiddenFields["dueDate"] && <span className="text-[10px] text-muted-foreground">
-                      {dateFormatter.format(new Date(t.dueDate))}
-                    </span>}
-                    {!hiddenFields["assignee"] && <div className="size-5 rounded-full bg-muted ring-1 ring-border grid place-items-center text-[9px]">
-                      {userMap[t.assignee]?.initials ?? "?"}
-                    </div>}
+                  <div className="flex items-center justify-between pt-1">
+                    {!hiddenFields["dueDate"] && space.columns.includes("dueDate") && t.dueDate ? (
+                      <span className="text-[10px] text-muted-foreground bg-muted/65 px-1.5 py-0.5 rounded">
+                        {dateFormatter.format(new Date(t.dueDate))}
+                      </span>
+                    ) : <span />}
+                    {!hiddenFields["assignee"] && space.columns.includes("assignee") && t.assignee && (
+                      <div className="size-5 rounded-full bg-muted ring-1 ring-border grid place-items-center text-[9px]" title={userMap[t.assignee]?.name}>
+                        {userMap[t.assignee]?.initials ?? "?"}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

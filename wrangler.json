@@ -28,8 +28,8 @@
 	"d1_databases": [
 		{
 			"binding": "DB",
-			"database_name": "db0",
-			"database_id": "4d0da6f1-b2a1-4837-a2f5-2b0bfd422c1a"
+			"database_name": "syncdb",
+			"database_id": "21cfc448-a4f1-4971-a0ac-a8b0615d45c9"
 		}
 	],
 	"observability": {

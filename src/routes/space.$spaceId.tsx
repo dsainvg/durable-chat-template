@@ -288,7 +288,7 @@ function SpacePage() {
     id: uid(),
     title: "",
     description: "",
-    status: space.columns[0]?.id ?? "todo",
+    status: "todo",
     assignee: state.currentUserId,
     dueDate: new Date(Date.now() + 86400_000 * 3).toISOString(),
     startDate: new Date().toISOString(),
@@ -336,7 +336,11 @@ function SpacePage() {
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>Status</DropdownMenuLabel>
               <DropdownMenuCheckboxItem checked={filterStatus === "all"} onCheckedChange={() => setViewSetting("filterStatus", "all")}>All</DropdownMenuCheckboxItem>
-              {space?.columns.map(c => (
+              {[
+                { id: "todo", name: "To Do" },
+                { id: "doing", name: "Doing" },
+                { id: "done", name: "Done" }
+              ].map(c => (
                 <DropdownMenuCheckboxItem key={c.id} checked={filterStatus === c.id} onCheckedChange={() => setViewSetting("filterStatus", c.id)}>{c.name}</DropdownMenuCheckboxItem>
               ))}
               <DropdownMenuSeparator />
@@ -382,9 +386,9 @@ function SpacePage() {
               <DropdownMenuLabel>Visible Columns</DropdownMenuLabel>
               {[
                 { id: "status", label: "Status" },
-                { id: "assignee", label: "Assignee" },
-                { id: "priority", label: "Priority" },
-                { id: "dueDate", label: "Due Date" },
+                ...(space.columns.includes("assignee") ? [{ id: "assignee", label: "Assignee" }] : []),
+                ...(space.columns.includes("priority") ? [{ id: "priority", label: "Priority" }] : []),
+                ...(space.columns.includes("dueDate") ? [{ id: "dueDate", label: "Due Date" }] : []),
                 ...(space?.customFields || []).map(f => ({ id: f.id, label: f.name }))
               ].map(f => {
                 const isHidden = activeView?.settings?.hiddenFields?.[f.id] === true;

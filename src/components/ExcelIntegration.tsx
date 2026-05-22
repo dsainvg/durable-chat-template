@@ -43,12 +43,17 @@ const STANDARD_FIELDS = [
 
 export function exportToExcel(tasks: Task[], space: Space, users: User[]) {
   const userMap = Object.fromEntries(users.map((u) => [u.id, u.name]));
+  const statusLabels: Record<string, string> = {
+    todo: "To Do",
+    doing: "Doing",
+    done: "Done"
+  };
 
   const data = tasks.map((t) => {
     const row: Record<string, any> = {
       Title: t.title,
       Description: t.description,
-      Status: space.columns.find((c) => c.id === t.status)?.name || t.status,
+      Status: statusLabels[t.status] || t.status,
       Assignee: userMap[t.assignee] || t.assignee,
       "Due Date": t.dueDate,
       Priority: t.priority,
@@ -147,7 +152,7 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
           id: uid(),
           title: "",
           description: "",
-          status: space.columns[0]?.id || "todo",
+          status: "todo",
           assignee: "",
           dueDate: "",
           startDate: new Date().toISOString(),
@@ -165,8 +170,13 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
           else if (mapTo === "description") task.description = String(val);
           else if (mapTo === "status") {
             const mappedVal = optionMappings[h]?.[String(val)];
-            const col = space.columns.find(c => c.id === mappedVal || c.name === mappedVal || c.name.toLowerCase() === String(val).toLowerCase());
-            task.status = col ? col.id : space.columns[0]?.id || "todo";
+            const hardcodedStatuses = [
+              { id: "todo", name: "To Do" },
+              { id: "doing", name: "Doing" },
+              { id: "done", name: "Done" }
+            ];
+            const col = hardcodedStatuses.find(c => c.id === mappedVal || c.name === mappedVal || c.name.toLowerCase() === String(val).toLowerCase());
+            task.status = col ? col.id : "todo";
           }
           else if (mapTo === "assignee") {
             const mappedVal = optionMappings[h]?.[String(val)];
@@ -250,7 +260,12 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
           if (c.field === "title") task.title = String(val);
           else if (c.field === "description") task.description = String(val);
           else if (c.field === "status") {
-            const col = space.columns.find(col => col.name.toLowerCase() === String(val).toLowerCase());
+            const hardcodedStatuses = [
+              { id: "todo", name: "To Do" },
+              { id: "doing", name: "Doing" },
+              { id: "done", name: "Done" }
+            ];
+            const col = hardcodedStatuses.find(col => col.name.toLowerCase() === String(val).toLowerCase() || col.id === String(val).toLowerCase());
             if (col) task.status = col.id;
           }
           else if (c.field === "assignee") {
@@ -315,7 +330,12 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
           values.forEach(val => {
             if (!newOptionMappings[h][val]) {
                if (mapTo === "status") {
-                 const col = space.columns.find(c => c.name.toLowerCase() === val.toLowerCase());
+                 const hardcodedStatuses = [
+                   { id: "todo", name: "To Do" },
+                   { id: "doing", name: "Doing" },
+                   { id: "done", name: "Done" }
+                 ];
+                 const col = hardcodedStatuses.find(c => c.name.toLowerCase() === val.toLowerCase() || c.id === val.toLowerCase());
                  if (col) newOptionMappings[h][val] = col.id;
                } else if (mapTo === "priority") {
                  if (["high", "medium", "low"].includes(val.toLowerCase())) newOptionMappings[h][val] = val.toLowerCase();
@@ -494,7 +514,11 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
                                 >
                                   <SelectTrigger className="w-full"><SelectValue placeholder="Select Status" /></SelectTrigger>
                                   <SelectContent>
-                                    {space.columns.map(col => (
+                                    {[
+                                      { id: "todo", name: "To Do" },
+                                      { id: "doing", name: "Doing" },
+                                      { id: "done", name: "Done" }
+                                    ].map(col => (
                                       <SelectItem key={col.id} value={col.id}>{col.name}</SelectItem>
                                     ))}
                                   </SelectContent>
@@ -605,7 +629,11 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
                   {Object.entries(uniqueValues).map(([header, values]) => {
                     const mapTo = mapping[header];
                     let options: { id: string; name: string }[] = [];
-                    if (mapTo === "status") options = space.columns;
+                    if (mapTo === "status") options = [
+                      { id: "todo", name: "To Do" },
+                      { id: "doing", name: "Doing" },
+                      { id: "done", name: "Done" }
+                    ];
                     else if (mapTo === "priority") options = [{ id: "high", name: "High" }, { id: "medium", name: "Medium" }, { id: "low", name: "Low" }];
                     else if (mapTo === "assignee") options = users.map(u => ({ id: u.id, name: u.name }));
                     else {

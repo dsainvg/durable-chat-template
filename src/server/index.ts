@@ -134,7 +134,7 @@ async function initDb(db: D1Database) {
 	if (dbInitialized) return;
 
 	await db.prepare("CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, initials TEXT NOT NULL, hash TEXT NOT NULL, active INTEGER DEFAULT 0, last_seen INTEGER DEFAULT 0)").run();
-	await db.prepare("CREATE TABLE IF NOT EXISTS spaces (id TEXT PRIMARY KEY, name TEXT NOT NULL, color TEXT, emoji TEXT, columns TEXT, customFields TEXT, emailReminders INTEGER, emailDigestTime TEXT)").run();
+	await db.prepare("CREATE TABLE IF NOT EXISTS spaces (id TEXT PRIMARY KEY, name TEXT NOT NULL, emoji TEXT, columns TEXT, customFields TEXT, emailReminders INTEGER, emailDigestTime TEXT)").run();
 	await db.prepare("CREATE TABLE IF NOT EXISTS space_views (id TEXT NOT NULL, space_id TEXT NOT NULL, name TEXT NOT NULL, type TEXT NOT NULL, settings TEXT NOT NULL, PRIMARY KEY (id, space_id))").run();
 	await db.prepare("CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)").run();
 	await db.prepare("CREATE TABLE IF NOT EXISTS api_keys (key TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at INTEGER NOT NULL)").run();
@@ -176,6 +176,128 @@ async function initDb(db: D1Database) {
 	dbInitialized = true;
 }
 
+async function evaluateConditions(
+	db: D1Database,
+	auto: any,
+	spaceId: string,
+	task: any | null,
+	today: string
+): Promise<boolean> {
+	const conditions = JSON.parse(auto.conditions as string) as { type: string; config?: any }[];
+
+	// Separate space-level conditions and task-level conditions
+	const spaceConditions = conditions.filter(c => ['no_new_tasks_created', 'no_new_tasks_in_status', 'no_new_tasks_by_user_in_status', 'no_new_tasks_in_priority', 'no_new_tasks_by_user_in_priority', 'space_activity'].includes(c.type));
+	const taskConditions = conditions.filter(c => !['no_new_tasks_created', 'no_new_tasks_in_status', 'no_new_tasks_by_user_in_status', 'no_new_tasks_in_priority', 'no_new_tasks_by_user_in_priority', 'space_activity'].includes(c.type));
+
+	let spaceConditionsMet = true;
+
+	if (spaceConditions.length > 0) {
+		for (const cond of spaceConditions) {
+			if (cond.type === 'no_new_tasks_created') {
+				const { results: created } = await db.prepare(`SELECT user_id FROM daily_activity WHERE date = ? AND action = ? LIMIT 1`).bind(today, `space_${spaceId}_created`).all();
+				if (created.length > 0) spaceConditionsMet = false;
+			} else if (cond.type === 'no_new_tasks_in_status') {
+				const { results: statusLogs } = await db.prepare(`SELECT user_id FROM daily_activity WHERE date = ? AND action = ? LIMIT 1`).bind(today, `space_${spaceId}_status_${cond.config?.status}`).all();
+				if (statusLogs.length > 0) spaceConditionsMet = false;
+			} else if (cond.type === 'no_new_tasks_by_user_in_status') {
+				const { results: userStatusLogs } = await db.prepare(`SELECT user_id FROM daily_activity WHERE user_id = ? AND date = ? AND action = ? LIMIT 1`).bind(cond.config?.user_id, today, `space_${spaceId}_status_${cond.config?.status}`).all();
+				if (userStatusLogs.length > 0) spaceConditionsMet = false;
+			} else if (cond.type === 'no_new_tasks_in_priority') {
+				const { results: priorityLogs } = await db.prepare(`SELECT user_id FROM daily_activity WHERE date = ? AND action = ? LIMIT 1`).bind(today, `space_${spaceId}_priority_${cond.config?.priority}`).all();
+				if (priorityLogs.length > 0) spaceConditionsMet = false;
+			} else if (cond.type === 'no_new_tasks_by_user_in_priority') {
+				const { results: userPriorityLogs } = await db.prepare(`SELECT user_id FROM daily_activity WHERE user_id = ? AND date = ? AND action = ? LIMIT 1`).bind(cond.config?.user_id, today, `space_${spaceId}_priority_${cond.config?.priority}`).all();
+				if (userPriorityLogs.length > 0) spaceConditionsMet = false;
+			} else if (cond.type === 'space_activity') {
+				const { event, user, value } = cond.config || {};
+				let actionTarget = "";
+				if (event === "no_created") actionTarget = `space_${spaceId}_created`;
+				else if (event === "no_status") actionTarget = `space_${spaceId}_status_${value}`;
+				else if (event === "no_priority") actionTarget = `space_${spaceId}_priority_${value}`;
+
+				let q = "";
+				let bindArgs: any[] = [];
+				if (user === "any") {
+					q = `SELECT user_id FROM daily_activity WHERE date = ? AND action = ? LIMIT 1`;
+					bindArgs = [today, actionTarget];
+				} else {
+					q = `SELECT user_id FROM daily_activity WHERE user_id = ? AND date = ? AND action = ? LIMIT 1`;
+					bindArgs = [user, today, actionTarget];
+				}
+				const { results: activityLogs } = await db.prepare(q).bind(...bindArgs).all();
+				if (activityLogs.length > 0) spaceConditionsMet = false;
+			}
+			if (!spaceConditionsMet) break;
+		}
+	}
+
+	if (!spaceConditionsMet) return false;
+
+	// If there are space-level conditions and NO task-level conditions, space validation is enough
+	if (spaceConditions.length > 0 && taskConditions.length === 0) {
+		return spaceConditionsMet;
+	}
+
+	// Task-level conditions require a valid task to evaluate
+	if (!task) return false;
+
+	let allMatches = true;
+
+	// Check task complex conditions (AND logic)
+	for (const cond of taskConditions) {
+		if (cond.type === 'due_today') {
+			if (task.due_date !== today) allMatches = false;
+		} else if (cond.type === 'has_assignee') {
+			if (task.assignee === '' || task.assignee === null) allMatches = false;
+		} else if (cond.type === 'no_assignee') {
+			if (task.assignee !== '' && task.assignee !== null) allMatches = false;
+		} else if (cond.type === 'status_equals') {
+			if (task.status !== cond.config?.status) allMatches = false;
+		} else if (cond.type === 'status_not_equals') {
+			if (task.status === cond.config?.status) allMatches = false;
+		} else if (cond.type === 'priority_equals') {
+			if (task.priority !== cond.config?.priority) allMatches = false;
+		} else if (cond.type === 'priority_not_equals') {
+			if (task.priority === cond.config?.priority) allMatches = false;
+		} else if (cond.type === 'due_date_equals') {
+			if (task.due_date !== cond.config?.dueDate) allMatches = false;
+		} else if (cond.type === 'assignee_equals') {
+			if (task.assignee !== cond.config?.assignee) allMatches = false;
+		} else if (cond.type === 'task_field') {
+			const { field, operator, value } = cond.config || {};
+			let taskVal: any = "";
+			if (field === "status") taskVal = task.status;
+			else if (field === "priority") taskVal = task.priority;
+			else if (field === "assignee") taskVal = task.assignee;
+			else if (field === "due_date") taskVal = task.due_date;
+			else if (field?.startsWith("custom_")) {
+				const customKey = field.replace("custom_", "");
+				try {
+					const customObj = task.custom ? JSON.parse(task.custom as string) : {};
+					taskVal = customObj[customKey] || "";
+				} catch {
+					taskVal = "";
+				}
+			}
+
+			if (operator === "equals" && taskVal !== value) allMatches = false;
+			else if (operator === "not_equals" && taskVal === value) allMatches = false;
+			else if (operator === "is_empty" && (taskVal !== "" && taskVal !== null && taskVal !== undefined)) allMatches = false;
+			else if (operator === "not_empty" && (taskVal === "" || taskVal === null || taskVal === undefined)) allMatches = false;
+			else if (operator === "is_today" && field === "due_date" && taskVal !== today) allMatches = false;
+			else if (operator === "is_overdue" && field === "due_date") {
+				if (!taskVal || taskVal >= today) allMatches = false;
+			}
+		}
+		if (!allMatches) break;
+	}
+
+	// If no conditions are set, don't trigger on every task by default
+	if (conditions.length === 0) allMatches = false;
+
+	return allMatches;
+}
+
 export default {
 	async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext) {
 		await initDb(env.DB);
@@ -208,11 +330,42 @@ export default {
 							secure: true,
 							auth: { user: env.SMTP_USER, pass: env.SMTP_PASS }
 						});
+						const emailHtml = `
+						<div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; padding: 40px 20px; text-align: center;">
+							<div style="max-width: 580px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px -10px rgba(79, 70, 229, 0.1), 0 1px 3px rgba(0, 0, 0, 0.05); text-align: left; border: 1px solid #e2e8f0;">
+								<div style="background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%); padding: 35px 40px; color: #ffffff; position: relative; overflow: hidden;">
+									<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+										<span style="font-size: 24px; vertical-align: middle;">🎯</span>
+										<span style="font-weight: 800; font-size: 11px; text-transform: uppercase; letter-spacing: 0.15em; color: #c7d2fe;">SyncDuo Streak Daily</span>
+									</div>
+									<h1 style="margin: 0; font-size: 24px; font-weight: 800; color: #ffffff; line-height: 1.25;">Keep the Momentum Going</h1>
+								</div>
+								<div style="padding: 40px; color: #334155; line-height: 1.6;">
+									<p style="margin-top: 0; font-size: 16px; color: #475569; font-weight: 500;">Hello ${user.name || 'there'},</p>
+									<p style="font-size: 15px; color: #64748b; margin-bottom: 24px;">Here is your daily check-in report from SyncDuo.</p>
+									
+									<div style="background-color: #f8fafc; border-radius: 12px; padding: 24px; border: 1px solid #f1f5f9; margin-bottom: 24px; text-align: center;">
+										<span style="font-size: 48px; display: block; margin-bottom: 16px;">🎯</span>
+										<h3 style="margin-top: 0; margin-bottom: 12px; font-size: 18px; font-weight: 700; color: #1e293b;">Daily Action Call</h3>
+										<p style="margin: 0; font-size: 14px; color: #475569; line-height: 1.6;">You haven't created and completed at least one task today. Maintaining a daily streak is key to achieving your long-term goals!</p>
+									</div>
+									
+									<div style="margin: 32px 0 24px; text-align: center;">
+										<a href="https://syncduo.app" style="display: inline-block; background-color: #4f46e5; color: #ffffff; font-weight: 600; font-size: 14px; text-decoration: none; padding: 12px 32px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);">Open SyncDuo</a>
+									</div>
+									
+									<hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 32px 0 24px;" />
+									<p style="font-size: 12px; color: #94a3b8; text-align: center; margin-bottom: 0;">This is an automated notification from SyncDuo. Please do not reply directly to this email.</p>
+								</div>
+							</div>
+						</div>`;
+
 						await transport.sendMail({
 							from: env.SMTP_USER,
 							to: user.email as string,
 							subject: "SyncDuo Daily Reminder",
-							text: "Hello! You haven't created and completed at least one task today. Let's keep the momentum going!"
+							text: "Hello! You haven't created and completed at least one task today. Let's keep the momentum going!",
+							html: emailHtml
 						});
 						// Mark that we sent the email for yesterday so we don't spam
 						await env.DB.prepare("INSERT INTO daily_activity (user_id, date, action) VALUES (?, ?, 'email_sent')").bind(user.id, yesterday).run();
@@ -239,58 +392,13 @@ export default {
 
 			for (const spaceId of spacesToQuery) {
 				try {
-					// Separate space-level conditions and task-level conditions
 					const spaceConditions = conditions.filter(c => ['no_new_tasks_created', 'no_new_tasks_in_status', 'no_new_tasks_by_user_in_status', 'no_new_tasks_in_priority', 'no_new_tasks_by_user_in_priority', 'space_activity'].includes(c.type));
 					const taskConditions = conditions.filter(c => !['no_new_tasks_created', 'no_new_tasks_in_status', 'no_new_tasks_by_user_in_status', 'no_new_tasks_in_priority', 'no_new_tasks_by_user_in_priority', 'space_activity'].includes(c.type));
 
-					let spaceConditionsMet = true;
-
-					if (spaceConditions.length > 0) {
-						for (const cond of spaceConditions) {
-							if (cond.type === 'no_new_tasks_created') {
-								const { results: created } = await env.DB.prepare(`SELECT user_id FROM daily_activity WHERE date = ? AND action = ? LIMIT 1`).bind(today, `space_${spaceId}_created`).all();
-								if (created.length > 0) spaceConditionsMet = false;
-							} else if (cond.type === 'no_new_tasks_in_status') {
-								const { results: statusLogs } = await env.DB.prepare(`SELECT user_id FROM daily_activity WHERE date = ? AND action = ? LIMIT 1`).bind(today, `space_${spaceId}_status_${cond.config?.status}`).all();
-								if (statusLogs.length > 0) spaceConditionsMet = false;
-							} else if (cond.type === 'no_new_tasks_by_user_in_status') {
-								const { results: userStatusLogs } = await env.DB.prepare(`SELECT user_id FROM daily_activity WHERE user_id = ? AND date = ? AND action = ? LIMIT 1`).bind(cond.config?.user_id, today, `space_${spaceId}_status_${cond.config?.status}`).all();
-								if (userStatusLogs.length > 0) spaceConditionsMet = false;
-							} else if (cond.type === 'no_new_tasks_in_priority') {
-								const { results: priorityLogs } = await env.DB.prepare(`SELECT user_id FROM daily_activity WHERE date = ? AND action = ? LIMIT 1`).bind(today, `space_${spaceId}_priority_${cond.config?.priority}`).all();
-								if (priorityLogs.length > 0) spaceConditionsMet = false;
-							} else if (cond.type === 'no_new_tasks_by_user_in_priority') {
-								const { results: userPriorityLogs } = await env.DB.prepare(`SELECT user_id FROM daily_activity WHERE user_id = ? AND date = ? AND action = ? LIMIT 1`).bind(cond.config?.user_id, today, `space_${spaceId}_priority_${cond.config?.priority}`).all();
-								if (userPriorityLogs.length > 0) spaceConditionsMet = false;
-							} else if (cond.type === 'space_activity') {
-								const { event, user, value } = cond.config || {};
-								let actionTarget = "";
-								if (event === "no_created") actionTarget = `space_${spaceId}_created`;
-								else if (event === "no_status") actionTarget = `space_${spaceId}_status_${value}`;
-								else if (event === "no_priority") actionTarget = `space_${spaceId}_priority_${value}`;
-
-								let q = "";
-								let bindArgs: any[] = [];
-								if (user === "any") {
-									q = `SELECT user_id FROM daily_activity WHERE date = ? AND action = ? LIMIT 1`;
-									bindArgs = [today, actionTarget];
-								} else {
-									q = `SELECT user_id FROM daily_activity WHERE user_id = ? AND date = ? AND action = ? LIMIT 1`;
-									bindArgs = [user, today, actionTarget];
-								}
-								const { results: activityLogs } = await env.DB.prepare(q).bind(...bindArgs).all();
-								if (activityLogs.length > 0) spaceConditionsMet = false;
-							}
-							if (!spaceConditionsMet) break;
-						}
-					}
-
-					// If space conditions were defined but failed, skip to next space
-					if (spaceConditions.length > 0 && !spaceConditionsMet) continue;
-
 					// If there are space-level conditions and NO task-level conditions, we execute once per space
 					if (spaceConditions.length > 0 && taskConditions.length === 0) {
-						if (spaceConditionsMet) {
+						const isMatched = await evaluateConditions(env.DB, auto, spaceId, null, today);
+						if (isMatched) {
 							const taskId = "space-level"; // Generic ID for space-level executions
 
 							if (isRecurring) {
@@ -315,68 +423,13 @@ export default {
 
 					// If there are task-level conditions (whether or not there are space conditions that passed)
 					// Query tasks dynamically
-				const { results: tasks } = await env.DB.prepare(`SELECT * FROM tasks WHERE space_id = ?`).bind(spaceId).all();
+					const { results: tasks } = await env.DB.prepare(`SELECT * FROM tasks WHERE space_id = ?`).bind(spaceId).all();
 
 					for (const task of tasks) {
 						const taskId = task.id as string;
-						let allMatches = true;
+						const isMatched = await evaluateConditions(env.DB, auto, spaceId, task, today);
 
-						// Check task complex conditions (AND logic)
-						for (const cond of taskConditions) {
-							if (cond.type === 'due_today') {
-								if (task.due_date !== today) allMatches = false;
-							} else if (cond.type === 'has_assignee') {
-								if (task.assignee === '' || task.assignee === null) allMatches = false;
-							} else if (cond.type === 'no_assignee') {
-								if (task.assignee !== '' && task.assignee !== null) allMatches = false;
-							} else if (cond.type === 'status_equals') {
-								if (task.status !== cond.config?.status) allMatches = false;
-							} else if (cond.type === 'status_not_equals') {
-								if (task.status === cond.config?.status) allMatches = false;
-							} else if (cond.type === 'priority_equals') {
-								if (task.priority !== cond.config?.priority) allMatches = false;
-							} else if (cond.type === 'priority_not_equals') {
-								if (task.priority === cond.config?.priority) allMatches = false;
-							} else if (cond.type === 'due_date_equals') {
-								if (task.due_date !== cond.config?.dueDate) allMatches = false;
-							} else if (cond.type === 'assignee_equals') {
-								if (task.assignee !== cond.config?.assignee) allMatches = false;
-							} else if (cond.type === 'task_field') {
-								const { field, operator, value } = cond.config || {};
-								let taskVal: any = "";
-								if (field === "status") taskVal = task.status;
-								else if (field === "priority") taskVal = task.priority;
-								else if (field === "assignee") taskVal = task.assignee;
-								else if (field === "due_date") taskVal = task.due_date;
-								else if (field?.startsWith("custom_")) {
-									const customKey = field.replace("custom_", "");
-									try {
-										const customObj = task.custom ? JSON.parse(task.custom as string) : {};
-										taskVal = customObj[customKey] || "";
-									} catch {
-										taskVal = "";
-									}
-								}
-
-								if (operator === "equals" && taskVal !== value) allMatches = false;
-								else if (operator === "not_equals" && taskVal === value) allMatches = false;
-								else if (operator === "is_empty" && (taskVal !== "" && taskVal !== null && taskVal !== undefined)) allMatches = false;
-								else if (operator === "not_empty" && (taskVal === "" || taskVal === null || taskVal === undefined)) allMatches = false;
-								else if (operator === "is_today" && field === "due_date" && taskVal !== today) allMatches = false;
-								else if (operator === "is_overdue" && field === "due_date") {
-									if (!taskVal || taskVal >= today) allMatches = false;
-								}
-							}
-							if (!allMatches) break;
-						}
-
-						// If no conditions are set, don't trigger on every task by default
-						if (conditions.length === 0) allMatches = false;
-
-						if (allMatches) {
-							// Queue the event if it hasn't been queued/executed recently
-							const table = isRecurring ? 'recurring_events' : 'upcoming_events';
-
+						if (isMatched) {
 							if (isRecurring) {
 								const { results: existingRec } = await env.DB.prepare(`SELECT id FROM recurring_events WHERE automation_id = ? AND task_id = ?`).bind(auto.id, taskId).all();
 								if (existingRec.length === 0) {
@@ -415,15 +468,234 @@ export default {
 			const taskId = event.task_id as string;
 			const spaceId = event.space_id as string;
 			const actionType = event.action_type as string;
-			const config = JSON.parse(event.config as string);
 			const automationId = event.automation_id as string;
 			const isRecurring = event.isRecurring as boolean;
 
 			try {
+				// Fetch the automation rule
+				const { results: autoRecord } = await env.DB.prepare("SELECT * FROM automation_rules WHERE id = ?").bind(automationId).all();
+				if (autoRecord.length === 0) {
+					// Automation rule was deleted, clean up this pending event
+					if (isRecurring) {
+						await env.DB.prepare(`DELETE FROM recurring_events WHERE id = ?`).bind(eventId).run();
+					} else {
+						await env.DB.prepare(`DELETE FROM upcoming_events WHERE id = ?`).bind(eventId).run();
+					}
+					continue;
+				}
+				const auto = autoRecord[0];
+
+				// Fetch task if not space-level
+				let task = null;
+				if (taskId !== "space-level") {
+					const { results: taskRecord } = await env.DB.prepare("SELECT * FROM tasks WHERE id = ? AND space_id = ?").bind(taskId, spaceId).all();
+					if (taskRecord.length === 0) {
+						// Task was deleted, clean up this pending event
+						if (isRecurring) {
+							await env.DB.prepare(`DELETE FROM recurring_events WHERE id = ?`).bind(eventId).run();
+						} else {
+							await env.DB.prepare(`DELETE FROM upcoming_events WHERE id = ?`).bind(eventId).run();
+						}
+						continue;
+					}
+					task = taskRecord[0];
+				}
+
+				// Check if conditions are still met at execution time
+				const isMatched = await evaluateConditions(env.DB, auto, spaceId, task, today);
+				if (!isMatched) {
+					// Conditions are not met anymore:
+					if (isRecurring) {
+						// For recurring, since it didn't match today, delete it from recurring_events
+						// so that if it matches again in the future, Step 1 will re-add it.
+						await env.DB.prepare(`DELETE FROM recurring_events WHERE id = ?`).bind(eventId).run();
+					} else {
+						// For upcoming, delete it as well
+						await env.DB.prepare(`DELETE FROM upcoming_events WHERE id = ?`).bind(eventId).run();
+					}
+					continue;
+				}
+
+				const config = JSON.parse(event.config as string);
+
 				if (actionType === 'send_email' && env.SMTP_USER && env.SMTP_PASS && config.target_user_id) {
 					const { results: userRecord } = await env.DB.prepare("SELECT email FROM users WHERE id = ?").bind(config.target_user_id).all();
 					if (userRecord.length > 0 && userRecord[0].email) {
 						const email = userRecord[0].email as string;
+
+						// Fetch space name
+						const { results: spaceRecord } = await env.DB.prepare("SELECT name FROM spaces WHERE id = ?").bind(spaceId).all();
+						const spaceName = spaceRecord.length > 0 ? spaceRecord[0].name as string : spaceId;
+
+						// Construct realistic contextually tailored email
+						let emailSubject = `SyncDuo Automation Alert`;
+						let emailText = `Automation triggered in space ${spaceName}.`;
+						let emailHtml = "";
+
+						if (taskId !== "space-level") {
+							const { results: taskRecord } = await env.DB.prepare("SELECT * FROM tasks WHERE id = ? AND space_id = ?").bind(taskId, spaceId).all();
+							if (taskRecord.length > 0) {
+								const t = taskRecord[0] as any;
+								const tTitle = t.title as string;
+								const tDesc = t.description as string || "No description provided.";
+								const tStatus = t.status as string;
+								const tPriority = t.priority as string || "None";
+								const tAssignee = t.assignee as string || "Unassigned";
+								const tDueDate = t.due_date as string || "None";
+								const tCustomStr = t.custom as string;
+
+								emailSubject = `Automation Alert: "${tTitle}" in Space ${spaceName}`;
+
+								let tStatusBadge = '';
+								if (tStatus === 'todo') {
+									tStatusBadge = `<span style="background-color: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">To Do</span>`;
+								} else if (tStatus === 'doing') {
+									tStatusBadge = `<span style="background-color: #e0e7ff; color: #4338ca; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">Doing</span>`;
+								} else if (tStatus === 'done') {
+									tStatusBadge = `<span style="background-color: #dcfce7; color: #15803d; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">Done</span>`;
+								} else {
+									tStatusBadge = `<span style="background-color: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">${tStatus || 'None'}</span>`;
+								}
+
+								let tPriorityBadge = '';
+								if (tPriority === 'high') {
+									tPriorityBadge = `<span style="background-color: #fee2e2; color: #991b1b; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">🔥 High</span>`;
+								} else if (tPriority === 'medium') {
+									tPriorityBadge = `<span style="background-color: #fef3c7; color: #92400e; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">⚡ Medium</span>`;
+								} else if (tPriority === 'low') {
+									tPriorityBadge = `<span style="background-color: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">🌱 Low</span>`;
+								} else {
+									tPriorityBadge = `<span style="background-color: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">None</span>`;
+								}
+
+								let customFieldsHtml = "";
+								let customFieldsText = "";
+								if (tCustomStr) {
+									try {
+										const customObj = JSON.parse(tCustomStr);
+										if (Object.keys(customObj).length > 0) {
+											customFieldsText = "\nCustom Fields:\n";
+											customFieldsHtml = `<h4 style="color: #4f46e5; margin-bottom: 8px; margin-top: 24px; font-size: 16px; font-weight: 700;">Custom Fields</h4>
+											<table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background-color: #f8fafc;">`;
+											for (const [key, value] of Object.entries(customObj)) {
+												const valStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
+												customFieldsText += `- ${key}: ${valStr}\n`;
+												customFieldsHtml += `
+												<tr>
+													<td style="padding: 10px 16px; color: #64748b; width: 150px; border-bottom: 1px solid #e2e8f0; font-weight: 500; background-color: #f8fafc;">${key}</td>
+													<td style="padding: 10px 16px; color: #1e293b; font-weight: 600; border-bottom: 1px solid #e2e8f0; background-color: #ffffff;">${valStr}</td>
+												</tr>`;
+											}
+											customFieldsHtml += `</table>`;
+										}
+									} catch {
+										// Ignore JSON errors
+									}
+								}
+
+								emailText = `Hello! An automation was triggered for task "${tTitle}" in your space "${spaceName}".\n\n` +
+									`Task Details:\n` +
+									`- Title: ${tTitle}\n` +
+									`- Description: ${tDesc}\n` +
+									`- Status: ${tStatus}\n` +
+									`- Priority: ${tPriority}\n` +
+									`- Assignee: ${tAssignee}\n` +
+									`- Due Date: ${tDueDate}\n` +
+									customFieldsText + `\n` +
+									`This is an automated notification from SyncDuo. Please do not reply directly to this email.`;
+
+								emailHtml = `
+								<div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; padding: 40px 20px; text-align: center;">
+									<div style="max-width: 580px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px -10px rgba(79, 70, 229, 0.1), 0 1px 3px rgba(0, 0, 0, 0.05); text-align: left; border: 1px solid #e2e8f0;">
+										<div style="background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%); padding: 35px 40px; color: #ffffff; position: relative; overflow: hidden;">
+											<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+												<span style="font-size: 24px; vertical-align: middle;">⚡</span>
+												<span style="font-weight: 800; font-size: 11px; text-transform: uppercase; letter-spacing: 0.15em; color: #ddd6fe;">SyncDuo Automation Alert</span>
+											</div>
+											<h1 style="margin: 0; font-size: 24px; font-weight: 800; color: #ffffff; line-height: 1.25;">Task Automation Triggered</h1>
+										</div>
+										<div style="padding: 40px; color: #334155; line-height: 1.6;">
+											<p style="margin-top: 0; font-size: 16px; color: #475569; font-weight: 500;">Hello,</p>
+											<p style="font-size: 15px; color: #64748b; margin-bottom: 24px;">An automation was triggered for a task in your space <strong>${spaceName}</strong>.</p>
+											
+											<h3 style="color: #4f46e5; margin-top: 0; margin-bottom: 12px; font-size: 16px; font-weight: 700;">Task Details</h3>
+											<table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+												<tr>
+													<td style="padding: 10px 0; font-weight: 600; width: 120px; color: #64748b; font-size: 14px; border-bottom: 1px solid #f1f5f9;">Title:</td>
+													<td style="padding: 10px 0; font-weight: 700; color: #1e293b; font-size: 15px; border-bottom: 1px solid #f1f5f9;">${tTitle}</td>
+												</tr>
+												<tr>
+													<td style="padding: 10px 0; color: #64748b; font-size: 14px; border-bottom: 1px solid #f1f5f9;">Description:</td>
+													<td style="padding: 10px 0; color: #475569; font-size: 14px; border-bottom: 1px solid #f1f5f9; white-space: pre-wrap;">${tDesc}</td>
+												</tr>
+												<tr>
+													<td style="padding: 10px 0; color: #64748b; font-size: 14px; border-bottom: 1px solid #f1f5f9;">Status:</td>
+													<td style="padding: 10px 0; border-bottom: 1px solid #f1f5f9;">${tStatusBadge}</td>
+												</tr>
+												<tr>
+													<td style="padding: 10px 0; color: #64748b; font-size: 14px; border-bottom: 1px solid #f1f5f9;">Priority:</td>
+													<td style="padding: 10px 0; border-bottom: 1px solid #f1f5f9;">${tPriorityBadge}</td>
+												</tr>
+												<tr>
+													<td style="padding: 10px 0; color: #64748b; font-size: 14px; border-bottom: 1px solid #f1f5f9;">Assignee:</td>
+													<td style="padding: 10px 0; color: #475569; font-size: 14px; border-bottom: 1px solid #f1f5f9;">${tAssignee}</td>
+												</tr>
+												<tr>
+													<td style="padding: 10px 0; color: #64748b; font-size: 14px; border-bottom: 1px solid #f1f5f9;">Due Date:</td>
+													<td style="padding: 10px 0; color: #475569; font-size: 14px; border-bottom: 1px solid #f1f5f9; font-weight: 600;">${tDueDate}</td>
+												</tr>
+											</table>
+											
+											${customFieldsHtml}
+											
+											<div style="margin: 32px 0 24px; text-align: center;">
+												<a href="https://syncduo.app" style="display: inline-block; background-color: #4f46e5; color: #ffffff; font-weight: 600; font-size: 14px; text-decoration: none; padding: 12px 32px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);">Open SyncDuo</a>
+											</div>
+											
+											<hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 32px 0 24px;" />
+											<p style="font-size: 12px; color: #94a3b8; text-align: center; margin-bottom: 0;">This is an automated notification from SyncDuo. Please do not reply directly to this email.</p>
+										</div>
+									</div>
+								</div>`;
+							}
+						}
+
+						if (!emailHtml) {
+							emailSubject = `Space Automation Alert: ${spaceName}`;
+							emailText = `Hello! A space-level automation alert was triggered for space "${spaceName}".\n\n` +
+								`All space-level conditions have been met successfully.\n\n` +
+								`This is an automated notification from SyncDuo. Please do not reply directly to this email.`;
+							emailHtml = `
+							<div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; padding: 40px 20px; text-align: center;">
+								<div style="max-width: 580px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px -10px rgba(79, 70, 229, 0.1), 0 1px 3px rgba(0, 0, 0, 0.05); text-align: left; border: 1px solid #e2e8f0;">
+									<div style="background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%); padding: 35px 40px; color: #ffffff; position: relative; overflow: hidden;">
+										<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+											<span style="font-size: 24px; vertical-align: middle;">⚡</span>
+											<span style="font-weight: 800; font-size: 11px; text-transform: uppercase; letter-spacing: 0.15em; color: #ddd6fe;">SyncDuo Space Alert</span>
+										</div>
+										<h1 style="margin: 0; font-size: 24px; font-weight: 800; color: #ffffff; line-height: 1.25;">Space-Level Triggered</h1>
+									</div>
+									<div style="padding: 40px; color: #334155; line-height: 1.6;">
+										<p style="margin-top: 0; font-size: 16px; color: #475569; font-weight: 500;">Hello,</p>
+										<p style="font-size: 15px; color: #64748b; margin-bottom: 24px;">A space-level automation alert was triggered for your space <strong>${spaceName}</strong>.</p>
+										
+										<div style="background-color: #f8fafc; border-radius: 12px; padding: 24px; border: 1px solid #f1f5f9; margin-bottom: 24px;">
+											<span style="font-size: 32px; display: block; margin-bottom: 12px; text-align: center;">⚙️</span>
+											<h3 style="margin-top: 0; margin-bottom: 8px; font-size: 16px; font-weight: 700; color: #1e293b; text-align: center;">Conditions Met</h3>
+											<p style="margin: 0; font-size: 14px; color: #475569; line-height: 1.6; text-align: center;">All criteria specified in your space automation rules have been satisfied successfully.</p>
+										</div>
+										
+										<div style="margin: 32px 0 24px; text-align: center;">
+											<a href="https://syncduo.app" style="display: inline-block; background-color: #4f46e5; color: #ffffff; font-weight: 600; font-size: 14px; text-decoration: none; padding: 12px 32px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);">Open Space Settings</a>
+										</div>
+										
+										<hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 32px 0 24px;" />
+										<p style="font-size: 12px; color: #94a3b8; text-align: center; margin-bottom: 0;">This is an automated notification from SyncDuo. Please do not reply directly to this email.</p>
+									</div>
+								</div>
+							</div>`;
+						}
+
 						const transport = nodemailer.createTransport({
 							host: env.SMTP_HOST || "smtp.gmail.com",
 							port: Number(env.SMTP_PORT) || 465,
@@ -436,8 +708,9 @@ export default {
 						await transport.sendMail({
 							from: env.SMTP_USER,
 							to: email,
-							subject: `Automation Alert: Task ${taskId}`,
-							text: `Automation triggered for task ${taskId} in space ${spaceId}.`,
+							subject: emailSubject,
+							text: emailText,
+							html: emailHtml
 						});
 					}
 				} else if (actionType === 'change_status' && config.new_status) {
@@ -488,19 +761,43 @@ export default {
 					throw new Error(`Unsupported action_type: ${actionType}`);
 				}
 
+				// Successfully executed -> log execution history as 'completed'
+				await env.DB.prepare(`INSERT INTO executed_events (id, automation_id, task_id, space_id, status, action_type, config, executed_at) VALUES (?, ?, ?, ?, 'completed', ?, ?, ?)`)
+					.bind(crypto.randomUUID(), automationId, taskId, spaceId, actionType, event.config as string, nowTime).run();
+
 				if (isRecurring) {
-					// Schedule for next day
-					await env.DB.prepare(`UPDATE recurring_events SET last_run = ?, next_run = ? WHERE id = ?`).bind(nowTime, nowTime + 86400000, eventId).run();
+					// Reschedule for next day in recurring_events, keeping status 'pending'
+					await env.DB.prepare(`UPDATE recurring_events SET last_run = ?, next_run = ?, status = 'pending' WHERE id = ?`).bind(nowTime, nowTime + 86400000, eventId).run();
 				} else {
-					// Mark as executed and move to executed_events
-					await env.DB.prepare(`INSERT INTO executed_events (id, automation_id, task_id, space_id, status, action_type, config, executed_at) VALUES (?, ?, ?, ?, 'completed', ?, ?, ?)`)
-						.bind(crypto.randomUUID(), automationId, taskId, spaceId, actionType, event.config as string, nowTime).run();
+					// Delete from upcoming_events queue
 					await env.DB.prepare(`DELETE FROM upcoming_events WHERE id = ?`).bind(eventId).run();
 				}
 			} catch (e) {
 				console.error(`Error executing event ${eventId}:`, e);
-				const table = isRecurring ? 'recurring_events' : 'upcoming_events';
-				await env.DB.prepare(`UPDATE ${table} SET status = 'failed' WHERE id = ?`).bind(eventId).run();
+				
+				// Log failure to executed_events
+				try {
+					await env.DB.prepare(`INSERT INTO executed_events (id, automation_id, task_id, space_id, status, action_type, config, executed_at) VALUES (?, ?, ?, ?, 'failed', ?, ?, ?)`)
+						.bind(crypto.randomUUID(), automationId, taskId, spaceId, actionType, event.config as string, nowTime).run();
+				} catch (logErr) {
+					console.error(`Failed to log execution failure for event ${eventId}:`, logErr);
+				}
+
+				if (isRecurring) {
+					// Reschedule recurring event for next day so it doesn't get permanently stuck in failed status
+					try {
+						await env.DB.prepare(`UPDATE recurring_events SET last_run = ?, next_run = ?, status = 'pending' WHERE id = ?`).bind(nowTime, nowTime + 86400000, eventId).run();
+					} catch (dbErr) {
+						console.error(`Failed to reschedule failed recurring event ${eventId}:`, dbErr);
+					}
+				} else {
+					// Delete failed upcoming event so it doesn't clutter upcoming_events table
+					try {
+						await env.DB.prepare(`DELETE FROM upcoming_events WHERE id = ?`).bind(eventId).run();
+					} catch (dbErr) {
+						console.error(`Failed to delete failed upcoming event ${eventId}:`, dbErr);
+					}
+				}
 			}
 		}
 	},
@@ -774,10 +1071,20 @@ export default {
 						];
 					}
 
+					const { color, ...restSpace } = r;
 					return {
-						...r,
+						...restSpace,
 						views,
-						columns: r.columns ? JSON.parse(r.columns) : [{ id: "todo", name: "To Do" }, { id: "doing", name: "Doing" }, { id: "done", name: "Done" }],
+						columns: (() => {
+							let parsedCols = [];
+							try {
+								parsedCols = r.columns ? JSON.parse(r.columns) : [];
+							} catch (e) {}
+							if (!Array.isArray(parsedCols) || parsedCols.length === 0 || typeof parsedCols[0] === 'object') {
+								parsedCols = ["description", "priority", "assignee", "startDate", "dueDate"];
+							}
+							return parsedCols;
+						})(),
 						customFields: r.customFields ? JSON.parse(r.customFields) : [],
 						emailReminders: Boolean(r.emailReminders),
 						tasks: [], // fetched separately
@@ -829,10 +1136,20 @@ export default {
 						custom: r.custom ? JSON.parse(r.custom) : {}
 					}));
 
+					const { color: _, ...restSpace } = space;
 					const parsedSpace = {
-						...space,
+						...restSpace,
 						views,
-						columns: space.columns && typeof space.columns === 'string' ? JSON.parse(space.columns) : [{ id: "todo", name: "To Do" }, { id: "doing", name: "Doing" }, { id: "done", name: "Done" }],
+						columns: (() => {
+							let parsedCols = [];
+							try {
+								parsedCols = space.columns && typeof space.columns === 'string' ? JSON.parse(space.columns) : [];
+							} catch (e) {}
+							if (!Array.isArray(parsedCols) || parsedCols.length === 0 || typeof parsedCols[0] === 'object') {
+								parsedCols = ["description", "priority", "assignee", "startDate", "dueDate"];
+							}
+							return parsedCols;
+						})(),
 						customFields: space.customFields && typeof space.customFields === 'string' ? JSON.parse(space.customFields) : [],
 						emailReminders: Boolean(space.emailReminders),
 						tasks,
@@ -850,9 +1167,8 @@ export default {
 				const body = await request.json() as any;
 				const id = body.id || Math.random().toString(36).substring(2, 10);
 				const name = body.name || 'New Space';
-				const color = body.color || 'brand';
 				const emoji = body.emoji || '✨';
-				const columns = JSON.stringify(body.columns || [{ id: "todo", name: "To Do" }, { id: "doing", name: "Doing" }, { id: "done", name: "Done" }]);
+				const columns = JSON.stringify(body.columns || ["description", "priority", "assignee", "startDate", "dueDate"]);
 				const customFields = JSON.stringify(body.customFields || []);
 				const emailReminders = body.emailReminders ? 1 : 0;
 				const emailDigestTime = body.emailDigestTime || '09:00';
@@ -864,8 +1180,8 @@ export default {
 					{ id: "table", name: "Table", type: "table", settings: {} }
 				];
 
-				await env.DB.prepare("INSERT INTO spaces (id, name, color, emoji, columns, customFields, emailReminders, emailDigestTime) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-					.bind(id, name, color, emoji, columns, customFields, emailReminders, emailDigestTime).run();
+				await env.DB.prepare("INSERT INTO spaces (id, name, emoji, columns, customFields, emailReminders, emailDigestTime) VALUES (?, ?, ?, ?, ?, ?, ?)")
+					.bind(id, name, emoji, columns, customFields, emailReminders, emailDigestTime).run();
 
 				const viewStatements = views.map((v: any) =>
 					env.DB.prepare("INSERT INTO space_views (id, space_id, name, type, settings) VALUES (?, ?, ?, ?, ?)")
@@ -900,11 +1216,60 @@ export default {
 						},
 					});
 
+					const emailHtml = `
+					<div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; padding: 40px 20px; text-align: center;">
+						<div style="max-width: 580px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px -10px rgba(79, 70, 229, 0.1), 0 1px 3px rgba(0, 0, 0, 0.05); text-align: left; border: 1px solid #e2e8f0;">
+							<div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 35px 40px; color: #ffffff; position: relative; overflow: hidden;">
+								<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+									<span style="font-size: 24px; vertical-align: middle;">🔌</span>
+									<span style="font-weight: 800; font-size: 11px; text-transform: uppercase; letter-spacing: 0.15em; color: #a7f3d0;">SyncDuo Connection Test</span>
+								</div>
+								<h1 style="margin: 0; font-size: 24px; font-weight: 800; color: #ffffff; line-height: 1.25;">SMTP Connected Successfully</h1>
+							</div>
+							<div style="padding: 40px; color: #334155; line-height: 1.6;">
+								<p style="margin-top: 0; font-size: 16px; color: #475569; font-weight: 500;">Hello!</p>
+								<p style="font-size: 15px; color: #64748b; margin-bottom: 24px;">This is a test notification confirming that your SMTP email server integration is working flawlessly.</p>
+								
+								<div style="background-color: #f0fdf4; border-radius: 12px; padding: 24px; border: 1px solid #dcfce7; margin-bottom: 24px;">
+									<h3 style="margin-top: 0; margin-bottom: 12px; font-size: 16px; font-weight: 700; color: #166534;">
+										<span style="font-size: 18px; vertical-align: middle;">✅</span> Connection Details
+									</h3>
+									<table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+										<tr>
+											<td style="padding: 6px 0; color: #166534; font-weight: 500; width: 120px;">SMTP Host:</td>
+											<td style="padding: 6px 0; color: #14532d; font-family: monospace; font-weight: 600;">${env.SMTP_HOST || "smtp.gmail.com"}</td>
+										</tr>
+										<tr>
+											<td style="padding: 6px 0; color: #166534; font-weight: 500;">SMTP Port:</td>
+											<td style="padding: 6px 0; color: #14532d; font-family: monospace; font-weight: 600;">${env.SMTP_PORT || "465"}</td>
+										</tr>
+										<tr>
+											<td style="padding: 6px 0; color: #166534; font-weight: 500;">Sender:</td>
+											<td style="padding: 6px 0; color: #14532d; font-family: monospace; font-weight: 600;">${env.SMTP_USER}</td>
+										</tr>
+									</table>
+								</div>
+								
+								<p style="font-size: 14px; color: #64748b; margin-bottom: 32px; line-height: 1.6;">
+									SyncDuo is now fully equipped to send real-time automation alerts, daily streak reminders, and collaborator invitations directly from your own email domain.
+								</p>
+								
+								<div style="margin: 32px 0 24px; text-align: center;">
+									<a href="https://syncduo.app" style="display: inline-block; background-color: #10b981; color: #ffffff; font-weight: 600; font-size: 14px; text-decoration: none; padding: 12px 32px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);">Back to SyncDuo</a>
+								</div>
+								
+								<hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 32px 0 24px;" />
+								<p style="font-size: 12px; color: #94a3b8; text-align: center; margin-bottom: 0;">This is a system verification email. Please do not reply directly.</p>
+							</div>
+						</div>
+					</div>`;
+
 					await transporter.sendMail({
 						from: env.SMTP_USER,
 						to: email,
 						subject: "Test Reminder from Sync Duo",
 						text: "This is a test reminder email sent from your Sync Duo settings.",
+						html: emailHtml,
 					});
 
 					return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
@@ -941,7 +1306,6 @@ export default {
 				try {
 					const body = await request.json() as any;
 					const name = body.name;
-					const color = body.color;
 					const emoji = body.emoji;
 					const views = body.views || [];
 					const columns = JSON.stringify(body.columns);
@@ -949,8 +1313,8 @@ export default {
 					const emailReminders = body.emailReminders ? 1 : 0;
 					const emailDigestTime = body.emailDigestTime;
 
-					await env.DB.prepare("UPDATE spaces SET name = ?, color = ?, emoji = ?, columns = ?, customFields = ?, emailReminders = ?, emailDigestTime = ? WHERE id = ?")
-						.bind(name, color, emoji, columns, customFields, emailReminders, emailDigestTime, id).run();
+					await env.DB.prepare("UPDATE spaces SET name = ?, emoji = ?, columns = ?, customFields = ?, emailReminders = ?, emailDigestTime = ? WHERE id = ?")
+						.bind(name, emoji, columns, customFields, emailReminders, emailDigestTime, id).run();
 
 					if (views.length > 0) {
 						// Delete old views for this space
@@ -971,7 +1335,7 @@ export default {
 						method: "POST",
 						body: JSON.stringify({ 
 							type: "space_updated", 
-							space: { id, name, color, emoji, views: views, columns: body.columns, customFields: body.customFields, emailReminders: body.emailReminders, emailDigestTime }
+							space: { id, name, emoji, views: views, columns: body.columns, customFields: body.customFields, emailReminders: body.emailReminders, emailDigestTime }
 						})
 					}));
 
@@ -1115,11 +1479,106 @@ export default {
 											pass: env.SMTP_PASS
 										}
 									});
+									let statusBadge = '';
+									if (status === 'todo') {
+										statusBadge = `<span style="background-color: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">To Do</span>`;
+									} else if (status === 'doing') {
+										statusBadge = `<span style="background-color: #e0e7ff; color: #4338ca; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">Doing</span>`;
+									} else if (status === 'done') {
+										statusBadge = `<span style="background-color: #dcfce7; color: #15803d; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">Done</span>`;
+									} else {
+										statusBadge = `<span style="background-color: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">${status || 'None'}</span>`;
+									}
+
+									let priorityBadge = '';
+									if (priority === 'high') {
+										priorityBadge = `<span style="background-color: #fee2e2; color: #991b1b; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">🔥 High</span>`;
+									} else if (priority === 'medium') {
+										priorityBadge = `<span style="background-color: #fef3c7; color: #92400e; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">⚡ Medium</span>`;
+									} else if (priority === 'low') {
+										priorityBadge = `<span style="background-color: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">🌱 Low</span>`;
+									} else {
+										priorityBadge = `<span style="background-color: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">None</span>`;
+									}
+
+									let customFieldsHtml = "";
+									if (custom) {
+										try {
+											const customObj = typeof custom === 'string' ? JSON.parse(custom) : custom;
+											if (Object.keys(customObj).length > 0) {
+												customFieldsHtml = `<h4 style="color: #4f46e5; margin-bottom: 8px; margin-top: 24px; font-size: 16px; font-weight: 700;">Custom Fields</h4>
+												<table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background-color: #f8fafc;">`;
+												for (const [key, value] of Object.entries(customObj)) {
+													const valStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
+													customFieldsHtml += `
+													<tr>
+														<td style="padding: 10px 16px; color: #64748b; width: 150px; border-bottom: 1px solid #e2e8f0; font-weight: 500; background-color: #f8fafc;">${key}</td>
+														<td style="padding: 10px 16px; color: #1e293b; font-weight: 600; border-bottom: 1px solid #e2e8f0; background-color: #ffffff;">${valStr}</td>
+													</tr>`;
+												}
+												customFieldsHtml += `</table>`;
+											}
+										} catch {
+											// Ignore JSON errors
+										}
+									}
+
+									const emailHtml = `
+									<div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; padding: 40px 20px; text-align: center;">
+										<div style="max-width: 580px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px -10px rgba(79, 70, 229, 0.1), 0 1px 3px rgba(0, 0, 0, 0.05); text-align: left; border: 1px solid #e2e8f0;">
+											<div style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); padding: 35px 40px; color: #ffffff; position: relative; overflow: hidden;">
+												<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+													<span style="font-size: 24px; vertical-align: middle;">📌</span>
+													<span style="font-weight: 800; font-size: 11px; text-transform: uppercase; letter-spacing: 0.15em; color: #c7d2fe;">SyncDuo Task Alert</span>
+												</div>
+												<h1 style="margin: 0; font-size: 24px; font-weight: 800; color: #ffffff; line-height: 1.25;">Task Updated</h1>
+											</div>
+											<div style="padding: 40px; color: #334155; line-height: 1.6;">
+												<p style="margin-top: 0; font-size: 16px; color: #475569; font-weight: 500;">Hello!</p>
+												<p style="font-size: 15px; color: #64748b; margin-bottom: 24px;">A task assigned to or shared with you has been updated in space <strong>${space_id}</strong>.</p>
+												
+												<h3 style="color: #4f46e5; margin-top: 0; margin-bottom: 12px; font-size: 16px; font-weight: 700;">Task Details</h3>
+												<table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+													<tr>
+														<td style="padding: 10px 0; font-weight: 600; width: 120px; color: #64748b; font-size: 14px; border-bottom: 1px solid #f1f5f9;">Title:</td>
+														<td style="padding: 10px 0; font-weight: 700; color: #1e293b; font-size: 15px; border-bottom: 1px solid #f1f5f9;">${title}</td>
+													</tr>
+													<tr>
+														<td style="padding: 10px 0; color: #64748b; font-size: 14px; border-bottom: 1px solid #f1f5f9;">Description:</td>
+														<td style="padding: 10px 0; color: #475569; font-size: 14px; border-bottom: 1px solid #f1f5f9; white-space: pre-wrap;">${description || 'No description provided.'}</td>
+													</tr>
+													<tr>
+														<td style="padding: 10px 0; color: #64748b; font-size: 14px; border-bottom: 1px solid #f1f5f9;">Status:</td>
+														<td style="padding: 10px 0; border-bottom: 1px solid #f1f5f9;">${statusBadge}</td>
+													</tr>
+													<tr>
+														<td style="padding: 10px 0; color: #64748b; font-size: 14px; border-bottom: 1px solid #f1f5f9;">Priority:</td>
+														<td style="padding: 10px 0; border-bottom: 1px solid #f1f5f9;">${priorityBadge}</td>
+													</tr>
+													<tr>
+														<td style="padding: 10px 0; color: #64748b; font-size: 14px; border-bottom: 1px solid #f1f5f9;">Due Date:</td>
+														<td style="padding: 10px 0; color: #475569; font-size: 14px; font-weight: 600; border-bottom: 1px solid #f1f5f9;">${due_date || 'None'}</td>
+													</tr>
+												</table>
+												
+												${customFieldsHtml}
+												
+												<div style="margin: 32px 0 24px; text-align: center;">
+													<a href="https://syncduo.app" style="display: inline-block; background-color: #4f46e5; color: #ffffff; font-weight: 600; font-size: 14px; text-decoration: none; padding: 12px 32px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);">Open in SyncDuo</a>
+												</div>
+												
+												<hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 32px 0 24px;" />
+												<p style="font-size: 12px; color: #94a3b8; text-align: center; margin-bottom: 0;">This is an automated notification from SyncDuo. Please do not reply directly to this email.</p>
+											</div>
+										</div>
+									</div>`;
+
 									await transport.sendMail({
 										from: env.SMTP_USER,
 										to: userEmail,
 										subject: `Task Reminder: ${title}`,
 										text: `You have an updated task in space ${space_id}.\n\nTitle: ${title}\nDescription: ${description}\nStatus: ${status}\nPriority: ${priority}\nDue Date: ${due_date || 'None'}\n\nCustom settings:\n${custom}`,
+										html: emailHtml,
 									});
 								} catch (emailErr) {
 									console.error("Failed to send email", emailErr);

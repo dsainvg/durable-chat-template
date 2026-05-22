@@ -9,7 +9,11 @@ const dateFormatter = new Intl.DateTimeFormat(undefined, { month: "short", day: 
 export function TableView({ space, viewId, onOpen }: { space: Space; viewId?: string; onOpen: (t: Task) => void }) {
   const { state } = useStore();
   const userMap = useMemo(() => Object.fromEntries(state.users.map((u) => [u.id, u])), [state.users]);
-  const statusMap = useMemo(() => Object.fromEntries(space.columns.map(c => [c.id, c.name])), [space.columns]);
+  const statusMap: Record<string, string> = {
+    todo: "To Do",
+    doing: "Doing",
+    done: "Done"
+  };
 
   const settings = viewId ? space.views.find(v => v.id === viewId)?.settings : undefined;
   const hiddenFields = settings?.hiddenFields || {};
@@ -28,9 +32,9 @@ export function TableView({ space, viewId, onOpen }: { space: Space; viewId?: st
               <tr>
                 <th className="px-4 py-3 font-medium">Title</th>
                 {!hiddenFields["status"] && <th className="px-4 py-3 font-medium">Status</th>}
-                {!hiddenFields["assignee"] && <th className="px-4 py-3 font-medium">Assignee</th>}
-                {!hiddenFields["priority"] && <th className="px-4 py-3 font-medium">Priority</th>}
-                {!hiddenFields["dueDate"] && <th className="px-4 py-3 font-medium">Due Date</th>}
+                {!hiddenFields["assignee"] && space.columns.includes("assignee") && <th className="px-4 py-3 font-medium">Assignee</th>}
+                {!hiddenFields["priority"] && space.columns.includes("priority") && <th className="px-4 py-3 font-medium">Priority</th>}
+                {!hiddenFields["dueDate"] && space.columns.includes("dueDate") && <th className="px-4 py-3 font-medium">Due Date</th>}
                 {visibleCustomFields.map(f => (
                   <th key={f.id} className="px-4 py-3 font-medium">{f.name}</th>
                 ))}
@@ -52,9 +56,11 @@ export function TableView({ space, viewId, onOpen }: { space: Space; viewId?: st
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className={`size-2 shrink-0 rounded-full ${
-                          t.priority === "high" ? "bg-destructive" : t.priority === "medium" ? "bg-primary" : "bg-muted-foreground/40"
-                        }`} />
+                        {space.columns.includes("priority") && (
+                          <div className={`size-2 shrink-0 rounded-full ${
+                            t.priority === "high" ? "bg-destructive" : t.priority === "medium" ? "bg-primary" : "bg-muted-foreground/40"
+                          }`} />
+                        )}
                         <span className="font-medium truncate max-w-[200px] sm:max-w-[300px]">{t.title}</span>
                       </div>
                     </td>
@@ -65,7 +71,7 @@ export function TableView({ space, viewId, onOpen }: { space: Space; viewId?: st
                         </span>
                       </td>
                     )}
-                    {!hiddenFields["assignee"] && (
+                    {!hiddenFields["assignee"] && space.columns.includes("assignee") && (
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <div className="size-6 rounded-full bg-muted ring-1 ring-border grid place-items-center text-[10px]">
@@ -75,12 +81,12 @@ export function TableView({ space, viewId, onOpen }: { space: Space; viewId?: st
                         </div>
                       </td>
                     )}
-                    {!hiddenFields["priority"] && (
+                    {!hiddenFields["priority"] && space.columns.includes("priority") && (
                       <td className="px-4 py-3 whitespace-nowrap capitalize text-muted-foreground text-xs">
                         {t.priority}
                       </td>
                     )}
-                    {!hiddenFields["dueDate"] && (
+                    {!hiddenFields["dueDate"] && space.columns.includes("dueDate") && (
                       <td className="px-4 py-3 whitespace-nowrap text-muted-foreground text-xs">
                         {t.dueDate ? dateFormatter.format(new Date(t.dueDate)) : "-"}
                       </td>

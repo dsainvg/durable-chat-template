@@ -102,7 +102,7 @@ export function CalendarView({ space, viewId, onOpen, onMove }: { space: Space; 
                     onClick={() => onOpen(t)}
                     className="w-full flex items-center gap-1 text-left text-[10px] truncate px-1.5 py-0.5 rounded bg-primary/15 text-foreground hover:bg-primary/25 cursor-pointer active:cursor-grabbing focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
-                    {!hiddenFields["priority"] && (
+                    {!hiddenFields["priority"] && space.columns.includes("priority") && (
                       <div className={`size-1.5 shrink-0 rounded-full ${t.priority === "high" ? "bg-destructive" : t.priority === "medium" ? "bg-primary" : "bg-muted-foreground/40"}`} />
                     )}
                     <span className="truncate flex-1">

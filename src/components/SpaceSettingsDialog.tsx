@@ -56,7 +56,14 @@ export function SpaceSettingsDialog({
 
   useEffect(() => {
     if (open && space) {
-      setLocalSpace(space);
+      const normalizedColumns = Array.isArray(space.columns) && (space.columns.length === 0 || typeof space.columns[0] === 'string')
+        ? space.columns as any as string[]
+        : ["description", "priority", "assignee", "startDate", "dueDate"];
+
+      setLocalSpace({
+        ...space,
+        columns: normalizedColumns as any,
+      });
       // Fetch automations
       const token = localStorage.getItem("syncduo_token");
       if (token) {
@@ -136,7 +143,6 @@ export function SpaceSettingsDialog({
           },
           body: JSON.stringify({
             name: localSpace.name,
-            color: localSpace.color,
             emoji: localSpace.emoji,
             views: localSpace.views,
             columns: localSpace.columns,
@@ -437,27 +443,32 @@ export function SpaceSettingsDialog({
             )}
           </Section>
 
-          <Section title="Columns" subtitle="Columns shown in Kanban / List.">
-            <div className="space-y-2">
-              {localSpace.columns.map((c, i) => (
-                <div key={c.id} className="flex gap-2">
-                  <Input
-                    value={c.name}
-                    onChange={(e) =>
-                      patchLocal((sp) => ({
-                        ...sp,
-                        columns: sp.columns.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)),
-                      }))
-                    }
+          <Section title="Active Fields" subtitle="Toggle standard fields enabled in this space.">
+            <div className="grid grid-cols-2 gap-4 p-4 rounded-lg border border-border bg-muted/30">
+              {[
+                { id: "description", name: "Description" },
+                { id: "priority", name: "Priority" },
+                { id: "assignee", name: "Assignee" },
+                { id: "startDate", name: "Start Date" },
+                { id: "dueDate", name: "Due Date" },
+              ].map((f) => (
+                <div key={f.id} className="flex items-center justify-between space-x-2">
+                  <Label htmlFor={`edit-field-${f.id}`} className="text-xs font-medium cursor-pointer">{f.name}</Label>
+                  <Switch
+                    id={`edit-field-${f.id}`}
+                    checked={(localSpace.columns as any as string[]).includes(f.id)}
+                    onCheckedChange={(checked) => {
+                      patchLocal((sp) => {
+                        const currentCols = Array.isArray(sp.columns) ? (sp.columns as any as string[]) : [];
+                        const newCols = checked
+                          ? [...currentCols.filter((x: string) => typeof x === 'string'), f.id]
+                          : currentCols.filter((x: string) => typeof x === 'string' && x !== f.id);
+                        return { ...sp, columns: newCols as any };
+                      });
+                    }}
                   />
-                  <Button variant="ghost" size="icon" aria-label="Delete column" onClick={() => patchLocal((sp) => ({ ...sp, columns: sp.columns.filter((_, j) => j !== i) }))}>
-                    <Trash2 className="size-4" />
-                  </Button>
                 </div>
               ))}
-              <Button variant="outline" size="sm" onClick={() => patchLocal((sp) => ({ ...sp, columns: [...sp.columns, { id: uid(), name: "New Column" }] }))}>
-                <Plus className="size-3.5 mr-1" /> Add Column
-              </Button>
             </div>
           </Section>
 

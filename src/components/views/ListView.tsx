@@ -39,8 +39,12 @@ export function ListView({ space, viewId, onOpen, onMove }: { space: Space; view
         { id: "none", name: "None" }
       ];
     }
-    return space.columns;
-  }, [space.columns, state.users, groupBy]);
+    return [
+      { id: "todo", name: "To Do" },
+      { id: "doing", name: "Doing" },
+      { id: "done", name: "Done" }
+    ];
+  }, [state.users, groupBy]);
 
   const tasksByColumn = useMemo(() => {
     const map: Record<string, Task[]> = {};
@@ -86,6 +90,7 @@ export function ListView({ space, viewId, onOpen, onMove }: { space: Space; view
                 const renderField = (fieldId: string) => {
                   if (hiddenFields[fieldId]) return null;
                   if (fieldId === "priority") {
+                    if (!space.columns.includes("priority")) return null;
                     return (
                       <div key={fieldId} className={`size-2 rounded-full shrink-0 ${
                         t.priority === "high" ? "bg-destructive" : t.priority === "medium" ? "bg-primary" : "bg-muted-foreground/40"
@@ -93,6 +98,7 @@ export function ListView({ space, viewId, onOpen, onMove }: { space: Space; view
                     );
                   }
                   if (fieldId === "dueDate") {
+                    if (!space.columns.includes("dueDate")) return null;
                     return (
                       <div key={fieldId} className="text-[11px] text-muted-foreground w-24 text-right shrink-0">
                         {t.dueDate ? dateFormatter.format(new Date(t.dueDate)) : "-"}
@@ -100,13 +106,14 @@ export function ListView({ space, viewId, onOpen, onMove }: { space: Space; view
                     );
                   }
                   if (fieldId === "assignee") {
+                    if (!space.columns.includes("assignee")) return null;
                     return (
                       <div key={fieldId} className="size-6 shrink-0 rounded-full bg-muted ring-1 ring-border grid place-items-center text-[10px]">
                         {userMap[t.assignee]?.initials ?? "?"}
                       </div>
                     );
                   }
-                  if (fieldId === "status") return null; // Status is grouped usually, skip rendering explicitly unless needed
+                  if (fieldId === "status") return null;
 
                   const customField = space.customFields?.find(f => f.id === fieldId);
                   if (customField) {
@@ -118,9 +125,6 @@ export function ListView({ space, viewId, onOpen, onMove }: { space: Space; view
                   }
                   return null;
                 };
-
-                // Split standard fields from custom fields to maintain core layout:
-                // priority indicator on the left, then title/desc + custom fields, then due date/assignee on the right
 
                 return (
                   <div
@@ -134,7 +138,9 @@ export function ListView({ space, viewId, onOpen, onMove }: { space: Space; view
 
                     <div className="flex-1 min-w-0">
                       <p className="text-sm truncate">{t.title}</p>
-                      {t.description && <p className="text-xs text-muted-foreground truncate">{t.description}</p>}
+                      {space.columns.includes("description") && t.description && (
+                        <p className="text-xs text-muted-foreground truncate">{t.description}</p>
+                      )}
                       {customFieldsToRender.length > 0 && (
                         <div className="flex gap-3 mt-1 overflow-hidden">
                           {customFieldsToRender.map((id: string) => renderField(id))}

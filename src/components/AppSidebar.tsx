@@ -14,6 +14,7 @@ import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarTrigger }
 import { GlobalAutomationsDialog } from "./GlobalAutomationsDialog";
 import { ApiKeysDialog } from "./ApiKeysDialog";
 import { Key } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 
 export function AppSidebar() {
   const { state, update } = useStore();
@@ -25,12 +26,12 @@ export function AppSidebar() {
   const [isAutomationsOpen, setIsAutomationsOpen] = useState(false);
   const [isApiKeysOpen, setIsApiKeysOpen] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState("");
-  const [columns, setColumns] = useState([{ id: "todo", name: "To Do" }, { id: "doing", name: "Doing" }, { id: "done", name: "Done" }]);
+  const [columns, setColumns] = useState<string[]>(["description", "priority", "assignee", "startDate", "dueDate"]);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
 
   const resetForm = () => {
     setNewSpaceName("");
-    setColumns([{ id: "todo", name: "To Do" }, { id: "doing", name: "Doing" }, { id: "done", name: "Done" }]);
+    setColumns(["description", "priority", "assignee", "startDate", "dueDate"]);
     setCustomFields([]);
   };
 
@@ -70,7 +71,6 @@ export function AppSidebar() {
           {
             id: data.id,
             name: newSpaceName.trim(),
-            color: "brand",
             emoji: "✨",
             views: [
               { id: "list", name: "List", type: "list" },
@@ -120,23 +120,28 @@ export function AppSidebar() {
 
             <ScrollArea className="max-h-[50vh] pr-4 space-y-6">
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-semibold">Columns</Label>
-                  <Button type="button" variant="outline" size="sm" onClick={() => setColumns([...columns, { id: uid(), name: "New Column" }])}>
-                    <Plus className="size-3.5 mr-1" /> Add
-                  </Button>
-                </div>
-                <div className="space-y-2">
-                  {columns.map((c, i) => (
-                    <div key={c.id} className="flex gap-2">
-                      <Input
-                        value={c.name}
-                        onChange={(e) => setColumns(columns.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
-                        placeholder="Column name"
+                <Label className="text-xs font-semibold">Active Fields</Label>
+                <div className="grid grid-cols-2 gap-3 p-3 rounded-lg border border-border bg-muted/30">
+                  {[
+                    { id: "description", name: "Description" },
+                    { id: "priority", name: "Priority" },
+                    { id: "assignee", name: "Assignee" },
+                    { id: "startDate", name: "Start Date" },
+                    { id: "dueDate", name: "Due Date" },
+                  ].map((f) => (
+                    <div key={f.id} className="flex items-center justify-between space-x-2">
+                      <Label htmlFor={`field-${f.id}`} className="text-xs font-medium cursor-pointer">{f.name}</Label>
+                      <Switch
+                        id={`field-${f.id}`}
+                        checked={columns.includes(f.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setColumns([...columns, f.id]);
+                          } else {
+                            setColumns(columns.filter((x) => x !== f.id));
+                          }
+                        }}
                       />
-                      <Button type="button" variant="ghost" size="icon" aria-label="Delete column" onClick={() => setColumns(columns.filter((_, j) => j !== i))}>
-                        <Trash2 className="size-4" />
-                      </Button>
                     </div>
                   ))}
                 </div>
@@ -152,7 +157,7 @@ export function AppSidebar() {
                 <div className="space-y-2">
                   {customFields.map((f, i) => (
                     <div key={f.id} className="flex gap-2 items-start">
-                      <Input
+                       <Input
                         className="flex-1"
                         value={f.name}
                         placeholder="Field name"
@@ -193,7 +198,7 @@ export function AppSidebar() {
 
             <DialogFooter className="pt-2">
               <Button type="button" variant="outline" onClick={() => setIsSpaceDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={!newSpaceName.trim() || columns.length === 0}>Create</Button>
+              <Button type="submit" disabled={!newSpaceName.trim()}>Create</Button>
             </DialogFooter>
           </form>
         </DialogContent>

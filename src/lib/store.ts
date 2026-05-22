@@ -47,10 +47,9 @@ export interface Automation {
 export interface Space {
   id: string;
   name: string;
-  color: string;
   emoji: string;
   views: ViewConfig[];
-  columns: { id: string; name: string }[];
+  columns: string[];
   customFields: CustomField[];
   emailReminders: boolean;
   emailDigestTime: string;

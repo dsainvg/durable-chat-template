@@ -72,7 +72,9 @@ export function GanttView({ space, onOpen, onUpdate }: { space: Space; onOpen: (
                 <div className="relative flex-1 h-10">
                   <div
                     className={`absolute top-2 h-6 rounded ${
-                      t.priority === "high" ? "bg-destructive/70" : t.priority === "medium" ? "bg-primary/70" : "bg-muted-foreground/40"
+                      space.columns.includes("priority")
+                        ? (t.priority === "high" ? "bg-destructive/70" : t.priority === "medium" ? "bg-primary/70" : "bg-muted-foreground/40")
+                        : "bg-primary/70"
                     } flex items-center px-2 group/bar`}
                     style={{ left: offset, width }}
                   >

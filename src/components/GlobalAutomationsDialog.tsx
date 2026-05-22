@@ -133,12 +133,11 @@ export function GlobalAutomationsDialog({
     return { id: `custom_${id}`, name: field?.name || id };
   });
 
-  const availableStatuses = Array.from(new Map(
-    state.spaces
-      .filter(s => targetSpaces.length === 0 || targetSpaces.includes(s.id))
-      .flatMap(s => s.columns || [])
-      .map(col => [col.id, col])
-  ).values());
+  const availableStatuses = [
+    { id: "todo", name: "To Do" },
+    { id: "doing", name: "Doing" },
+    { id: "done", name: "Done" }
+  ];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

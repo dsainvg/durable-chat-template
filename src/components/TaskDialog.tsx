@@ -90,7 +90,9 @@ export function TaskDialog({
               <Select value={draft.status} onValueChange={(v) => set("status", v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {space.columns.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  <SelectItem value="todo">To Do</SelectItem>
+                  <SelectItem value="doing">Doing</SelectItem>
+                  <SelectItem value="done">Done</SelectItem>
                 </SelectContent>
               </Select>
             </div>

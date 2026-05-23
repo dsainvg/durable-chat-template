@@ -596,7 +596,7 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
                             );
                           })()}
 
-                          <Button variant="ghost" size="icon" onClick={() => {
+                          <Button variant="ghost" size="icon" aria-label="Remove constant mapping" onClick={() => {
                             setConstantMappings(prev => prev.filter(m => m.id !== c.id));
                           }}>
                             <X className="size-4" />

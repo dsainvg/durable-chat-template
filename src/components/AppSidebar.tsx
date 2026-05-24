@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Settings, Plus, MessageSquare, Trash2 } from "lucide-react";
 import { useStore, uid, type CustomField, type FieldType } from "@/lib/store";
@@ -19,8 +19,11 @@ import { Switch } from "@/components/ui/switch";
 export function AppSidebar() {
   const { state, update } = useStore();
   const path = useRouterState({ select: (r) => r.location.pathname });
-  const me = state.users.find((u) => u.id === state.currentUserId);
-  const others = state.users.filter((u) => me && u.id !== me.id);
+
+  // ⚡ Bolt: Memoize me and others calculations to prevent O(N) array traversals
+  // on every route change or unrelated state update
+  const me = useMemo(() => state.users.find((u) => u.id === state.currentUserId), [state.users, state.currentUserId]);
+  const others = useMemo(() => state.users.filter((u) => me && u.id !== me.id), [state.users, me]);
 
   const [isSpaceDialogOpen, setIsSpaceDialogOpen] = useState(false);
   const [isAutomationsOpen, setIsAutomationsOpen] = useState(false);

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useStore, type User } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 const API_URL = "";
 
@@ -158,7 +159,9 @@ export function LoginDialog({
           {(step === "password" || step === "create") && (
             <form onSubmit={handleSubmit} className="space-y-4 px-4 mt-2">
               <div className="space-y-2">
+                <Label htmlFor="password" className="text-xs">Password</Label>
                 <input
+                  id="password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

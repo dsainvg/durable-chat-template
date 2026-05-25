@@ -13,3 +13,7 @@
 ## 2026-05-22 - Add Proper Form Associations
 **Learning:** Complex dialogs with many input fields (like the Task Dialog) often miss explicit programmatic label associations (`htmlFor` and `id`). This makes it difficult for screen reader users to understand what input they are focusing on, and removes the ability for all users to click the label to focus the input.
 **Action:** Always ensure that every `<Label>` component has an `htmlFor` attribute that strictly matches the `id` of its corresponding `<Input>`, `<Textarea>`, or `<SelectTrigger>`.
+## 2026-05-25 - Add Label to Form Inputs
+## 2025-05-25 - Add Label to Form Inputs
+**Learning:** Form `<input>` fields that lack an explicitly associated `<label>` are flagged as accessibility violations and prevent screen readers from properly conveying the field's purpose.
+**Action:** Always ensure that form inputs (like password fields in dialogs) are accompanied by a `<Label>` component from the design system, linked using matching `id` and `htmlFor` attributes.

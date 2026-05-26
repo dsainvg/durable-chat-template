@@ -12,7 +12,9 @@ export function GanttView({ space, onOpen, onUpdate }: { space: Space; onOpen: (
     return <div className="p-8 text-sm text-muted-foreground italic">No tasks to chart yet.</div>;
   }
 
-  const { min, totalDays, days } = useMemo(() => {
+  const colWidth = 32;
+
+  const { min, totalDays, days, layoutMap } = useMemo(() => {
     const starts = tasks.map((t) => new Date(t.startDate).getTime());
     const ends = tasks.map((t) => new Date(t.dueDate).getTime());
     const min = Math.min(...starts);
@@ -23,10 +25,17 @@ export function GanttView({ space, onOpen, onUpdate }: { space: Space; onOpen: (
       return new Date(min + i * 86400_000);
     });
 
-    return { min, totalDays, days };
-  }, [tasks]);
+    const layoutMap: Record<string, { offset: number; width: number }> = {};
+    for (const t of tasks) {
+      const s = new Date(t.startDate).getTime();
+      const e = new Date(t.dueDate).getTime();
+      const offset = Math.round((s - min) / 86400_000) * colWidth;
+      const width = Math.max(colWidth, (Math.round((e - s) / 86400_000) + 1) * colWidth);
+      layoutMap[t.id] = { offset, width };
+    }
 
-  const colWidth = 32;
+    return { min, totalDays, days, layoutMap };
+  }, [tasks]);
 
   return (
     <div className="p-6">
@@ -51,10 +60,7 @@ export function GanttView({ space, onOpen, onUpdate }: { space: Space; onOpen: (
           </div>
           {/* Rows */}
           {tasks.map((t) => {
-            const s = new Date(t.startDate).getTime();
-            const e = new Date(t.dueDate).getTime();
-            const offset = Math.round((s - min) / 86400_000) * colWidth;
-            const width = Math.max(colWidth, (Math.round((e - s) / 86400_000) + 1) * colWidth);
+            const { offset, width } = layoutMap[t.id];
             return (
               <button
                 key={t.id}

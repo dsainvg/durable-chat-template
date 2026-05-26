@@ -17,3 +17,6 @@
 ## 2024-05-24 - Extracted Field Filtering from Task Iteration Loop
 **Learning:** In the views architecture (KanbanView, ListView, TableView), custom field filtering and ordering was happening *inside* the task mapping loops. For large spaces with many tasks (T) and custom fields (F), this caused an O(T * F) complexity bottleneck on every render.
 **Action:** Always precalculate layout arrays or visible fields outside the render loops using `useMemo` (e.g. `visibleCustomFields = useMemo(() => customFields.filter(f => !hiddenFields[f.id]), [...])`) before mapping over items, changing complexity to O(F) + O(T).
+## 2024-05-24 - Extracted GanttView Layout Calculation
+**Learning:** In `GanttView`, parsing dates (`new Date()`) and executing layout math (like computing `offset` and `width` by scaling milliseconds to days against `min`) inside the `.map` render loop caused significant O(N) performance overhead during rapid state updates, such as timeline resizing.
+**Action:** Extract all layout math into an independent, pre-computed `layoutMap` dictionary inside the parent `useMemo` dependency array tracking `tasks`. Inside the `.map` render loop, look up the pre-computed bounds via `layoutMap[t.id]` instead of recalculating them dynamically.

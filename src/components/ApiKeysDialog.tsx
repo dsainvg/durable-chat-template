@@ -2,6 +2,17 @@ import { useState, useEffect } from "react";
 import { useStore } from "@/lib/store";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Copy, Trash2, Key } from "lucide-react";
 
 // ⚡ Bolt: Cache Intl.DateTimeFormat outside the component to prevent expensive
@@ -107,9 +118,25 @@ export function ApiKeysDialog({ isOpen, onOpenChange }: { isOpen: boolean, onOpe
                       <span className="font-mono font-medium truncate w-[250px]">{k.key.substring(0, 8)}...{k.key.slice(-4)}</span>
                       <span className="text-xs text-muted-foreground">Created {dateFormatter.format(new Date(k.created_at))}</span>
                     </div>
-                    <Button variant="ghost" size="icon" onClick={() => revokeKey(k.key)} className="text-destructive hover:bg-destructive/10" aria-label="Revoke key">
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" aria-label="Revoke key">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This action cannot be undone. This will permanently revoke the API key and any clients using it will immediately lose access.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => revokeKey(k.key)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Revoke Key</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 ))}
               </div>

@@ -9,3 +9,7 @@
 ## 2025-02-18 - Add Focus Indicators to Interactive Elements
 **Learning:** Raw `<button>` or `<Link>` tags without explicit focus indicators lead to poor accessibility for keyboard navigation. While many of the customized components in this application (like shadcn `Button`) include robust keyboard focus styles by default, unstyled semantic HTML elements do not inherit these out-of-the-box.
 **Action:** Always add explicit keyboard focus indicators (e.g. `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`) to raw buttons, anchor links, and custom interactive components to ensure visual affordances remain intact during keyboard-based navigation.
+
+## 2026-05-27 - Add Tooltips to Icon-only Buttons
+**Learning:** Icon-only buttons with `aria-label` are accessible to screen readers, but sighted users (especially new ones) may struggle to understand ambiguous icons like `+`. Adding tooltips bridges this gap and improves discoverability.
+**Action:** Always pair icon-only buttons with tooltips using the existing UI components (like `Tooltip` from Radix UI) so that visual context is provided alongside screen reader context.

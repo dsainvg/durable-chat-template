@@ -17,3 +17,6 @@
 ## 2024-05-24 - Extracted Field Filtering from Task Iteration Loop
 **Learning:** In the views architecture (KanbanView, ListView, TableView), custom field filtering and ordering was happening *inside* the task mapping loops. For large spaces with many tasks (T) and custom fields (F), this caused an O(T * F) complexity bottleneck on every render.
 **Action:** Always precalculate layout arrays or visible fields outside the render loops using `useMemo` (e.g. `visibleCustomFields = useMemo(() => customFields.filter(f => !hiddenFields[f.id]), [...])`) before mapping over items, changing complexity to O(F) + O(T).
+## 2024-11-21 - Pre-compute Render Math in Timeline/Gantt Views
+**Learning:** During high-frequency interactions (like drag-and-drop or horizontal resizing) in timeline components, executing `new Date()` parses or doing layout math (offsets/widths) inside the map array causes unnecessary CPU usage and performance stutter, as these don't change during the specific view render or resize interaction unless task data actually updates.
+**Action:** Always pre-compute and store layout math (offsets/widths) and parsing into a dictionary (e.g., `layoutMap`) inside a `useMemo` hook, and use pre-calculated `layoutMap[t.id].offset` and `layoutMap[t.id].width` in the render map loop.

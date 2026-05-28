@@ -11,6 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarTrigger } from "@/components/ui/sidebar";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { GlobalAutomationsDialog } from "./GlobalAutomationsDialog";
 import { ApiKeysDialog } from "./ApiKeysDialog";
 import { Key } from "lucide-react";
@@ -97,7 +98,7 @@ export function AppSidebar() {
   };
 
   return (
-    <>
+    <TooltipProvider>
       <Dialog open={isSpaceDialogOpen} onOpenChange={(open) => {
         setIsSpaceDialogOpen(open);
         if (!open) resetForm();
@@ -187,9 +188,16 @@ export function AppSidebar() {
                           }
                         />
                       )}
-                      <Button type="button" variant="ghost" size="icon" aria-label="Delete field" onClick={() => setCustomFields(customFields.filter((_, j) => j !== i))}>
-                        <Trash2 className="size-4" />
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button type="button" variant="ghost" size="icon" aria-label="Delete field" onClick={() => setCustomFields(customFields.filter((_, j) => j !== i))}>
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Delete field</p>
+                        </TooltipContent>
+                      </Tooltip>
                     </div>
                   ))}
                 </div>
@@ -219,9 +227,16 @@ export function AppSidebar() {
           <div>
             <div className="px-2 mb-2 flex items-center justify-between">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Spaces</p>
-              <button onClick={() => setIsSpaceDialogOpen(true)} aria-label="Add space" className="text-muted-foreground hover:text-foreground rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-                <Plus className="size-3.5" />
-              </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button onClick={() => setIsSpaceDialogOpen(true)} aria-label="Add space" className="text-muted-foreground hover:text-foreground rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                    <Plus className="size-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Add space</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
             <div className="space-y-0.5">
               {state.spaces.map((sp) => {
@@ -302,6 +317,6 @@ export function AppSidebar() {
       </Sidebar>
       <GlobalAutomationsDialog open={isAutomationsOpen} onOpenChange={setIsAutomationsOpen} />
       <ApiKeysDialog isOpen={isApiKeysOpen} onOpenChange={setIsApiKeysOpen} />
-    </>
+    </TooltipProvider>
   );
 }

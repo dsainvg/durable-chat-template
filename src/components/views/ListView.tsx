@@ -28,6 +28,12 @@ export function ListView({ space, viewId, onOpen, onMove }: { space: Space; view
 
   const userMap = useMemo(() => Object.fromEntries(state.users.map((u) => [u.id, u])), [state.users]);
 
+  // ⚡ Bolt: Replace O(N) array search inside task render loop with O(1) map lookup
+  // Impact: Reduces complexity from O(T * F) to O(T) when rendering custom fields
+  const customFieldMap = useMemo(() => {
+    return Object.fromEntries((space.customFields || []).map((f) => [f.id, f]));
+  }, [space.customFields]);
+
   const columns = useMemo(() => {
     if (groupBy === "assignee") {
       return state.users.map(u => ({ id: u.id, name: u.name })).concat([{ id: "unassigned", name: "Unassigned" }]);
@@ -115,7 +121,7 @@ export function ListView({ space, viewId, onOpen, onMove }: { space: Space; view
                   }
                   if (fieldId === "status") return null;
 
-                  const customField = space.customFields?.find(f => f.id === fieldId);
+                  const customField = customFieldMap[fieldId];
                   if (customField) {
                     return (
                       <span key={fieldId} className="text-[10px] text-muted-foreground truncate max-w-[150px]">

@@ -20,3 +20,6 @@
 ## 2024-11-21 - Pre-compute Render Math in Timeline/Gantt Views
 **Learning:** During high-frequency interactions (like drag-and-drop or horizontal resizing) in timeline components, executing `new Date()` parses or doing layout math (offsets/widths) inside the map array causes unnecessary CPU usage and performance stutter, as these don't change during the specific view render or resize interaction unless task data actually updates.
 **Action:** Always pre-compute and store layout math (offsets/widths) and parsing into a dictionary (e.g., `layoutMap`) inside a `useMemo` hook, and use pre-calculated `layoutMap[t.id].offset` and `layoutMap[t.id].width` in the render map loop.
+## 2024-10-25 - Replace O(N) array search with O(1) map lookup in render loops
+**Learning:** In list views where many items are rendered, conducting an `Array.prototype.find()` on an array of settings/fields (e.g., `space.customFields.find()`) inside the mapping loop scales poorly, resulting in an O(T * F) complexity where T is tasks and F is fields. This creates measurable sluggishness during high-frequency renders.
+**Action:** Pre-compute a dictionary (`Object.fromEntries(...)`) of the fields outside the render loop using `useMemo`, enabling fast O(1) lookups during the render cycle, dropping the complexity to O(T).

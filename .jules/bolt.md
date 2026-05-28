@@ -17,3 +17,6 @@
 ## 2024-05-24 - Extracted Field Filtering from Task Iteration Loop
 **Learning:** In the views architecture (KanbanView, ListView, TableView), custom field filtering and ordering was happening *inside* the task mapping loops. For large spaces with many tasks (T) and custom fields (F), this caused an O(T * F) complexity bottleneck on every render.
 **Action:** Always precalculate layout arrays or visible fields outside the render loops using `useMemo` (e.g. `visibleCustomFields = useMemo(() => customFields.filter(f => !hiddenFields[f.id]), [...])`) before mapping over items, changing complexity to O(F) + O(T).
+## 2024-11-21 - Unified Layout Computation in GanttView
+**Learning:** `GanttView.tsx` suffered from redundant O(N) date parsing where dates were parsed to get min/max bounds in a `useMemo`, and then parsed again inside the render loop (`tasks.map`) to compute element layout. Recomputing sizes on every render causes performance drops during local interactions like `isResizing`.
+**Action:** Unify all layout geometry calculation (e.g. `offset`, `width`) into the existing bounds-calculating `useMemo`, returning a `layoutMap` keyed by Task ID. This eliminates date re-parsing and layout math from the React render path entirely.

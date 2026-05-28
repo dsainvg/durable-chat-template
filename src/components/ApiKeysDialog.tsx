@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useStore } from "@/lib/store";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -98,9 +99,18 @@ export function ApiKeysDialog({ isOpen, onOpenChange }: { isOpen: boolean, onOpe
           {newKey && (
             <div className="p-3 bg-muted rounded-md text-sm break-all flex items-center justify-between border border-primary/50">
               <span className="font-mono">{newKey}</span>
-              <Button variant="ghost" size="icon" onClick={() => navigator.clipboard.writeText(newKey)} aria-label="Copy key">
-                <Copy className="w-4 h-4" />
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" onClick={() => navigator.clipboard.writeText(newKey)} aria-label="Copy key">
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Copy key</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           )}
 
@@ -119,11 +129,20 @@ export function ApiKeysDialog({ isOpen, onOpenChange }: { isOpen: boolean, onOpe
                       <span className="text-xs text-muted-foreground">Created {dateFormatter.format(new Date(k.created_at))}</span>
                     </div>
                     <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" aria-label="Revoke key">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </AlertDialogTrigger>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" aria-label="Revoke key">
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Revoke key</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                       <AlertDialogContent>
                         <AlertDialogHeader>
                           <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>

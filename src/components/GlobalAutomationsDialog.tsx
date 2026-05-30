@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useStore, type AutomationCondition, type Automation } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -124,12 +124,28 @@ export function GlobalAutomationsDialog({
     }
   };
 
+  // ⚡ Bolt: Pre-compute dictionary of all spaces to replace O(N) Array.find calls
+  // Impact: Reduces lookup complexity from O(N) to O(1) in the automations.map loop
+  const spaceNameMap = useMemo(() => Object.fromEntries(state.spaces.map(s => [s.id, s.name])), [state.spaces]);
+
+  // ⚡ Bolt: Pre-compute dictionary of all custom fields to replace O(N) Array.find calls
+  // Impact: Reduces complexity from O(T*F) to O(1) across the dialog's mapping loops
+  const allCustomFieldsMap = useMemo(() => {
+    const fields = state.spaces.flatMap(s => s.customFields || []);
+    return Object.fromEntries(fields.map(f => [f.id, f]));
+  }, [state.spaces]);
+
+  const customFieldMapWithPrefix = useMemo(() => {
+    const fields = state.spaces.flatMap(s => s.customFields || []);
+    return Object.fromEntries(fields.map(f => [`custom_${f.id}`, f]));
+  }, [state.spaces]);
+
   const availableCustomFields = Array.from(new Set(
     state.spaces
       .filter(s => targetSpaces.length === 0 || targetSpaces.includes(s.id))
       .flatMap(s => s.customFields?.map(f => f.id) || [])
   )).map(id => {
-    const field = state.spaces.flatMap(s => s.customFields || []).find(f => f.id === id);
+    const field = allCustomFieldsMap[id];
     return { id: `custom_${id}`, name: field?.name || id };
   });
 
@@ -160,7 +176,7 @@ export function GlobalAutomationsDialog({
                   <div key={a.id} className="bg-card border border-border p-3 rounded-md text-sm flex justify-between items-start gap-4">
                     <div className="space-y-1">
                       <p className="font-medium text-xs text-muted-foreground">
-                        Targets: {a.targetSpaces.length === 0 ? "Any Space" : a.targetSpaces.map(sid => state.spaces.find(s => s.id === sid)?.name || sid).join(', ')}
+                        Targets: {a.targetSpaces.length === 0 ? "Any Space" : a.targetSpaces.map(sid => spaceNameMap[sid] || sid).join(', ')}
                       </p>
                       <div>
                         <span className="font-semibold text-primary">WHEN </span>
@@ -385,13 +401,13 @@ export function GlobalAutomationsDialog({
                                  )}
                                  {c.config?.field === "due_date" && <Input type="date" className="h-8 text-xs w-full" value={c.config?.value || ""} onChange={e => updateCondition(i, { config: { ...c.config, value: e.target.value }})} />}
                                  {c.config?.field?.startsWith("custom_") && (() => {
-                                   const customField = state.spaces.flatMap(s => s.customFields || []).find(f => `custom_${f.id}` === c.config?.field);
+                                   const customField = customFieldMapWithPrefix[c.config!.field!];
                                    if (customField?.type === "select") {
                                      return (
                                        <Select value={c.config?.value || ""} onValueChange={v => updateCondition(i, { config: { ...c.config, value: v } })}>
                                          <SelectTrigger className="h-8 text-xs w-full"><SelectValue placeholder="Select Option" /></SelectTrigger>
                                          <SelectContent>
-                                           {customField.options?.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                                           {customField.options?.map((opt: string) => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
                                          </SelectContent>
                                        </Select>
                                      );

@@ -23,3 +23,6 @@
 ## 2024-10-25 - Replace O(N) array search with O(1) map lookup in render loops
 **Learning:** In list views where many items are rendered, conducting an `Array.prototype.find()` on an array of settings/fields (e.g., `space.customFields.find()`) inside the mapping loop scales poorly, resulting in an O(T * F) complexity where T is tasks and F is fields. This creates measurable sluggishness during high-frequency renders.
 **Action:** Pre-compute a dictionary (`Object.fromEntries(...)`) of the fields outside the render loop using `useMemo`, enabling fast O(1) lookups during the render cycle, dropping the complexity to O(T).
+## 2024-11-22 - Replace O(N) array searches with O(1) map lookups in dialog iteration loops
+**Learning:** Dialogs managing deep configuration mapping loops (like `GlobalAutomationsDialog.tsx` mapping through rules, and conditions for all rules) often execute inner `Array.prototype.find()` lookups on configuration arrays (e.g. `state.spaces.find()`). This leads to a severe performance bottleneck during render of O(N*M).
+**Action:** Always wrap target config lookups inside `useMemo(() => Object.fromEntries(source.map(...)))` mappings outside the React mapping loop logic to create O(1) lookup dictionaries, replacing inside operations like `spacesMap[id]` instead of `state.spaces.find(s => s.id === id)`.

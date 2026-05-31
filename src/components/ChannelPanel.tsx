@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import type { Space } from "@/lib/store";
 import { useStore, uid } from "@/lib/store";
 import { X, Send } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
 
@@ -42,9 +43,18 @@ export function ChannelPanel({ space, onClose, onSend }: { space: Space; onClose
           <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Channel</p>
           <p className="text-xs font-medium">#{space.name.toLowerCase().replace(/\s+/g, "-")}</p>
         </div>
-        <button onClick={onClose} aria-label="Close channel" className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-          <X className="size-4" />
-        </button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button onClick={onClose} aria-label="Close channel" className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                <X className="size-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Close channel</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {space.channel.length === 0 && (
@@ -80,14 +90,23 @@ export function ChannelPanel({ space, onClose, onSend }: { space: Space; onClose
             placeholder="Message channel…"
             className="flex-1 bg-transparent py-2 text-xs outline-none"
           />
-          <button
-            onClick={send}
-            disabled={!text.trim()}
-            aria-label="Send message"
-            className="text-primary hover:text-primary/80 p-1 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-          >
-            <Send className="size-4" />
-          </button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={send}
+                  disabled={!text.trim()}
+                  aria-label="Send message"
+                  className="text-primary hover:text-primary/80 p-1 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                >
+                  <Send className="size-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Send message</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </div>
     </aside>

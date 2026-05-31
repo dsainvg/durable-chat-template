@@ -1,30 +1,37 @@
-# Execution Plan
+1. **Understand the Goal**: The memory `.Jules/palette.md` has an entry from `2026-05-27` instructing to "Add tooltips to icon-only buttons... Always pair icon-only buttons with tooltips using the existing UI components (like `Tooltip` from Radix UI) so that visual context is provided alongside screen reader context."
 
-The user is asking to change how option-based (select) fields are handled in two specific places:
+2. **Identify Target Files**:
+   - `src/components/SpaceSettingsDialog.tsx`
+     - View Delete Button (`aria-label="Delete view"`)
+     - Move Field Up Button (`aria-label="Move field up"`)
+     - Move Field Down Button (`aria-label="Move field down"`)
+     - Delete Custom Field Button (`aria-label="Delete field"`)
+   - `src/components/GlobalAutomationsDialog.tsx`
+     - Delete Automation Button (`aria-label="Delete automation"`)
+     - Remove Condition Button (`aria-label="Remove condition"`)
+   - `src/components/ExcelIntegration.tsx`
+     - Remove Constant Mapping Button (`aria-label="Remove constant mapping"`)
+   *(Note: AppSidebar and ApiKeysDialog already use Tooltips, I'll double check just to be sure).*
 
-1. **Global Automations Dialog (Condition Checking):** Currently, when setting up an automation condition for a `custom_` field that happens to be of type `select`, the UI shows a free-text `<Input>` to type the value. The user wants to see a dropdown ( `<Select>` ) with the available options for that custom field instead of typing it.
-2. **Excel Integration (Importing):** When importing a constant field that is a custom field of type `select`, the UI provides an `<Input>` to type the value. The user wants to be able to select from a dropdown of options for that custom field. The user also mentions "while importing I could be able to import some thing as a option not just as text". This likely means in `ExcelIntegration.tsx` for the "constantMappings" for select fields, show a Select dropdown of the options.
+3. **Implement Changes**:
+   - Import `Tooltip`, `TooltipContent`, `TooltipProvider`, `TooltipTrigger` from `@/components/ui/tooltip` into the target files.
+   - Wrap the `DialogContent` or `div` containing these buttons with `<TooltipProvider>` if not already present. Actually, it's often better to just wrap the individual button with `<TooltipProvider><Tooltip><TooltipTrigger asChild>...</TooltipTrigger><TooltipContent><p>Label</p></TooltipContent></Tooltip></TooltipProvider>` or wrap the whole dialog in `TooltipProvider` at the top level. Given `SpaceSettingsDialog` doesn't have it, I'll add `TooltipProvider` around the content.
+   - Ensure the inner `<Button>` has `type="button"` if it's in a form, and `aria-label` is set.
+   - Per memory: "do not wrap the inner component in intermediate HTML elements like `<div>`. Doing so breaks the React `cloneElement` chain".
 
-## Steps
-1. **Modify `GlobalAutomationsDialog.tsx`:**
-   - Locate where `c.config?.field?.startsWith("custom_")` is handled.
-   - Fetch the actual custom field from the spaces to check its type. Wait, `GlobalAutomationsDialog` doesn't have a specific space since automations can apply to multiple spaces. Ah! Let's check how custom fields are gathered in `GlobalAutomationsDialog`.
-   - Actually, in `GlobalAutomationsDialog`, `customFields` are collected across all spaces: `const allCustomFields = Array.from(new Map(state.spaces.flatMap(s => s.customFields).map(f => [f.name, f])).values());`
-   - We need to look up the custom field by its `id` (or `field.replace('custom_', '')`). The `Select` for the field has values like `custom_${id}`.
-   - When rendering the value input, check if the `customField` has `type === "select"`.
-   - If it does, render a `<Select>` with `SelectItem`s for each option in `customField.options`.
-   - If not, keep the `<Input>`.
+4. **Run Verification Commands**:
+   - `pnpm test`
+   - `pnpm run check`
+   - `pnpm format` / `pnpm lint` are explicitly mentioned to not work, except the prompt says "run commands like `pnpm lint` ... based on this repo before creating PR". The memory states "The project's `package.json` does not currently define `lint` or `format` scripts; therefore, running commands like `pnpm lint`, `pnpm run lint`, or `pnpm format` will intentionally fail." So I will only run `pnpm test` and `pnpm run check`.
+   - `pnpm build`
 
-2. **Modify `ExcelIntegration.tsx`:**
-   - Locate the rendering of `constantMappings`.
-   - Instead of just `<Input>`, check the selected `c.field`.
-   - If `c.field.startsWith("custom_")`, find the `customField`.
-   - If the `customField` is of type `"select"`, render a `<Select>` dropdown with its `options`.
-   - Also, if `c.field === "status"`, we should render a `<Select>` with the space's columns as options.
-   - If `c.field === "priority"`, render a `<Select>` with "low", "medium", "high".
-
-3. **Pre-commit steps:**
-   - Complete pre-commit steps to ensure proper testing, verification, review, and reflection are done.
-
-4. **Submit:**
-   - Submit the branch.
+5. **Write PR / Journal**:
+   - I am allowed <50 lines changes ideally. Adding tooltips to 7 places across 3 files might be a bit many lines depending on how I format it.
+   - Wait, "Your mission is to find and implement ONE micro-UX improvement". Maybe I just do this for `SpaceSettingsDialog`? No, let's do it for all places since it's the same pattern, or maybe just `SpaceSettingsDialog` to keep it under 50 lines. Let's look at `SpaceSettingsDialog.tsx` size of changes.
+   - 4 buttons in `SpaceSettingsDialog.tsx`:
+     - Delete View
+     - Move up
+     - Move down
+     - Delete custom field
+   - Wrapping these in tooltips will add around 6 lines each * 4 = 24 lines. This is well under 50. Let's do `SpaceSettingsDialog.tsx`.
+   - Let's check `SpaceSettingsDialog` first.

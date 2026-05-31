@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -242,6 +243,7 @@ export function SpaceSettingsDialog({
 
   return (
     <>
+    <TooltipProvider>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -277,9 +279,16 @@ export function SpaceSettingsDialog({
                     }
                   />
                   <div className="text-xs text-muted-foreground w-16">{v.type}</div>
-                  <Button variant="ghost" size="icon" aria-label="Delete view" onClick={() => patchLocal((sp) => ({ ...sp, views: sp.views.filter(x => x.id !== v.id) }))}>
-                    <Trash2 className="size-4" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" aria-label="Delete view" onClick={() => patchLocal((sp) => ({ ...sp, views: sp.views.filter(x => x.id !== v.id) }))}>
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Delete view</p>
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
               ))}
               <div className="flex gap-2 items-center">
@@ -387,60 +396,74 @@ export function SpaceSettingsDialog({
                               {field.label}
                             </label>
                             <div className="flex gap-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                aria-label="Move field up"
-                                disabled={idx === 0}
-                                onClick={() => {
-                                  const newOrder = [...fieldOrder];
-                                  if (!newOrder.includes(field.id)) {
-                                    newOrder.push(...remainingFields.map(f => f.id));
-                                  }
-                                  const currentIdx = newOrder.indexOf(field.id);
-                                  [newOrder[currentIdx - 1], newOrder[currentIdx]] = [newOrder[currentIdx], newOrder[currentIdx - 1]];
-                                  patchLocal((sp) => ({
-                                    ...sp,
-                                    views: sp.views.map(v => v.id === viewObj.id ? {
-                                      ...v,
-                                      settings: {
-                                        ...(v.settings || {}),
-                                        fieldOrder: newOrder
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6"
+                                    aria-label="Move field up"
+                                    disabled={idx === 0}
+                                    onClick={() => {
+                                      const newOrder = [...fieldOrder];
+                                      if (!newOrder.includes(field.id)) {
+                                        newOrder.push(...remainingFields.map(f => f.id));
                                       }
-                                    } : v)
-                                  }));
-                                }}
-                              >
-                                ↑
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                aria-label="Move field down"
-                                disabled={idx === finalFields.length - 1}
-                                onClick={() => {
-                                  const newOrder = [...fieldOrder];
-                                  if (!newOrder.includes(field.id)) {
-                                    newOrder.push(...remainingFields.map(f => f.id));
-                                  }
-                                  const currentIdx = newOrder.indexOf(field.id);
-                                  [newOrder[currentIdx], newOrder[currentIdx + 1]] = [newOrder[currentIdx + 1], newOrder[currentIdx]];
-                                  patchLocal((sp) => ({
-                                    ...sp,
-                                    views: sp.views.map(v => v.id === viewObj.id ? {
-                                      ...v,
-                                      settings: {
-                                        ...(v.settings || {}),
-                                        fieldOrder: newOrder
+                                      const currentIdx = newOrder.indexOf(field.id);
+                                      [newOrder[currentIdx - 1], newOrder[currentIdx]] = [newOrder[currentIdx], newOrder[currentIdx - 1]];
+                                      patchLocal((sp) => ({
+                                        ...sp,
+                                        views: sp.views.map(v => v.id === viewObj.id ? {
+                                          ...v,
+                                          settings: {
+                                            ...(v.settings || {}),
+                                            fieldOrder: newOrder
+                                          }
+                                        } : v)
+                                      }));
+                                    }}
+                                  >
+                                    ↑
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Move field up</p>
+                                </TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6"
+                                    aria-label="Move field down"
+                                    disabled={idx === finalFields.length - 1}
+                                    onClick={() => {
+                                      const newOrder = [...fieldOrder];
+                                      if (!newOrder.includes(field.id)) {
+                                        newOrder.push(...remainingFields.map(f => f.id));
                                       }
-                                    } : v)
-                                  }));
-                                }}
-                              >
-                                ↓
-                              </Button>
+                                      const currentIdx = newOrder.indexOf(field.id);
+                                      [newOrder[currentIdx], newOrder[currentIdx + 1]] = [newOrder[currentIdx + 1], newOrder[currentIdx]];
+                                      patchLocal((sp) => ({
+                                        ...sp,
+                                        views: sp.views.map(v => v.id === viewObj.id ? {
+                                          ...v,
+                                          settings: {
+                                            ...(v.settings || {}),
+                                            fieldOrder: newOrder
+                                          }
+                                        } : v)
+                                      }));
+                                    }}
+                                  >
+                                    ↓
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Move field down</p>
+                                </TooltipContent>
+                              </Tooltip>
                             </div>
                           </div>
                         ));
@@ -544,14 +567,21 @@ export function SpaceSettingsDialog({
                       }
                     />
                   )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => patchLocal((sp) => ({ ...sp, customFields: sp.customFields.filter((_, j) => j !== i) }))}
-                    aria-label="Delete field"
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => patchLocal((sp) => ({ ...sp, customFields: sp.customFields.filter((_, j) => j !== i) }))}
+                        aria-label="Delete field"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Delete field</p>
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
               ))}
               <Button
@@ -637,6 +667,7 @@ export function SpaceSettingsDialog({
         </div>
       </DialogContent>
     </Dialog>
+    </TooltipProvider>
 
     <ExcelImportDialog
       open={importOpen}

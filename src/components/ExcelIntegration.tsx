@@ -147,6 +147,34 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
         }
       });
 
+
+      // ⚡ Bolt: Pre-compute dictionary lookups outside the O(N) data loop to prevent
+      // O(N*M) performance bottlenecks during large Excel imports.
+      // Impact: Reduces complexity from O(rows * users) and O(rows * statuses) to O(rows).
+      const userById = new Map<string, User>();
+      const userByNameLower = new Map<string, User>();
+      const userByEmailLower = new Map<string, User>();
+      users.forEach(u => {
+        userById.set(u.id, u);
+        userByNameLower.set(u.name.toLowerCase(), u);
+        userByEmailLower.set(u.email.toLowerCase(), u);
+      });
+
+      const hardcodedStatuses = [
+        { id: "todo", name: "To Do" },
+        { id: "doing", name: "Doing" },
+        { id: "done", name: "Done" }
+      ];
+      const statusById = new Map<string, any>();
+      const statusByNameLower = new Map<string, any>();
+      hardcodedStatuses.forEach(s => {
+        statusById.set(s.id, s);
+        statusByNameLower.set(s.name.toLowerCase(), s);
+      });
+
+      const customFieldById = new Map<string, any>();
+      space.customFields.forEach(f => customFieldById.set(f.id, f));
+
       const tasksToImport: Task[] = data.map((row, rowIndex) => {
         const task: any = {
           id: uid(),
@@ -170,17 +198,15 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
           else if (mapTo === "description") task.description = String(val);
           else if (mapTo === "status") {
             const mappedVal = optionMappings[h]?.[String(val)];
-            const hardcodedStatuses = [
-              { id: "todo", name: "To Do" },
-              { id: "doing", name: "Doing" },
-              { id: "done", name: "Done" }
-            ];
-            const col = hardcodedStatuses.find(c => c.id === mappedVal || c.name === mappedVal || c.name.toLowerCase() === String(val).toLowerCase());
+            const lookupVal = mappedVal ? String(mappedVal).toLowerCase() : String(val).toLowerCase();
+            const col = statusById.get(lookupVal) || statusByNameLower.get(lookupVal);
             task.status = col ? col.id : "todo";
           }
           else if (mapTo === "assignee") {
             const mappedVal = optionMappings[h]?.[String(val)];
-            const user = users.find(u => u.id === mappedVal || u.name === mappedVal || u.name.toLowerCase() === String(val).toLowerCase() || u.email.toLowerCase() === String(val).toLowerCase());
+            const lookupVal = mappedVal ? String(mappedVal) : String(val);
+            const lookupValLower = lookupVal.toLowerCase();
+            const user = userById.get(lookupVal) || userByNameLower.get(lookupValLower) || userByEmailLower.get(lookupValLower);
             task.assignee = user ? user.id : "";
           }
           else if (mapTo === "dueDate") {
@@ -230,7 +256,7 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
           }
           else if (mapTo.startsWith("custom_")) {
             const fieldId = mapTo.replace("custom_", "");
-            const customField = space.customFields.find(f => f.id === fieldId);
+            const customField = customFieldById.get(fieldId);
             if (customField?.type === "select") {
               task.custom[fieldId] = optionMappings[h]?.[String(val)] || String(val);
             } else {
@@ -260,16 +286,14 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
           if (c.field === "title") task.title = String(val);
           else if (c.field === "description") task.description = String(val);
           else if (c.field === "status") {
-            const hardcodedStatuses = [
-              { id: "todo", name: "To Do" },
-              { id: "doing", name: "Doing" },
-              { id: "done", name: "Done" }
-            ];
-            const col = hardcodedStatuses.find(col => col.name.toLowerCase() === String(val).toLowerCase() || col.id === String(val).toLowerCase());
+            const lookupVal = String(val).toLowerCase();
+            const col = statusById.get(lookupVal) || statusByNameLower.get(lookupVal);
             if (col) task.status = col.id;
           }
           else if (c.field === "assignee") {
-            const user = users.find(u => u.name.toLowerCase() === String(val).toLowerCase() || u.email.toLowerCase() === String(val).toLowerCase() || u.id === String(val));
+            const lookupVal = String(val);
+            const lookupValLower = lookupVal.toLowerCase();
+            const user = userById.get(lookupVal) || userByNameLower.get(lookupValLower) || userByEmailLower.get(lookupValLower);
             if (user) task.assignee = user.id;
           }
           else if (c.field === "dueDate") {

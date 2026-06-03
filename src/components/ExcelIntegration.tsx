@@ -336,12 +336,49 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
     const newOptionMappings: Record<string, Record<string, string>> = { ...optionMappings };
     let hasOptions = false;
 
+    // ⚡ Bolt: Pre-compute dictionary lookups outside the O(N) mapping loops to prevent
+    // O(V * U) and O(V * F) performance bottlenecks during Excel imports.
+    // Impact: Reduces complexity from O(uniqueValues * users) to O(uniqueValues).
+    const userMap = new Map<string, string>();
+    users.forEach(u => {
+      const nameKey = u.name.toLowerCase();
+      const emailKey = u.email.toLowerCase();
+      if (!userMap.has(nameKey)) userMap.set(nameKey, u.id);
+      if (!userMap.has(emailKey)) userMap.set(emailKey, u.id);
+    });
+
+    const hardcodedStatuses = [
+      { id: "todo", name: "To Do" },
+      { id: "doing", name: "Doing" },
+      { id: "done", name: "Done" }
+    ];
+    const statusMap = new Map<string, string>();
+    hardcodedStatuses.forEach(c => {
+      const nameKey = c.name.toLowerCase();
+      const idKey = c.id.toLowerCase();
+      if (!statusMap.has(nameKey)) statusMap.set(nameKey, c.id);
+      if (!statusMap.has(idKey)) statusMap.set(idKey, c.id);
+    });
+
+    const customFieldMap = new Map(space.customFields.map(f => [f.id, f]));
+    const customFieldOptionsMap = new Map<string, Map<string, string>>();
+    space.customFields.forEach(f => {
+      if (f.options) {
+        const optMap = new Map<string, string>();
+        f.options.forEach(o => {
+          const optKey = o.toLowerCase();
+          if (!optMap.has(optKey)) optMap.set(optKey, o);
+        });
+        customFieldOptionsMap.set(f.id, optMap);
+      }
+    });
+
     headers.forEach((h, i) => {
       const mapTo = mapping[h];
       if (mapTo === "status" || mapTo === "priority" || mapTo === "assignee" || mapTo.startsWith("custom_")) {
         let isSelect = mapTo === "status" || mapTo === "priority" || mapTo === "assignee";
         if (mapTo.startsWith("custom_")) {
-          const field = space.customFields.find(f => f.id === mapTo.replace("custom_", ""));
+          const field = customFieldMap.get(mapTo.replace("custom_", ""));
           if (field?.type === "select") isSelect = true;
         }
 
@@ -353,23 +390,18 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
           // Initial intelligent option mapping
           values.forEach(val => {
             if (!newOptionMappings[h][val]) {
+               const valLower = val.toLowerCase();
                if (mapTo === "status") {
-                 const hardcodedStatuses = [
-                   { id: "todo", name: "To Do" },
-                   { id: "doing", name: "Doing" },
-                   { id: "done", name: "Done" }
-                 ];
-                 const col = hardcodedStatuses.find(c => c.name.toLowerCase() === val.toLowerCase() || c.id === val.toLowerCase());
-                 if (col) newOptionMappings[h][val] = col.id;
+                 const colId = statusMap.get(valLower);
+                 if (colId) newOptionMappings[h][val] = colId;
                } else if (mapTo === "priority") {
-                 if (["high", "medium", "low"].includes(val.toLowerCase())) newOptionMappings[h][val] = val.toLowerCase();
+                 if (["high", "medium", "low"].includes(valLower)) newOptionMappings[h][val] = valLower;
                } else if (mapTo === "assignee") {
-                 const user = users.find(u => u.name.toLowerCase() === val.toLowerCase() || u.email.toLowerCase() === val.toLowerCase());
-                 if (user) newOptionMappings[h][val] = user.id;
+                 const userId = userMap.get(valLower);
+                 if (userId) newOptionMappings[h][val] = userId;
                } else {
                  const fieldId = mapTo.replace("custom_", "");
-                 const field = space.customFields.find(f => f.id === fieldId);
-                 const opt = field?.options?.find(o => o.toLowerCase() === val.toLowerCase());
+                 const opt = customFieldOptionsMap.get(fieldId)?.get(valLower);
                  if (opt) newOptionMappings[h][val] = opt;
                }
             }

@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import type { Space, Task } from "@/lib/store";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // ⚡ Bolt: Cache Intl.DateTimeFormat outside the component to prevent expensive
 // reinitalization on every re-render of the calendar view
@@ -45,22 +46,37 @@ export function CalendarView({ space, viewId, onOpen, onMove }: { space: Space; 
   }, [space.customFields, hiddenFields]);
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold">
-          {monthYearFormatter.format(cursor)}
-        </h2>
-        <div className="flex gap-1">
-          <button onClick={() => setCursor(new Date(year, month - 1, 1))} aria-label="Previous month" className="p-1.5 rounded hover:bg-accent text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-            <ChevronLeft className="size-4" />
-          </button>
-          <button onClick={() => setCursor(new Date())} className="px-2 text-xs rounded hover:bg-accent text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Today</button>
-          <button onClick={() => setCursor(new Date(year, month + 1, 1))} aria-label="Next month" className="p-1.5 rounded hover:bg-accent text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-            <ChevronRight className="size-4" />
-          </button>
+    <TooltipProvider>
+      <div className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold">
+            {monthYearFormatter.format(cursor)}
+          </h2>
+          <div className="flex gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button onClick={() => setCursor(new Date(year, month - 1, 1))} aria-label="Previous month" className="p-1.5 rounded hover:bg-accent text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                  <ChevronLeft className="size-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Previous month</p>
+              </TooltipContent>
+            </Tooltip>
+            <button onClick={() => setCursor(new Date())} className="px-2 text-xs rounded hover:bg-accent text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Today</button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button onClick={() => setCursor(new Date(year, month + 1, 1))} aria-label="Next month" className="p-1.5 rounded hover:bg-accent text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                  <ChevronRight className="size-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Next month</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
         </div>
-      </div>
-      <div className="grid grid-cols-7 gap-px rounded-lg border border-border bg-border overflow-hidden">
+        <div className="grid grid-cols-7 gap-px rounded-lg border border-border bg-border overflow-hidden">
         {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d) => (
           <div key={d} className="bg-card px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{d}</div>
         ))}
@@ -117,7 +133,8 @@ export function CalendarView({ space, viewId, onOpen, onMove }: { space: Space; 
             </div>
           );
         })}
+        </div>
       </div>
-    </div>
+    </TooltipProvider>
   );
 }

@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -277,9 +278,18 @@ export function SpaceSettingsDialog({
                     }
                   />
                   <div className="text-xs text-muted-foreground w-16">{v.type}</div>
-                  <Button variant="ghost" size="icon" aria-label="Delete view" onClick={() => patchLocal((sp) => ({ ...sp, views: sp.views.filter(x => x.id !== v.id) }))}>
-                    <Trash2 className="size-4" />
-                  </Button>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon" aria-label="Delete view" onClick={() => patchLocal((sp) => ({ ...sp, views: sp.views.filter(x => x.id !== v.id) }))}>
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Delete view</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
               ))}
               <div className="flex gap-2 items-center">
@@ -544,14 +554,23 @@ export function SpaceSettingsDialog({
                       }
                     />
                   )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => patchLocal((sp) => ({ ...sp, customFields: sp.customFields.filter((_, j) => j !== i) }))}
-                    aria-label="Delete field"
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => patchLocal((sp) => ({ ...sp, customFields: sp.customFields.filter((_, j) => j !== i) }))}
+                          aria-label="Delete field"
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Delete field</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
               ))}
               <Button

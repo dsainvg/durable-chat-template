@@ -13,3 +13,6 @@
 ## 2026-05-27 - Add Tooltips to Icon-only Buttons
 **Learning:** Icon-only buttons with `aria-label` are accessible to screen readers, but sighted users (especially new ones) may struggle to understand ambiguous icons like `+`. Adding tooltips bridges this gap and improves discoverability.
 **Action:** Always pair icon-only buttons with tooltips using the existing UI components (like `Tooltip` from Radix UI) so that visual context is provided alongside screen reader context.
+## 2026-06-03 - Add Tooltips to Icon-only Buttons in CalendarView
+**Learning:** Icon-only buttons with `aria-label` are accessible to screen readers, but sighted users may struggle to understand ambiguous icons. Adding tooltips bridges this gap and improves discoverability.
+**Action:** Always pair icon-only buttons with tooltips using the existing UI components (like `Tooltip` from Radix UI) so that visual context is provided alongside screen reader context.

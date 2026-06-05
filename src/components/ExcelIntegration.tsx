@@ -41,6 +41,9 @@ const STANDARD_FIELDS = [
   { id: "priority", label: "Priority" },
 ];
 
+// ⚡ Bolt: Pre-compute map for standard fields to replace O(N) Array.find calls
+const STANDARD_FIELDS_MAP = Object.fromEntries(STANDARD_FIELDS.map(f => [f.id, f]));
+
 export function exportToExcel(tasks: Task[], space: Space, users: User[]) {
   const userMap = Object.fromEntries(users.map((u) => [u.id, u.name]));
   const statusLabels: Record<string, string> = {
@@ -84,6 +87,15 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
   const [uniqueValues, setUniqueValues] = React.useState<Record<string, string[]>>({});
   const [importing, setImporting] = React.useState(false);
   const [constantMappings, setConstantMappings] = React.useState<{ id: string; field: string; type: 'constant' | 'date_plus_rowid'; value: string }[]>([]);
+
+  const customFieldMapWithPrefix = React.useMemo(() => {
+    return Object.fromEntries(space.customFields.map(f => [`custom_${f.id}`, f]));
+  }, [space.customFields]);
+
+  const customFieldMap = React.useMemo(() => {
+    return Object.fromEntries(space.customFields.map(f => [f.id, f]));
+  }, [space.customFields]);
+
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -515,7 +527,7 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
                     <div></div>
 
                     {constantMappings.map((c, idx) => {
-                      const isDate = c.field === "dueDate" || space.customFields.find(f => `custom_${f.id}` === c.field)?.type === "date";
+                      const isDate = c.field === "dueDate" || customFieldMapWithPrefix[c.field]?.type === "date";
                       return (
                         <React.Fragment key={c.id}>
                           <Select
@@ -523,7 +535,7 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
                             onValueChange={(val) => {
                               const newMappings = [...constantMappings];
                               newMappings[idx].field = val;
-                              if (val !== "dueDate" && space.customFields.find(f => `custom_${f.id}` === val)?.type !== "date") {
+                              if (val !== "dueDate" && customFieldMapWithPrefix[val]?.type !== "date") {
                                 newMappings[idx].type = "constant";
                               }
                               setConstantMappings(newMappings);
@@ -619,7 +631,7 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
                                 </Select>
                               );
                             }
-                            const customField = space.customFields.find(f => `custom_${f.id}` === c.field);
+                            const customField = customFieldMapWithPrefix[c.field];
                             if (customField?.type === "select") {
                               return (
                                 <Select
@@ -693,7 +705,7 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
                     else if (mapTo === "priority") options = [{ id: "high", name: "High" }, { id: "medium", name: "Medium" }, { id: "low", name: "Low" }];
                     else if (mapTo === "assignee") options = users.map(u => ({ id: u.id, name: u.name }));
                     else {
-                      const field = space.customFields.find(f => f.id === mapTo.replace("custom_", ""));
+                      const field = customFieldMap[mapTo.replace("custom_", "")];
                       options = (field?.options || []).map(o => ({ id: o, name: o }));
                     }
 
@@ -748,7 +760,7 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
                         mapping[h] !== "skip" && <TableHead key={h}>{h}</TableHead>
                       ))}
                       {constantMappings.map(c => {
-                        const fieldName = STANDARD_FIELDS.find(f => f.id === c.field)?.label || space.customFields.find(f => `custom_${f.id}` === c.field)?.name || c.field;
+                        const fieldName = STANDARD_FIELDS_MAP[c.field]?.label || customFieldMapWithPrefix[c.field]?.name || c.field;
                         return <TableHead key={c.id}>[Const] {fieldName}</TableHead>;
                       })}
                     </TableRow>

@@ -16,3 +16,6 @@
 ## 2026-06-03 - Add Tooltips to Icon-only Buttons in CalendarView
 **Learning:** Icon-only buttons with `aria-label` are accessible to screen readers, but sighted users may struggle to understand ambiguous icons. Adding tooltips bridges this gap and improves discoverability.
 **Action:** Always pair icon-only buttons with tooltips using the existing UI components (like `Tooltip` from Radix UI) so that visual context is provided alongside screen reader context.
+## 2025-02-18 - Add Tooltips to Icon-only Buttons in SpaceSettingsDialog
+**Learning:** Icon-only buttons (like 'Move field up', 'Move field down', 'Delete view', 'Delete field') in the SpaceSettingsDialog lacked tooltips, making them less discoverable and accessible for sighted users unfamiliar with the icons.
+**Action:** Pair all icon-only buttons with tooltips using the `Tooltip` components from Radix UI. Ensure `TooltipProvider` encapsulates the buttons, and test interaction to ensure clarity.

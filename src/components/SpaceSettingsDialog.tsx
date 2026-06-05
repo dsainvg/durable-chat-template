@@ -5,10 +5,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,6 +32,12 @@ import {
 import { Trash2, Plus, Download, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "@tanstack/react-router";
+import {
+  TooltipProvider,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
 import { ExcelImportDialog, exportToExcel } from "./ExcelIntegration";
 
 const VIEWS: { id: ViewType; label: string }[] = [
@@ -48,17 +63,25 @@ export function SpaceSettingsDialog({
   const me = state.users.find((u) => u.id === state.currentUserId);
 
   const [localSpace, setLocalSpace] = useState(space);
-  const [automations, setAutomations] = useState<import("@/lib/store").Automation[]>([]);
-  const [newAutoTrigger, setNewAutoTrigger] = useState("due_today_with_assignee");
+  const [automations, setAutomations] = useState<
+    import("@/lib/store").Automation[]
+  >([]);
+  const [newAutoTrigger, setNewAutoTrigger] = useState(
+    "due_today_with_assignee",
+  );
   const [newAutoAction, setNewAutoAction] = useState("send_email");
-  const [newAutoConfig, setNewAutoConfig] = useState<Record<string, any>>({ email: me?.email || "" });
+  const [newAutoConfig, setNewAutoConfig] = useState<Record<string, any>>({
+    email: me?.email || "",
+  });
   const [importOpen, setImportOpen] = useState(false);
 
   useEffect(() => {
     if (open && space) {
-      const normalizedColumns = Array.isArray(space.columns) && (space.columns.length === 0 || typeof space.columns[0] === 'string')
-        ? space.columns as any as string[]
-        : ["description", "priority", "assignee", "startDate", "dueDate"];
+      const normalizedColumns =
+        Array.isArray(space.columns) &&
+        (space.columns.length === 0 || typeof space.columns[0] === "string")
+          ? (space.columns as any as string[])
+          : ["description", "priority", "assignee", "startDate", "dueDate"];
 
       setLocalSpace({
         ...space,
@@ -68,10 +91,10 @@ export function SpaceSettingsDialog({
       const token = localStorage.getItem("syncduo_token");
       if (token) {
         fetch(`/api/spaces/${spaceId}/automations`, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
         })
-          .then(res => res.json())
-          .then(data => {
+          .then((res) => res.json())
+          .then((data) => {
             if (Array.isArray(data)) setAutomations(data);
           })
           .catch(console.error);
@@ -85,15 +108,18 @@ export function SpaceSettingsDialog({
     try {
       const res = await fetch(`/api/spaces/${spaceId}/automations`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           trigger_type: newAutoTrigger,
           action_type: newAutoAction,
-          config: newAutoConfig
-        })
+          config: newAutoConfig,
+        }),
       });
       if (res.ok) {
-        const data = await res.json() as import("@/lib/store").Automation;
+        const data = (await res.json()) as import("@/lib/store").Automation;
         setAutomations([...automations, data]);
         toast.success("Automation added");
       } else {
@@ -110,10 +136,10 @@ export function SpaceSettingsDialog({
     try {
       const res = await fetch(`/api/spaces/${spaceId}/automations/${autoId}`, {
         method: "DELETE",
-        headers: { "Authorization": `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
-        setAutomations(automations.filter(a => a.id !== autoId));
+        setAutomations(automations.filter((a) => a.id !== autoId));
         toast.success("Automation removed");
       }
     } catch (e) {
@@ -123,7 +149,9 @@ export function SpaceSettingsDialog({
 
   if (!space || !localSpace) return null;
 
-  const patchLocal = (fn: (sp: import("@/lib/store").Space) => import("@/lib/store").Space) => {
+  const patchLocal = (
+    fn: (sp: import("@/lib/store").Space) => import("@/lib/store").Space,
+  ) => {
     setLocalSpace((prev) => (prev ? fn(prev) : prev));
   };
 
@@ -131,16 +159,25 @@ export function SpaceSettingsDialog({
     if (!localSpace) return;
 
     if (localSpace.emailReminders && localSpace.emailDigestTime) {
-      const parts = localSpace.emailDigestTime.split(':');
+      const parts = localSpace.emailDigestTime.split(":");
       const hours = parseInt(parts[0], 10);
       const minutes = parseInt(parts[1], 10);
-      if (isNaN(hours) || isNaN(minutes) || hours < 7 || hours > 23 || (hours === 23 && minutes > 30)) {
+      if (
+        isNaN(hours) ||
+        isNaN(minutes) ||
+        hours < 7 ||
+        hours > 23 ||
+        (hours === 23 && minutes > 30)
+      ) {
         toast.error("Digest delivery time must be between 07:00 and 23:30");
         return;
       }
     }
 
-    update((s) => ({ ...s, spaces: s.spaces.map((sp) => (sp.id === spaceId ? localSpace : sp)) }));
+    update((s) => ({
+      ...s,
+      spaces: s.spaces.map((sp) => (sp.id === spaceId ? localSpace : sp)),
+    }));
 
     const token = localStorage.getItem("syncduo_token");
     if (token) {
@@ -149,7 +186,7 @@ export function SpaceSettingsDialog({
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             name: localSpace.name,
@@ -159,7 +196,7 @@ export function SpaceSettingsDialog({
             customFields: localSpace.customFields,
             emailReminders: localSpace.emailReminders,
             emailDigestTime: localSpace.emailDigestTime,
-          })
+          }),
         });
         toast.success("Settings saved");
       } catch (e) {
@@ -178,15 +215,15 @@ export function SpaceSettingsDialog({
       const response = await fetch(`/api/spaces/${spaceId}`, {
         method: "DELETE",
         headers: {
-          "Authorization": `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       });
       if (response.ok) {
         // The websocket space_deleted broadcast will handle store update and navigation
         onOpenChange(false);
         toast.success("Space deleted");
       } else {
-        const err = await response.json() as any;
+        const err = (await response.json()) as any;
         toast.error(err.error || "Failed to delete space");
       }
     } catch (e) {
@@ -194,7 +231,10 @@ export function SpaceSettingsDialog({
     }
   };
 
-  const handleImport = async (tasks: import("@/lib/store").Task[], newFields?: { id: string; name: string; type: any }[]) => {
+  const handleImport = async (
+    tasks: import("@/lib/store").Task[],
+    newFields?: { id: string; name: string; type: any }[],
+  ) => {
     const token = localStorage.getItem("syncduo_token");
     if (!token) return;
 
@@ -202,15 +242,25 @@ export function SpaceSettingsDialog({
     if (newFields && newFields.length > 0) {
       updatedSpace = {
         ...updatedSpace,
-        customFields: [...updatedSpace.customFields, ...newFields.map(f => ({ id: f.id, name: f.name, type: f.type as import("@/lib/store").FieldType }))]
+        customFields: [
+          ...updatedSpace.customFields,
+          ...newFields.map((f) => ({
+            id: f.id,
+            name: f.name,
+            type: f.type as import("@/lib/store").FieldType,
+          })),
+        ],
       };
 
       // Save updated space with new fields first
       try {
         await fetch(`/api/spaces/${spaceId}`, {
           method: "PUT",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-          body: JSON.stringify(updatedSpace)
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(updatedSpace),
         });
       } catch (e) {
         console.error("Failed to update space fields", e);
@@ -220,15 +270,22 @@ export function SpaceSettingsDialog({
     try {
       const res = await fetch("/api/tasks/bulk", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({ space_id: spaceId, tasks })
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ space_id: spaceId, tasks }),
       });
 
       if (res.ok) {
         // Optimistically update frontend store
-        update(s => ({
+        update((s) => ({
           ...s,
-          spaces: s.spaces.map(sp => sp.id === spaceId ? { ...updatedSpace, tasks: [...sp.tasks, ...tasks] } : sp)
+          spaces: s.spaces.map((sp) =>
+            sp.id === spaceId
+              ? { ...updatedSpace, tasks: [...sp.tasks, ...tasks] }
+              : sp,
+          ),
         }));
         setLocalSpace(updatedSpace);
       } else {
@@ -242,419 +299,690 @@ export function SpaceSettingsDialog({
 
   return (
     <>
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{localSpace.emoji} {localSpace.name} — Settings</DialogTitle>
-        </DialogHeader>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+          <TooltipProvider>
+            <DialogHeader>
+              <DialogTitle>
+                {localSpace.emoji} {localSpace.name} — Settings
+              </DialogTitle>
+            </DialogHeader>
 
-        <div className="space-y-8 py-4">
-          <Section title="General">
-            <div className="grid grid-cols-[80px_1fr] gap-3">
-              <div>
-                <Label className="text-xs">Emoji</Label>
-                <Input value={localSpace.emoji} onChange={(e) => patchLocal((sp) => ({ ...sp, emoji: e.target.value }))} maxLength={2} />
-              </div>
-              <div>
-                <Label className="text-xs">Name</Label>
-                <Input value={localSpace.name} onChange={(e) => patchLocal((sp) => ({ ...sp, name: e.target.value }))} />
-              </div>
-            </div>
-          </Section>
-
-          <Section title="Views" subtitle="Manage and customize your views.">
-            <div className="space-y-2">
-              {localSpace.views?.map((v) => (
-                <div key={v.id} className="flex items-center gap-2 bg-card border border-border rounded-lg p-2">
-                  <Input
-                    className="flex-1 h-8"
-                    value={v.name}
-                    onChange={(e) =>
-                      patchLocal((sp) => ({
-                        ...sp,
-                        views: sp.views.map((x) => (x.id === v.id ? { ...x, name: e.target.value } : x)),
-                      }))
-                    }
-                  />
-                  <div className="text-xs text-muted-foreground w-16">{v.type}</div>
-                  <Button variant="ghost" size="icon" aria-label="Delete view" onClick={() => patchLocal((sp) => ({ ...sp, views: sp.views.filter(x => x.id !== v.id) }))}>
-                    <Trash2 className="size-4" />
-                  </Button>
-                </div>
-              ))}
-              <div className="flex gap-2 items-center">
-                <Select
-                  onValueChange={(vStr) => {
-                    const type = vStr as ViewType;
-                    patchLocal((sp) => ({
-                      ...sp,
-                      views: [...(sp.views || []), { id: uid(), name: `New ${type}`, type }]
-                    }));
-                  }}
-                >
-                  <SelectTrigger className="w-32 h-8"><SelectValue placeholder="Add view" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="list">List</SelectItem>
-                    <SelectItem value="kanban">Kanban</SelectItem>
-                    <SelectItem value="calendar">Calendar</SelectItem>
-                    <SelectItem value="gantt">Gantt</SelectItem>
-                    <SelectItem value="table">Table</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </Section>
-
-          <Section title="View Settings" subtitle="Configure preferences for specific views.">
-            {localSpace.views?.length === 0 && <p className="text-sm text-muted-foreground">No views available.</p>}
-            {localSpace.views?.length > 0 && (
-            <Tabs defaultValue={localSpace.views[0]?.id} className="w-full">
-              <TabsList className="w-full flex overflow-x-auto no-scrollbar">
-                {localSpace.views.map(v => (
-                  <TabsTrigger key={v.id} value={v.id} className="flex-shrink-0 px-3">{v.name}</TabsTrigger>
-                ))}
-              </TabsList>
-
-              {localSpace.views.map(viewObj => (
-                <TabsContent key={viewObj.id} value={viewObj.id} className="space-y-4 mt-4">
-                  {(viewObj.type === "kanban" || viewObj.type === "list") && (
-                    <div className="bg-card border border-border rounded-lg p-4 space-y-3">
-                      <h3 className="text-sm font-medium">Group By</h3>
-                      <Select
-                        value={viewObj.settings?.groupBy || "status"}
-                        onValueChange={(val) =>
-                          patchLocal((sp) => ({
-                            ...sp,
-                            views: sp.views.map(v => v.id === viewObj.id ? {
-                              ...v,
-                              settings: {
-                                ...(v.settings || {}),
-                                groupBy: val
-                              }
-                            } : v)
-                          }))
-                        }
-                      >
-                        <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="status">Status</SelectItem>
-                          <SelectItem value="assignee">Assignee</SelectItem>
-                          <SelectItem value="priority">Priority</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
-                  <div className="bg-card border border-border rounded-lg p-4 space-y-3">
-                    <h3 className="text-sm font-medium">Visible Fields</h3>
-                    <div className="flex flex-col gap-2">
-                      {(() => {
-                        const allFields = [
-                          { id: "status", label: "Status" },
-                          { id: "assignee", label: "Assignee" },
-                          { id: "priority", label: "Priority" },
-                          { id: "dueDate", label: "Due Date" },
-                          ...(localSpace.customFields || []).map(f => ({ id: f.id, label: f.name }))
-                        ];
-                        const fieldOrder = viewObj.settings?.fieldOrder || allFields.map(f => f.id);
-                        const allFieldsMap = new Map(allFields.map(f => [f.id, f]));
-                        const fieldOrderSet = new Set(fieldOrder);
-                        const orderedFields = fieldOrder.map((id: string) => allFieldsMap.get(id)).filter(Boolean);
-                        const remainingFields = allFields.filter(f => !fieldOrderSet.has(f.id));
-                        const finalFields = [...orderedFields, ...remainingFields];
-
-                        return finalFields.map((field: any, idx: number) => (
-                          <div key={field.id} className="flex items-center justify-between bg-muted/50 p-2 rounded">
-                            <label className="flex items-center gap-2 text-sm cursor-pointer">
-                              <Switch
-                                checked={viewObj.settings?.hiddenFields?.[field.id] !== true}
-                                onCheckedChange={(c) =>
-                                  patchLocal((sp) => ({
-                                    ...sp,
-                                    views: sp.views.map(v => v.id === viewObj.id ? {
-                                      ...v,
-                                      settings: {
-                                        ...(v.settings || {}),
-                                        hiddenFields: {
-                                          ...(v.settings?.hiddenFields || {}),
-                                          [field.id]: !c
-                                        }
-                                      }
-                                    } : v)
-                                  }))
-                                }
-                              />
-                              {field.label}
-                            </label>
-                            <div className="flex gap-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                aria-label="Move field up"
-                                disabled={idx === 0}
-                                onClick={() => {
-                                  const newOrder = [...fieldOrder];
-                                  if (!newOrder.includes(field.id)) {
-                                    newOrder.push(...remainingFields.map(f => f.id));
-                                  }
-                                  const currentIdx = newOrder.indexOf(field.id);
-                                  [newOrder[currentIdx - 1], newOrder[currentIdx]] = [newOrder[currentIdx], newOrder[currentIdx - 1]];
-                                  patchLocal((sp) => ({
-                                    ...sp,
-                                    views: sp.views.map(v => v.id === viewObj.id ? {
-                                      ...v,
-                                      settings: {
-                                        ...(v.settings || {}),
-                                        fieldOrder: newOrder
-                                      }
-                                    } : v)
-                                  }));
-                                }}
-                              >
-                                ↑
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                aria-label="Move field down"
-                                disabled={idx === finalFields.length - 1}
-                                onClick={() => {
-                                  const newOrder = [...fieldOrder];
-                                  if (!newOrder.includes(field.id)) {
-                                    newOrder.push(...remainingFields.map(f => f.id));
-                                  }
-                                  const currentIdx = newOrder.indexOf(field.id);
-                                  [newOrder[currentIdx], newOrder[currentIdx + 1]] = [newOrder[currentIdx + 1], newOrder[currentIdx]];
-                                  patchLocal((sp) => ({
-                                    ...sp,
-                                    views: sp.views.map(v => v.id === viewObj.id ? {
-                                      ...v,
-                                      settings: {
-                                        ...(v.settings || {}),
-                                        fieldOrder: newOrder
-                                      }
-                                    } : v)
-                                  }));
-                                }}
-                              >
-                                ↓
-                              </Button>
-                            </div>
-                          </div>
-                        ));
-                      })()}
-                    </div>
-                  </div>
-                </TabsContent>
-              ))}
-            </Tabs>
-            )}
-          </Section>
-
-          <Section title="Active Fields" subtitle="Toggle standard fields enabled in this space.">
-            <div className="grid grid-cols-2 gap-4 p-4 rounded-lg border border-border bg-muted/30">
-              {[
-                { id: "description", name: "Description" },
-                { id: "priority", name: "Priority" },
-                { id: "assignee", name: "Assignee" },
-                { id: "startDate", name: "Start Date" },
-                { id: "dueDate", name: "Due Date" },
-              ].map((f) => (
-                <div key={f.id} className="flex items-center justify-between space-x-2">
-                  <Label htmlFor={`edit-field-${f.id}`} className="text-xs font-medium cursor-pointer">{f.name}</Label>
-                  <Switch
-                    id={`edit-field-${f.id}`}
-                    checked={(localSpace.columns as any as string[]).includes(f.id)}
-                    onCheckedChange={(checked) => {
-                      patchLocal((sp) => {
-                        const currentCols = Array.isArray(sp.columns) ? (sp.columns as any as string[]) : [];
-                        const newCols = checked
-                          ? [...currentCols.filter((x: string) => typeof x === 'string'), f.id]
-                          : currentCols.filter((x: string) => typeof x === 'string' && x !== f.id);
-                        return { ...sp, columns: newCols as any };
-                      });
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-          </Section>
-
-          <Section title="Custom task fields" subtitle="Extra fields displayed when editing tasks.">
-            <div className="space-y-2">
-              {localSpace.customFields.map((f, i) => (
-                <div key={f.id} className="flex gap-2 items-start">
-                  <div className="flex-1 space-y-2">
+            <div className="space-y-8 py-4">
+              <Section title="General">
+                <div className="grid grid-cols-[80px_1fr] gap-3">
+                  <div>
+                    <Label className="text-xs">Emoji</Label>
                     <Input
-                      className="w-full"
-                      value={f.name}
-                      placeholder="Field name"
+                      value={localSpace.emoji}
                       onChange={(e) =>
-                        patchLocal((sp) => ({
-                          ...sp,
-                          customFields: sp.customFields.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)),
-                        }))
+                        patchLocal((sp) => ({ ...sp, emoji: e.target.value }))
+                      }
+                      maxLength={2}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Name</Label>
+                    <Input
+                      value={localSpace.name}
+                      onChange={(e) =>
+                        patchLocal((sp) => ({ ...sp, name: e.target.value }))
                       }
                     />
-                    <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-                      <Switch
-                        className="scale-75 origin-left"
-                        checked={f.required ?? false}
-                        onCheckedChange={(c) =>
+                  </div>
+                </div>
+              </Section>
+
+              <Section
+                title="Views"
+                subtitle="Manage and customize your views."
+              >
+                <div className="space-y-2">
+                  {localSpace.views?.map((v) => (
+                    <div
+                      key={v.id}
+                      className="flex items-center gap-2 bg-card border border-border rounded-lg p-2"
+                    >
+                      <Input
+                        className="flex-1 h-8"
+                        value={v.name}
+                        onChange={(e) =>
                           patchLocal((sp) => ({
                             ...sp,
-                            customFields: sp.customFields.map((x, j) => (j === i ? { ...x, required: c } : x)),
+                            views: sp.views.map((x) =>
+                              x.id === v.id
+                                ? { ...x, name: e.target.value }
+                                : x,
+                            ),
                           }))
                         }
                       />
-                      Required
-                    </label>
+                      <div className="text-xs text-muted-foreground w-16">
+                        {v.type}
+                      </div>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Delete view"
+                            onClick={() =>
+                              patchLocal((sp) => ({
+                                ...sp,
+                                views: sp.views.filter((x) => x.id !== v.id),
+                              }))
+                            }
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Delete view</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  ))}
+                  <div className="flex gap-2 items-center">
+                    <Select
+                      onValueChange={(vStr) => {
+                        const type = vStr as ViewType;
+                        patchLocal((sp) => ({
+                          ...sp,
+                          views: [
+                            ...(sp.views || []),
+                            { id: uid(), name: `New ${type}`, type },
+                          ],
+                        }));
+                      }}
+                    >
+                      <SelectTrigger className="w-32 h-8">
+                        <SelectValue placeholder="Add view" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="list">List</SelectItem>
+                        <SelectItem value="kanban">Kanban</SelectItem>
+                        <SelectItem value="calendar">Calendar</SelectItem>
+                        <SelectItem value="gantt">Gantt</SelectItem>
+                        <SelectItem value="table">Table</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <Select
-                    value={f.type}
-                    onValueChange={(v) =>
+                </div>
+              </Section>
+
+              <Section
+                title="View Settings"
+                subtitle="Configure preferences for specific views."
+              >
+                {localSpace.views?.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    No views available.
+                  </p>
+                )}
+                {localSpace.views?.length > 0 && (
+                  <Tabs
+                    defaultValue={localSpace.views[0]?.id}
+                    className="w-full"
+                  >
+                    <TabsList className="w-full flex overflow-x-auto no-scrollbar">
+                      {localSpace.views.map((v) => (
+                        <TabsTrigger
+                          key={v.id}
+                          value={v.id}
+                          className="flex-shrink-0 px-3"
+                        >
+                          {v.name}
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+
+                    {localSpace.views.map((viewObj) => (
+                      <TabsContent
+                        key={viewObj.id}
+                        value={viewObj.id}
+                        className="space-y-4 mt-4"
+                      >
+                        {(viewObj.type === "kanban" ||
+                          viewObj.type === "list") && (
+                          <div className="bg-card border border-border rounded-lg p-4 space-y-3">
+                            <h3 className="text-sm font-medium">Group By</h3>
+                            <Select
+                              value={viewObj.settings?.groupBy || "status"}
+                              onValueChange={(val) =>
+                                patchLocal((sp) => ({
+                                  ...sp,
+                                  views: sp.views.map((v) =>
+                                    v.id === viewObj.id
+                                      ? {
+                                          ...v,
+                                          settings: {
+                                            ...(v.settings || {}),
+                                            groupBy: val,
+                                          },
+                                        }
+                                      : v,
+                                  ),
+                                }))
+                              }
+                            >
+                              <SelectTrigger className="w-48">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="status">Status</SelectItem>
+                                <SelectItem value="assignee">
+                                  Assignee
+                                </SelectItem>
+                                <SelectItem value="priority">
+                                  Priority
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+
+                        <div className="bg-card border border-border rounded-lg p-4 space-y-3">
+                          <h3 className="text-sm font-medium">
+                            Visible Fields
+                          </h3>
+                          <div className="flex flex-col gap-2">
+                            {(() => {
+                              const allFields = [
+                                { id: "status", label: "Status" },
+                                { id: "assignee", label: "Assignee" },
+                                { id: "priority", label: "Priority" },
+                                { id: "dueDate", label: "Due Date" },
+                                ...(localSpace.customFields || []).map((f) => ({
+                                  id: f.id,
+                                  label: f.name,
+                                })),
+                              ];
+                              const fieldOrder =
+                                viewObj.settings?.fieldOrder ||
+                                allFields.map((f) => f.id);
+                              const allFieldsMap = new Map(
+                                allFields.map((f) => [f.id, f]),
+                              );
+                              const fieldOrderSet = new Set(fieldOrder);
+                              const orderedFields = fieldOrder
+                                .map((id: string) => allFieldsMap.get(id))
+                                .filter(Boolean);
+                              const remainingFields = allFields.filter(
+                                (f) => !fieldOrderSet.has(f.id),
+                              );
+                              const finalFields = [
+                                ...orderedFields,
+                                ...remainingFields,
+                              ];
+
+                              return finalFields.map(
+                                (field: any, idx: number) => (
+                                  <div
+                                    key={field.id}
+                                    className="flex items-center justify-between bg-muted/50 p-2 rounded"
+                                  >
+                                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                      <Switch
+                                        checked={
+                                          viewObj.settings?.hiddenFields?.[
+                                            field.id
+                                          ] !== true
+                                        }
+                                        onCheckedChange={(c) =>
+                                          patchLocal((sp) => ({
+                                            ...sp,
+                                            views: sp.views.map((v) =>
+                                              v.id === viewObj.id
+                                                ? {
+                                                    ...v,
+                                                    settings: {
+                                                      ...(v.settings || {}),
+                                                      hiddenFields: {
+                                                        ...(v.settings
+                                                          ?.hiddenFields || {}),
+                                                        [field.id]: !c,
+                                                      },
+                                                    },
+                                                  }
+                                                : v,
+                                            ),
+                                          }))
+                                        }
+                                      />
+                                      {field.label}
+                                    </label>
+                                    <div className="flex gap-1">
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6"
+                                            aria-label="Move field up"
+                                            disabled={idx === 0}
+                                            onClick={() => {
+                                              const newOrder = [...fieldOrder];
+                                              if (
+                                                !newOrder.includes(field.id)
+                                              ) {
+                                                newOrder.push(
+                                                  ...remainingFields.map(
+                                                    (f) => f.id,
+                                                  ),
+                                                );
+                                              }
+                                              const currentIdx =
+                                                newOrder.indexOf(field.id);
+                                              [
+                                                newOrder[currentIdx - 1],
+                                                newOrder[currentIdx],
+                                              ] = [
+                                                newOrder[currentIdx],
+                                                newOrder[currentIdx - 1],
+                                              ];
+                                              patchLocal((sp) => ({
+                                                ...sp,
+                                                views: sp.views.map((v) =>
+                                                  v.id === viewObj.id
+                                                    ? {
+                                                        ...v,
+                                                        settings: {
+                                                          ...(v.settings || {}),
+                                                          fieldOrder: newOrder,
+                                                        },
+                                                      }
+                                                    : v,
+                                                ),
+                                              }));
+                                            }}
+                                          >
+                                            ↑
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>Move field up</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6"
+                                            aria-label="Move field down"
+                                            disabled={
+                                              idx === finalFields.length - 1
+                                            }
+                                            onClick={() => {
+                                              const newOrder = [...fieldOrder];
+                                              if (
+                                                !newOrder.includes(field.id)
+                                              ) {
+                                                newOrder.push(
+                                                  ...remainingFields.map(
+                                                    (f) => f.id,
+                                                  ),
+                                                );
+                                              }
+                                              const currentIdx =
+                                                newOrder.indexOf(field.id);
+                                              [
+                                                newOrder[currentIdx],
+                                                newOrder[currentIdx + 1],
+                                              ] = [
+                                                newOrder[currentIdx + 1],
+                                                newOrder[currentIdx],
+                                              ];
+                                              patchLocal((sp) => ({
+                                                ...sp,
+                                                views: sp.views.map((v) =>
+                                                  v.id === viewObj.id
+                                                    ? {
+                                                        ...v,
+                                                        settings: {
+                                                          ...(v.settings || {}),
+                                                          fieldOrder: newOrder,
+                                                        },
+                                                      }
+                                                    : v,
+                                                ),
+                                              }));
+                                            }}
+                                          >
+                                            ↓
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>Move field down</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </div>
+                                  </div>
+                                ),
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      </TabsContent>
+                    ))}
+                  </Tabs>
+                )}
+              </Section>
+
+              <Section
+                title="Active Fields"
+                subtitle="Toggle standard fields enabled in this space."
+              >
+                <div className="grid grid-cols-2 gap-4 p-4 rounded-lg border border-border bg-muted/30">
+                  {[
+                    { id: "description", name: "Description" },
+                    { id: "priority", name: "Priority" },
+                    { id: "assignee", name: "Assignee" },
+                    { id: "startDate", name: "Start Date" },
+                    { id: "dueDate", name: "Due Date" },
+                  ].map((f) => (
+                    <div
+                      key={f.id}
+                      className="flex items-center justify-between space-x-2"
+                    >
+                      <Label
+                        htmlFor={`edit-field-${f.id}`}
+                        className="text-xs font-medium cursor-pointer"
+                      >
+                        {f.name}
+                      </Label>
+                      <Switch
+                        id={`edit-field-${f.id}`}
+                        checked={(
+                          localSpace.columns as any as string[]
+                        ).includes(f.id)}
+                        onCheckedChange={(checked) => {
+                          patchLocal((sp) => {
+                            const currentCols = Array.isArray(sp.columns)
+                              ? (sp.columns as any as string[])
+                              : [];
+                            const newCols = checked
+                              ? [
+                                  ...currentCols.filter(
+                                    (x: string) => typeof x === "string",
+                                  ),
+                                  f.id,
+                                ]
+                              : currentCols.filter(
+                                  (x: string) =>
+                                    typeof x === "string" && x !== f.id,
+                                );
+                            return { ...sp, columns: newCols as any };
+                          });
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </Section>
+
+              <Section
+                title="Custom task fields"
+                subtitle="Extra fields displayed when editing tasks."
+              >
+                <div className="space-y-2">
+                  {localSpace.customFields.map((f, i) => (
+                    <div key={f.id} className="flex gap-2 items-start">
+                      <div className="flex-1 space-y-2">
+                        <Input
+                          className="w-full"
+                          value={f.name}
+                          placeholder="Field name"
+                          onChange={(e) =>
+                            patchLocal((sp) => ({
+                              ...sp,
+                              customFields: sp.customFields.map((x, j) =>
+                                j === i ? { ...x, name: e.target.value } : x,
+                              ),
+                            }))
+                          }
+                        />
+                        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                          <Switch
+                            className="scale-75 origin-left"
+                            checked={f.required ?? false}
+                            onCheckedChange={(c) =>
+                              patchLocal((sp) => ({
+                                ...sp,
+                                customFields: sp.customFields.map((x, j) =>
+                                  j === i ? { ...x, required: c } : x,
+                                ),
+                              }))
+                            }
+                          />
+                          Required
+                        </label>
+                      </div>
+                      <Select
+                        value={f.type}
+                        onValueChange={(v) =>
+                          patchLocal((sp) => ({
+                            ...sp,
+                            customFields: sp.customFields.map((x, j) =>
+                              j === i ? { ...x, type: v as FieldType } : x,
+                            ),
+                          }))
+                        }
+                      >
+                        <SelectTrigger className="w-32">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="text">Text</SelectItem>
+                          <SelectItem value="number">Number</SelectItem>
+                          <SelectItem value="date">Date</SelectItem>
+                          <SelectItem value="select">Select</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {f.type === "select" && (
+                        <Input
+                          className="w-48"
+                          placeholder="Options (comma-separated)"
+                          value={(f.options ?? []).join(",")}
+                          onChange={(e) =>
+                            patchLocal((sp) => ({
+                              ...sp,
+                              customFields: sp.customFields.map((x, j) =>
+                                j === i
+                                  ? { ...x, options: e.target.value.split(",") }
+                                  : x,
+                              ),
+                            }))
+                          }
+                        />
+                      )}
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() =>
+                              patchLocal((sp) => ({
+                                ...sp,
+                                customFields: sp.customFields.filter(
+                                  (_, j) => j !== i,
+                                ),
+                              }))
+                            }
+                            aria-label="Delete field"
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Delete field</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  ))}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
                       patchLocal((sp) => ({
                         ...sp,
-                        customFields: sp.customFields.map((x, j) => (j === i ? { ...x, type: v as FieldType } : x)),
+                        customFields: [
+                          ...sp.customFields,
+                          {
+                            id: uid(),
+                            name: "",
+                            type: "text",
+                            required: false,
+                          },
+                        ],
                       }))
                     }
                   >
-                    <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="text">Text</SelectItem>
-                      <SelectItem value="number">Number</SelectItem>
-                      <SelectItem value="date">Date</SelectItem>
-                      <SelectItem value="select">Select</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {f.type === "select" && (
+                    <Plus className="size-3.5 mr-1" /> Add Custom Field
+                  </Button>
+                </div>
+              </Section>
+
+              <Section
+                title="Email reminders"
+                subtitle="Configure daily summaries of due and overdue tasks sent straight to your inbox."
+              >
+                <div className="flex items-center justify-between bg-card border border-border rounded-lg p-3.5 mb-4">
+                  <div>
+                    <p className="text-sm font-medium">Daily digest email</p>
+                    <p className="text-xs text-muted-foreground">
+                      Dispatched daily to {me?.email}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={localSpace.emailReminders}
+                    onCheckedChange={(c) =>
+                      patchLocal((sp) => ({ ...sp, emailReminders: c }))
+                    }
+                  />
+                </div>
+                {localSpace.emailReminders && (
+                  <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <Label className="text-xs font-semibold text-foreground/80">
+                      Digest Delivery Time
+                    </Label>
                     <Input
-                      className="w-48"
-                      placeholder="Options (comma-separated)"
-                      value={(f.options ?? []).join(",")}
+                      type="time"
+                      value={localSpace.emailDigestTime || "09:00"}
                       onChange={(e) =>
                         patchLocal((sp) => ({
                           ...sp,
-                          customFields: sp.customFields.map((x, j) =>
-                            j === i ? { ...x, options: e.target.value.split(",") } : x
-                          ),
+                          emailDigestTime: e.target.value,
                         }))
                       }
+                      className="w-44 bg-card border-border text-sm"
                     />
-                  )}
+                    <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-1">
+                      <span>⏰</span> Only times between <strong>07:00</strong>{" "}
+                      and <strong>23:30</strong> are supported.
+                    </p>
+                  </div>
+                )}
+              </Section>
+
+              <Section
+                title="Automations"
+                subtitle="Global Automations have moved."
+              >
+                <p className="text-sm text-muted-foreground">
+                  Automations are now managed globally. Please access
+                  Automations from the sidebar.
+                </p>
+              </Section>
+
+              <Section
+                title="Data Management"
+                subtitle="Export or import space data."
+              >
+                <div className="flex gap-2">
                   <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => patchLocal((sp) => ({ ...sp, customFields: sp.customFields.filter((_, j) => j !== i) }))}
-                    aria-label="Delete field"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      exportToExcel(space.tasks, space, state.users)
+                    }
                   >
-                    <Trash2 className="size-4" />
+                    <Download className="size-3.5 mr-2" /> Export to Excel
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setImportOpen(true)}
+                  >
+                    <Upload className="size-3.5 mr-2" /> Import from Excel
                   </Button>
                 </div>
-              ))}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  patchLocal((sp) => ({
-                    ...sp,
-                    customFields: [...sp.customFields, { id: uid(), name: "", type: "text", required: false }],
-                  }))
-                }
-              >
-                <Plus className="size-3.5 mr-1" /> Add Custom Field
-              </Button>
-            </div>
-          </Section>
+              </Section>
 
-          <Section title="Email reminders" subtitle="Configure daily summaries of due and overdue tasks sent straight to your inbox.">
-            <div className="flex items-center justify-between bg-card border border-border rounded-lg p-3.5 mb-4">
-              <div>
-                <p className="text-sm font-medium">Daily digest email</p>
-                <p className="text-xs text-muted-foreground">Dispatched daily to {me?.email}</p>
+              <Section title="Danger zone">
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive">Delete space</Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        Are you absolutely sure?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete the space "
+                        {localSpace.name}" and all of its tasks. This action
+                        cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={removeSpace}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Delete Space
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </Section>
+
+              <div className="flex justify-end pt-4 border-t border-border mt-8">
+                <Button onClick={handleSave}>Save Settings</Button>
               </div>
-              <Switch
-                checked={localSpace.emailReminders}
-                onCheckedChange={(c) => patchLocal((sp) => ({ ...sp, emailReminders: c }))}
-              />
             </div>
-            {localSpace.emailReminders && (
-              <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
-                <Label className="text-xs font-semibold text-foreground/80">Digest Delivery Time</Label>
-                <Input
-                  type="time"
-                  value={localSpace.emailDigestTime || "09:00"}
-                  onChange={(e) => patchLocal((sp) => ({ ...sp, emailDigestTime: e.target.value }))}
-                  className="w-44 bg-card border-border text-sm"
-                />
-                <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-1">
-                  <span>⏰</span> Only times between <strong>07:00</strong> and <strong>23:30</strong> are supported.
-                </p>
-              </div>
-            )}
-          </Section>
+          </TooltipProvider>
+        </DialogContent>
+      </Dialog>
 
-          <Section title="Automations" subtitle="Global Automations have moved.">
-            <p className="text-sm text-muted-foreground">Automations are now managed globally. Please access Automations from the sidebar.</p>
-          </Section>
-
-          <Section title="Data Management" subtitle="Export or import space data.">
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => exportToExcel(space.tasks, space, state.users)}>
-                <Download className="size-3.5 mr-2" /> Export to Excel
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-                <Upload className="size-3.5 mr-2" /> Import from Excel
-              </Button>
-            </div>
-          </Section>
-
-          <Section title="Danger zone">
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive">Delete space</Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will permanently delete the space "{localSpace.name}" and all of its tasks. This action cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={removeSpace} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete Space</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </Section>
-
-          <div className="flex justify-end pt-4 border-t border-border mt-8">
-            <Button onClick={handleSave}>Save Settings</Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-
-    <ExcelImportDialog
-      open={importOpen}
-      onOpenChange={setImportOpen}
-      space={localSpace}
-      users={state.users}
-      onImport={handleImport}
-    />
+      <ExcelImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        space={localSpace}
+        users={state.users}
+        onImport={handleImport}
+      />
     </>
   );
 }
 
-function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+function Section({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
   return (
     <section className="space-y-3">
       <div>
         <h2 className="text-sm font-semibold">{title}</h2>
-        {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
+        {subtitle && (
+          <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
+        )}
       </div>
       <div className="space-y-3">{children}</div>
     </section>

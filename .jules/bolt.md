@@ -1,3 +1,7 @@
 ## 2024-05-23 - Dictionary Lookups for Inner Loops
 **Learning:** Found a major performance bottleneck where `users.find()`, `hardcodedStatuses.find()`, and `customFields.find()` were nested inside inner `.map()` loops during Excel imports (`src/components/ExcelIntegration.tsx`). This O(N*M) iteration causes massive application slow-down for large CSV/Excel files. Replacing these inner `.find()` calls with O(1) dictionary maps reduces execution time linearly.
 **Action:** Always pre-compute map lookups (e.g., `Object.fromEntries()` or `new Map()`) outside of tight loops (like `data.map` in imports or React `useMemo` renders) and use O(1) `.get()` lookups instead of `.find()` to maintain application responsiveness.
+
+## 2024-05-18 - Replacing O(N) Array.find Calls in Rendering Loops
+**Learning:** During Excel import, there were nested operations processing headers and mappings. Using `space.customFields.find()` inside mapping loops and inside React `.map()` render functions resulted in O(N*M) time complexity. This was particularly impactful because large Excel file imports mean M can be quite large. O(N) array search inside these loops created a bottleneck.
+**Action:** When working with nested loops or repeating mapping/rendering iterations that depend on filtering or finding data from another collection, use `React.useMemo` to pre-compute dictionaries (e.g., `Object.fromEntries(data.map(item => [key, item]))`). This brings complexity down to O(N) instead of O(N*M) ensuring lightning-fast O(1) lookups.

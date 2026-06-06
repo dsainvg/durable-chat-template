@@ -85,6 +85,20 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
   const [importing, setImporting] = React.useState(false);
   const [constantMappings, setConstantMappings] = React.useState<{ id: string; field: string; type: 'constant' | 'date_plus_rowid'; value: string }[]>([]);
 
+  // ⚡ Bolt: Pre-compute dictionaries to replace O(N) Array.find calls
+  // Impact: Reduces complexity from O(N * M) to O(N) during mapping and rendering loops
+  const customFieldsMapByNameLower = React.useMemo(() => {
+    return Object.fromEntries(space.customFields.map((f) => [f.name.toLowerCase(), f]));
+  }, [space.customFields]);
+
+  const customFieldsMapById = React.useMemo(() => {
+    return Object.fromEntries(space.customFields.map((f) => [f.id, f]));
+  }, [space.customFields]);
+
+  const standardFieldsMapById = React.useMemo(() => {
+    return Object.fromEntries(STANDARD_FIELDS.map((f) => [f.id, f]));
+  }, []);
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -117,7 +131,7 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
           else if (lower === "priority") initialMapping[header] = "priority";
           else {
             // Check custom fields
-            const cf = space.customFields.find(f => f.name.toLowerCase() === header.toLowerCase());
+            const cf = customFieldsMapByNameLower[header.toLowerCase()];
             if (cf) initialMapping[header] = `custom_${cf.id}`;
             else initialMapping[header] = "extra"; // Mark as extra to be potentially created
           }
@@ -515,7 +529,7 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
                     <div></div>
 
                     {constantMappings.map((c, idx) => {
-                      const isDate = c.field === "dueDate" || space.customFields.find(f => `custom_${f.id}` === c.field)?.type === "date";
+                      const isDate = c.field === "dueDate" || customFieldsMapById[c.field.replace("custom_", "")]?.type === "date";
                       return (
                         <React.Fragment key={c.id}>
                           <Select
@@ -523,7 +537,7 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
                             onValueChange={(val) => {
                               const newMappings = [...constantMappings];
                               newMappings[idx].field = val;
-                              if (val !== "dueDate" && space.customFields.find(f => `custom_${f.id}` === val)?.type !== "date") {
+                              if (val !== "dueDate" && customFieldsMapById[val.replace("custom_", "")]?.type !== "date") {
                                 newMappings[idx].type = "constant";
                               }
                               setConstantMappings(newMappings);
@@ -619,7 +633,7 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
                                 </Select>
                               );
                             }
-                            const customField = space.customFields.find(f => `custom_${f.id}` === c.field);
+                            const customField = customFieldsMapById[c.field.replace("custom_", "")];
                             if (customField?.type === "select") {
                               return (
                                 <Select
@@ -693,7 +707,7 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
                     else if (mapTo === "priority") options = [{ id: "high", name: "High" }, { id: "medium", name: "Medium" }, { id: "low", name: "Low" }];
                     else if (mapTo === "assignee") options = users.map(u => ({ id: u.id, name: u.name }));
                     else {
-                      const field = space.customFields.find(f => f.id === mapTo.replace("custom_", ""));
+                      const field = customFieldsMapById[mapTo.replace("custom_", "")];
                       options = (field?.options || []).map(o => ({ id: o, name: o }));
                     }
 
@@ -748,7 +762,7 @@ export function ExcelImportDialog({ space, users, onImport, open, onOpenChange }
                         mapping[h] !== "skip" && <TableHead key={h}>{h}</TableHead>
                       ))}
                       {constantMappings.map(c => {
-                        const fieldName = STANDARD_FIELDS.find(f => f.id === c.field)?.label || space.customFields.find(f => `custom_${f.id}` === c.field)?.name || c.field;
+                        const fieldName = standardFieldsMapById[c.field]?.label || customFieldsMapById[c.field.replace("custom_", "")]?.name || c.field;
                         return <TableHead key={c.id}>[Const] {fieldName}</TableHead>;
                       })}
                     </TableRow>

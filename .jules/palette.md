@@ -20,3 +20,7 @@
 ## 2025-02-18 - Add Task Deletion Confirmation Dialog to Global Automations
 **Learning:** Destructive actions like deleting global automations were previously executed immediately upon clicking the "Delete" button without confirmation. This lacked friction and was prone to accidental data loss. Using Radix UI's (or shadcn/ui's) `AlertDialog` is an effective, accessible, and standardized way to solve this in the app without custom modal implementations.
 **Action:** When working on destructive actions in this repo, standard practice should be to wrap the trigger button with the existing `AlertDialog` components to ensure a safe, accessible, and user-friendly experience.
+
+## 2026-05-25 - Add visual Tooltips to Icon-Only Buttons
+**Learning:** While `aria-label`s on icon-only buttons like `<Trash2 />` ensure screen reader accessibility, sighted users might still struggle to understand the button's explicit action without a visual label. Wrapping icon-only buttons with `<Tooltip>` components ensures a better user experience for everyone, bridging the gap between semantic accessibility and visual clarity.
+**Action:** Always wrap icon-only interactive elements with `Tooltip` components from `@/components/ui/tooltip` when they lack text labels, ensuring the `aria-label` context is also available visually on hover/focus.

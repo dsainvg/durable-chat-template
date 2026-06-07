@@ -218,9 +218,7 @@ export function AppSidebar() {
       <Sidebar className="border-r border-border bg-sidebar">
         <SidebarHeader className="p-4 flex flex-row items-center gap-2 justify-between">
           <div className="flex items-center gap-2">
-            <div className="size-7 rounded bg-primary/20 ring-1 ring-primary/30 flex items-center justify-center">
-              <div className="size-2.5 rounded-full bg-primary" />
-            </div>
+            <img src="/favicon.svg" alt="Sync Duo Logo" className="size-7" />
             <span className="font-semibold tracking-tight">Sync Duo</span>
           </div>
           <SidebarTrigger className="md:hidden" />

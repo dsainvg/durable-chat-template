@@ -88,6 +88,7 @@ export function ChannelPanel({ space, onClose, onSend }: { space: Space; onClose
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") send(); }}
             placeholder="Message channel…"
+            aria-label="Message channel"
             className="flex-1 bg-transparent py-2 text-xs outline-none"
           />
           <TooltipProvider>

@@ -181,7 +181,8 @@ async function evaluateConditions(
 	auto: any,
 	spaceId: string,
 	task: any | null,
-	today: string
+	today: string,
+	yesterday: string
 ): Promise<boolean> {
 	const conditions = JSON.parse(auto.conditions as string) as { type: string; config?: any }[];
 
@@ -194,19 +195,19 @@ async function evaluateConditions(
 	if (spaceConditions.length > 0) {
 		for (const cond of spaceConditions) {
 			if (cond.type === 'no_new_tasks_created') {
-				const { results: created } = await db.prepare(`SELECT user_id FROM daily_activity WHERE date = ? AND action = ? LIMIT 1`).bind(today, `space_${spaceId}_created`).all();
+				const { results: created } = await db.prepare(`SELECT user_id FROM daily_activity WHERE date = ? AND action = ? LIMIT 1`).bind(yesterday, `space_${spaceId}_created`).all();
 				if (created.length > 0) spaceConditionsMet = false;
 			} else if (cond.type === 'no_new_tasks_in_status') {
-				const { results: statusLogs } = await db.prepare(`SELECT user_id FROM daily_activity WHERE date = ? AND action = ? LIMIT 1`).bind(today, `space_${spaceId}_status_${cond.config?.status}`).all();
+				const { results: statusLogs } = await db.prepare(`SELECT user_id FROM daily_activity WHERE date = ? AND action = ? LIMIT 1`).bind(yesterday, `space_${spaceId}_status_${cond.config?.status}`).all();
 				if (statusLogs.length > 0) spaceConditionsMet = false;
 			} else if (cond.type === 'no_new_tasks_by_user_in_status') {
-				const { results: userStatusLogs } = await db.prepare(`SELECT user_id FROM daily_activity WHERE user_id = ? AND date = ? AND action = ? LIMIT 1`).bind(cond.config?.user_id, today, `space_${spaceId}_status_${cond.config?.status}`).all();
+				const { results: userStatusLogs } = await db.prepare(`SELECT user_id FROM daily_activity WHERE user_id = ? AND date = ? AND action = ? LIMIT 1`).bind(cond.config?.user_id, yesterday, `space_${spaceId}_status_${cond.config?.status}`).all();
 				if (userStatusLogs.length > 0) spaceConditionsMet = false;
 			} else if (cond.type === 'no_new_tasks_in_priority') {
-				const { results: priorityLogs } = await db.prepare(`SELECT user_id FROM daily_activity WHERE date = ? AND action = ? LIMIT 1`).bind(today, `space_${spaceId}_priority_${cond.config?.priority}`).all();
+				const { results: priorityLogs } = await db.prepare(`SELECT user_id FROM daily_activity WHERE date = ? AND action = ? LIMIT 1`).bind(yesterday, `space_${spaceId}_priority_${cond.config?.priority}`).all();
 				if (priorityLogs.length > 0) spaceConditionsMet = false;
 			} else if (cond.type === 'no_new_tasks_by_user_in_priority') {
-				const { results: userPriorityLogs } = await db.prepare(`SELECT user_id FROM daily_activity WHERE user_id = ? AND date = ? AND action = ? LIMIT 1`).bind(cond.config?.user_id, today, `space_${spaceId}_priority_${cond.config?.priority}`).all();
+				const { results: userPriorityLogs } = await db.prepare(`SELECT user_id FROM daily_activity WHERE user_id = ? AND date = ? AND action = ? LIMIT 1`).bind(cond.config?.user_id, yesterday, `space_${spaceId}_priority_${cond.config?.priority}`).all();
 				if (userPriorityLogs.length > 0) spaceConditionsMet = false;
 			} else if (cond.type === 'space_activity') {
 				const { event, user, value } = cond.config || {};
@@ -219,10 +220,10 @@ async function evaluateConditions(
 				let bindArgs: any[] = [];
 				if (user === "any") {
 					q = `SELECT user_id FROM daily_activity WHERE date = ? AND action = ? LIMIT 1`;
-					bindArgs = [today, actionTarget];
+					bindArgs = [yesterday, actionTarget];
 				} else {
 					q = `SELECT user_id FROM daily_activity WHERE user_id = ? AND date = ? AND action = ? LIMIT 1`;
-					bindArgs = [user, today, actionTarget];
+					bindArgs = [user, yesterday, actionTarget];
 				}
 				const { results: activityLogs } = await db.prepare(q).bind(...bindArgs).all();
 				if (activityLogs.length > 0) spaceConditionsMet = false;
@@ -302,17 +303,20 @@ async function evaluateConditions(
 export default {
 	async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext) {
 		await initDb(env.DB);
-		const now = new Date();
-		const today = now.toISOString().split('T')[0];
 
-		const yesterdayDate = new Date(now);
-		yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+		const utcNow = new Date();
+		const istOffset = 5.5 * 60 * 60 * 1000; // IST is UTC +5:30
+		const istNow = new Date(utcNow.getTime() + istOffset);
+
+		const today = istNow.toISOString().split('T')[0];
+
+		const yesterdayDate = new Date(istNow.getTime() - 86400000);
 		const yesterday = yesterdayDate.toISOString().split('T')[0];
-		const nowTime = now.getTime();
+		const nowTime = utcNow.getTime();
 
-		// Format current local time to HH:MM in 30-minute intervals for scheduling checks
-		const currentHour = now.getHours();
-		const currentMinute = now.getMinutes();
+		// Format current IST time to HH:MM in 30-minute intervals for scheduling checks
+		const currentHour = istNow.getUTCHours();
+		const currentMinute = istNow.getUTCMinutes();
 		const currentHourStr = String(currentHour).padStart(2, '0');
 		const currentMinuteStr = String(currentMinute >= 30 ? 30 : 0).padStart(2, '0');
 		const currentTimeStr = `${currentHourStr}:${currentMinuteStr}`;
@@ -415,6 +419,9 @@ export default {
 							const { results: sentLogs } = await env.DB.prepare("SELECT user_id FROM daily_activity WHERE user_id = ? AND date = ? AND action = ?").bind(user.id, today, digestAction).all();
 							if (sentLogs.length > 0) continue; // Already sent today
 
+							const insertRes = await env.DB.prepare("INSERT OR IGNORE INTO daily_activity (user_id, date, action) VALUES (?, ?, ?)").bind(user.id, today, digestAction).run();
+							if (insertRes.meta.changes === 0) continue;
+
 							try {
 								const transport = nodemailer.createTransport({
 									host: env.SMTP_HOST || "smtp.gmail.com",
@@ -510,10 +517,6 @@ export default {
 									text: `Space Digest for "${spaceName}". Please open SyncDuo to view outstanding tasks.`,
 									html: emailHtml
 								});
-
-								// Record sending digest
-								await env.DB.prepare("INSERT INTO daily_activity (user_id, date, action) VALUES (?, ?, ?)")
-									.bind(user.id, today, digestAction).run();
 							} catch (err) {
 								console.error(`Failed to send space digest to ${user.email}:`, err);
 							}
@@ -559,7 +562,7 @@ export default {
 
 					// If there are space-level conditions and NO task-level conditions, we execute once per space
 					if (spaceConditions.length > 0 && taskConditions.length === 0) {
-						const isMatched = await evaluateConditions(env.DB, auto, spaceId, null, today);
+						const isMatched = await evaluateConditions(env.DB, auto, spaceId, null, today, yesterday);
 						if (isMatched) {
 							const taskId = "space-level"; // Generic ID for space-level executions
 
@@ -589,7 +592,7 @@ export default {
 
 					for (const task of tasks) {
 						const taskId = task.id as string;
-						const isMatched = await evaluateConditions(env.DB, auto, spaceId, task, today);
+						const isMatched = await evaluateConditions(env.DB, auto, spaceId, task, today, yesterday);
 
 						if (isMatched) {
 							if (isRecurring) {
@@ -633,6 +636,15 @@ export default {
 			const automationId = event.automation_id as string;
 			const isRecurring = event.isRecurring as boolean;
 
+			// Lock the event to prevent concurrent execution by multiple cron triggers
+			let lockResult;
+			if (isRecurring) {
+				lockResult = await env.DB.prepare(`UPDATE recurring_events SET status = 'processing' WHERE id = ? AND status = 'pending'`).bind(eventId).run();
+			} else {
+				lockResult = await env.DB.prepare(`UPDATE upcoming_events SET status = 'processing' WHERE id = ? AND status = 'pending'`).bind(eventId).run();
+			}
+			if (lockResult.meta.changes === 0) continue;
+
 			try {
 				// Fetch the automation rule
 				const { results: autoRecord } = await env.DB.prepare("SELECT * FROM automation_rules WHERE id = ?").bind(automationId).all();
@@ -664,7 +676,7 @@ export default {
 				}
 
 				// Check if conditions are still met at execution time
-				const isMatched = await evaluateConditions(env.DB, auto, spaceId, task, today);
+				const isMatched = await evaluateConditions(env.DB, auto, spaceId, task, today, yesterday);
 				if (!isMatched) {
 					// Conditions are not met anymore:
 					if (isRecurring) {

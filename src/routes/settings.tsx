@@ -87,7 +87,7 @@ function SettingsPage() {
                     update((s) => ({ ...s, theme: t.id as ThemeId }));
                     applyTheme(t.id as ThemeId);
                   }}
-                  className={`relative rounded-lg overflow-hidden ring-1 ${active ? "ring-2 ring-primary" : "ring-border"} transition-all`}
+                  className={`relative rounded-lg overflow-hidden ring-1 ${active ? "ring-2 ring-primary" : "ring-border"} transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
                 >
                   <div className="h-20" style={{ background: t.swatch }}>
                     <div className="h-full flex items-end p-2">

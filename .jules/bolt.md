@@ -1,3 +1,0 @@
-## 2024-05-23 - Dictionary Lookups for Inner Loops
-**Learning:** Found a major performance bottleneck where `users.find()`, `hardcodedStatuses.find()`, and `customFields.find()` were nested inside inner `.map()` loops during Excel imports (`src/components/ExcelIntegration.tsx`). This O(N*M) iteration causes massive application slow-down for large CSV/Excel files. Replacing these inner `.find()` calls with O(1) dictionary maps reduces execution time linearly.
-**Action:** Always pre-compute map lookups (e.g., `Object.fromEntries()` or `new Map()`) outside of tight loops (like `data.map` in imports or React `useMemo` renders) and use O(1) `.get()` lookups instead of `.find()` to maintain application responsiveness.

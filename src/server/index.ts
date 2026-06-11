@@ -247,7 +247,8 @@ async function evaluateConditions(
 	// Check task complex conditions (AND logic)
 	for (const cond of taskConditions) {
 		if (cond.type === 'due_today') {
-			const isDueOrOverdue = task.due_date && (task.due_date === today || (task.due_date < today && task.status !== 'done'));
+			const rawDueDate = task.due_date ? task.due_date.split('T')[0] : null;
+			const isDueOrOverdue = rawDueDate && (rawDueDate === today || (rawDueDate < today && task.status !== 'done'));
 			if (!isDueOrOverdue) allMatches = false;
 		} else if (cond.type === 'has_assignee') {
 			if (task.assignee === '' || task.assignee === null) allMatches = false;
@@ -262,7 +263,8 @@ async function evaluateConditions(
 		} else if (cond.type === 'priority_not_equals') {
 			if (task.priority === cond.config?.priority) allMatches = false;
 		} else if (cond.type === 'due_date_equals') {
-			if (task.due_date !== cond.config?.dueDate) allMatches = false;
+			const rawDueDate = task.due_date ? task.due_date.split('T')[0] : null;
+			if (rawDueDate !== cond.config?.dueDate) allMatches = false;
 		} else if (cond.type === 'assignee_equals') {
 			if (task.assignee !== cond.config?.assignee) allMatches = false;
 		} else if (cond.type === 'task_field') {
@@ -286,9 +288,13 @@ async function evaluateConditions(
 			else if (operator === "not_equals" && taskVal === value) allMatches = false;
 			else if (operator === "is_empty" && (taskVal !== "" && taskVal !== null && taskVal !== undefined)) allMatches = false;
 			else if (operator === "not_empty" && (taskVal === "" || taskVal === null || taskVal === undefined)) allMatches = false;
-			else if (operator === "is_today" && field === "due_date" && taskVal !== today) allMatches = false;
+			else if (operator === "is_today" && field === "due_date") {
+				const dateVal = taskVal ? String(taskVal).split('T')[0] : null;
+				if (dateVal !== today) allMatches = false;
+			}
 			else if (operator === "is_overdue" && field === "due_date") {
-				if (!taskVal || taskVal >= today) allMatches = false;
+				const dateVal = taskVal ? String(taskVal).split('T')[0] : null;
+				if (!dateVal || dateVal >= today) allMatches = false;
 			}
 		}
 		if (!allMatches) break;
@@ -692,21 +698,24 @@ export default {
 
 				const config = JSON.parse(event.config as string);
 
-				if (actionType === 'send_email' && env.SMTP_USER && env.SMTP_PASS && config.target_user_id) {
-					const { results: userRecord } = await env.DB.prepare("SELECT email FROM users WHERE id = ?").bind(config.target_user_id).all();
-					if (userRecord.length > 0 && userRecord[0].email) {
-						const email = userRecord[0].email as string;
+				if (actionType === 'send_email') {
+					if (!(env.SMTP_USER && env.SMTP_PASS && config.target_user_id)) {
+						console.warn(`Skipping send_email action for event ${eventId} due to missing SMTP configuration or target_user_id`);
+					} else {
+						const { results: userRecord } = await env.DB.prepare("SELECT email FROM users WHERE id = ?").bind(config.target_user_id).all();
+						if (userRecord.length > 0 && userRecord[0].email) {
+							const email = userRecord[0].email as string;
 
-						// Fetch space name and custom fields definitions
-						const { results: spaceRecord } = await env.DB.prepare("SELECT name, customFields FROM spaces WHERE id = ?").bind(spaceId).all();
-						const spaceName = spaceRecord.length > 0 ? spaceRecord[0].name as string : spaceId;
-						const spaceFieldsJson = spaceRecord.length > 0 ? spaceRecord[0].customFields as string : "[]";
-						const spaceCustomFields = spaceFieldsJson ? JSON.parse(spaceFieldsJson) : [];
+							// Fetch space name and custom fields definitions
+							const { results: spaceRecord } = await env.DB.prepare("SELECT name, customFields FROM spaces WHERE id = ?").bind(spaceId).all();
+							const spaceName = spaceRecord.length > 0 ? spaceRecord[0].name as string : spaceId;
+							const spaceFieldsJson = spaceRecord.length > 0 ? spaceRecord[0].customFields as string : "[]";
+							const spaceCustomFields = spaceFieldsJson ? JSON.parse(spaceFieldsJson) : [];
 
-						// Construct realistic contextually tailored email
-						let emailSubject = `SyncDuo Automation Alert`;
-						let emailText = `Automation triggered in space ${spaceName}.`;
-						let emailHtml = "";
+							// Construct realistic contextually tailored email
+							let emailSubject = `SyncDuo Automation Alert`;
+							let emailText = `Automation triggered in space ${spaceName}.`;
+							let emailHtml = "";
 
 						if (taskId !== "space-level") {
 							const { results: taskRecord } = await env.DB.prepare("SELECT * FROM tasks WHERE id = ? AND space_id = ?").bind(taskId, spaceId).all();
@@ -883,13 +892,14 @@ export default {
 								pass: env.SMTP_PASS
 							}
 						});
-						await transport.sendMail({
-							from: env.SMTP_USER,
-							to: email,
-							subject: emailSubject,
-							text: emailText,
-							html: emailHtml
-						});
+							await transport.sendMail({
+								from: env.SMTP_USER,
+								to: email,
+								subject: emailSubject,
+								text: emailText,
+								html: emailHtml
+							});
+						}
 					}
 				} else if (actionType === 'change_status' && config.new_status) {
 					if (taskId === "space-level") {
@@ -1620,40 +1630,40 @@ export default {
 						.run();
 
 					// Log daily activity for Daily Check automation and space-level automations
-					if (assignee) {
-						const todayStr = new Date().toISOString().split('T')[0];
+					const activityUser = assignee || 'unassigned';
 
-						let isNewTask = !body.id;
-						let statusChanged = false;
-						let priorityChanged = false;
+					const todayStr = new Date().toISOString().split('T')[0];
 
-						if (!isNewTask) {
-							const { results: existingTasks } = await env.DB.prepare(`SELECT status, priority FROM tasks WHERE id = ?`).bind(id).all();
-							if (existingTasks.length > 0) {
-								const existing = existingTasks[0] as any;
-								if (existing.status !== status) statusChanged = true;
-								if (existing.priority !== priority) priorityChanged = true;
-							} else {
-								isNewTask = true;
-							}
-						}
+					let isNewTask = !body.id;
+					let statusChanged = false;
+					let priorityChanged = false;
 
-						if (isNewTask) {
-							// It's a new task
-							await env.DB.prepare(`INSERT OR IGNORE INTO daily_activity (user_id, date, action) VALUES (?, ?, ?)`).bind(assignee, todayStr, `space_${space_id}_created`).run();
+					if (!isNewTask) {
+						const { results: existingTasks } = await env.DB.prepare(`SELECT status, priority FROM tasks WHERE id = ?`).bind(id).all();
+						if (existingTasks.length > 0) {
+							const existing = existingTasks[0] as any;
+							if (existing.status !== status) statusChanged = true;
+							if (existing.priority !== priority) priorityChanged = true;
+						} else {
+							isNewTask = true;
 						}
-						if (status && (isNewTask || statusChanged)) {
-							// Log specific status updates for automations (including 'done')
-							await env.DB.prepare(`INSERT OR IGNORE INTO daily_activity (user_id, date, action) VALUES (?, ?, ?)`).bind(assignee, todayStr, `space_${space_id}_status_${status}`).run();
-							if (status === 'done') {
-								// Legacy specific done track (kept for compatibility with old automations)
-								await env.DB.prepare(`INSERT OR IGNORE INTO daily_activity (user_id, date, action) VALUES (?, ?, 'done')`).bind(assignee, todayStr).run();
-							}
+					}
+
+					if (isNewTask) {
+						// It's a new task
+						await env.DB.prepare(`INSERT OR IGNORE INTO daily_activity (user_id, date, action) VALUES (?, ?, ?)`).bind(activityUser, todayStr, `space_${space_id}_created`).run();
+					}
+					if (status && (isNewTask || statusChanged)) {
+						// Log specific status updates for automations (including 'done')
+						await env.DB.prepare(`INSERT OR IGNORE INTO daily_activity (user_id, date, action) VALUES (?, ?, ?)`).bind(activityUser, todayStr, `space_${space_id}_status_${status}`).run();
+						if (status === 'done') {
+							// Legacy specific done track (kept for compatibility with old automations)
+							await env.DB.prepare(`INSERT OR IGNORE INTO daily_activity (user_id, date, action) VALUES (?, ?, 'done')`).bind(activityUser, todayStr).run();
 						}
-						if (priority && (isNewTask || priorityChanged)) {
-							// Log priority updates for automations
-							await env.DB.prepare(`INSERT OR IGNORE INTO daily_activity (user_id, date, action) VALUES (?, ?, ?)`).bind(assignee, todayStr, `space_${space_id}_priority_${priority}`).run();
-						}
+					}
+					if (priority && (isNewTask || priorityChanged)) {
+						// Log priority updates for automations
+						await env.DB.prepare(`INSERT OR IGNORE INTO daily_activity (user_id, date, action) VALUES (?, ?, ?)`).bind(activityUser, todayStr, `space_${space_id}_priority_${priority}`).run();
 					}
 
 					const task = {

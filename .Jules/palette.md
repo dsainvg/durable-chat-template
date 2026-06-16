@@ -1,0 +1,3 @@
+## 2024-06-16 - Add visual loading feedback to async buttons
+**Learning:** Simply disabling a button or changing the text to "Please wait..." during an async action is not enough to reassure the user. It is highly beneficial to add an explicit visual loading indicator (like a spinner) when a button is clicked and waiting for an operation to finish.
+**Action:** Pair disabled loading states on buttons and clickable elements with a visual loading spinner, especially for important interaction points like login buttons.

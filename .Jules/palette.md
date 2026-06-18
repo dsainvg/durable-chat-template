@@ -1,0 +1,3 @@
+## 2024-06-18 - Visual Loading Indicators on Interactive Elements
+**Learning:** The application had form submissions and user selections that were disabled during async requests (via `disabled={isLoading}`), but they lacked an explicit visual loading indicator beyond basic text changes (e.g. "Please wait..."). This can leave users unsure if the app is actually processing the request, especially on slower connections or long-running tasks.
+**Action:** Always pair disabled states on async action buttons/forms with an explicit visual loading indicator, such as a spinner (`Loader2` from `lucide-react`), to improve immediate feedback and UX.

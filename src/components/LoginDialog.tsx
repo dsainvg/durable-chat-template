@@ -1,7 +1,14 @@
 import { useState, useEffect } from "react";
 import { useStore, type User } from "@/lib/store";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 
 const API_URL = "";
@@ -35,7 +42,7 @@ export function LoginDialog({
       setPassword("");
       setError("");
       setUsers(HARDCODED_USERS);
-      update(s => ({ ...s, users: HARDCODED_USERS }));
+      update((s) => ({ ...s, users: HARDCODED_USERS }));
     }
   }, [isOpen, update]);
 
@@ -47,7 +54,7 @@ export function LoginDialog({
     try {
       const res = await fetch(`${API_URL}/api/user/${user.id}`);
       if (!res.ok) throw new Error("Failed to check user status");
-      const data = await res.json() as any;
+      const data = (await res.json()) as any;
 
       if (data.exists) {
         setStep("password");
@@ -79,31 +86,33 @@ export function LoginDialog({
         });
 
         if (!res.ok) {
-          const data = await res.json() as any;
+          const data = (await res.json()) as any;
           throw new Error(data.error || "Login failed");
         }
 
-        const data = await res.json() as any;
+        const data = (await res.json()) as any;
         onLogin(data.token, selectedUser.id);
-
       } else if (step === "create") {
-        const res = await fetch(`${API_URL}/api/user/${selectedUser.id}/password`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            password,
-            name: selectedUser.name,
-            email: selectedUser.email,
-            initials: selectedUser.initials
-          }),
-        });
+        const res = await fetch(
+          `${API_URL}/api/user/${selectedUser.id}/password`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              password,
+              name: selectedUser.name,
+              email: selectedUser.email,
+              initials: selectedUser.initials,
+            }),
+          },
+        );
 
         if (!res.ok) {
-          const data = await res.json() as any;
+          const data = (await res.json()) as any;
           throw new Error(data.error || "Failed to create password");
         }
 
-        const data = await res.json() as any;
+        const data = (await res.json()) as any;
         onLogin(data.token, selectedUser.id);
       }
     } catch (e: any) {
@@ -124,7 +133,8 @@ export function LoginDialog({
           </DialogTitle>
           <DialogDescription className="text-center">
             {step === "select" && "Select your profile to continue"}
-            {step === "password" && "Enter your password to access the workspace"}
+            {step === "password" &&
+              "Enter your password to access the workspace"}
             {step === "create" && "Create a password to secure your account"}
           </DialogDescription>
         </DialogHeader>
@@ -147,7 +157,11 @@ export function LoginDialog({
                     className="flex flex-col items-center gap-3 p-4 rounded-xl hover:bg-accent transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                     <div className="size-20 rounded-full bg-primary/10 text-primary ring-2 ring-primary/20 flex items-center justify-center text-2xl font-semibold shadow-sm">
-                      {u.initials}
+                      {isLoading && selectedUser?.id === u.id ? (
+                        <Loader2 className="size-8 animate-spin" />
+                      ) : (
+                        u.initials
+                      )}
                     </div>
                     <span className="font-medium text-sm">{u.name}</span>
                   </button>
@@ -159,13 +173,19 @@ export function LoginDialog({
           {(step === "password" || step === "create") && (
             <form onSubmit={handleSubmit} className="space-y-4 px-4 mt-2">
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-xs">Password</Label>
+                <Label htmlFor="password" className="text-xs">
+                  Password
+                </Label>
                 <input
                   id="password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={step === "create" ? "Create a secure password" : "Enter your password"}
+                  placeholder={
+                    step === "create"
+                      ? "Create a secure password"
+                      : "Enter your password"
+                  }
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   autoFocus
                   required
@@ -182,7 +202,16 @@ export function LoginDialog({
                   Back
                 </Button>
                 <Button type="submit" disabled={isLoading || !password}>
-                  {isLoading ? "Please wait..." : step === "create" ? "Set Password & Login" : "Sign In"}
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Please
+                      wait...
+                    </>
+                  ) : step === "create" ? (
+                    "Set Password & Login"
+                  ) : (
+                    "Sign In"
+                  )}
                 </Button>
               </div>
             </form>

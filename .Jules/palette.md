@@ -1,0 +1,3 @@
+## 2024-06-19 - Added loading spinners to Login Dialog
+**Learning:** Users can be unsure if an action is processing during async login steps, leading to multiple clicks or confusion. Disabled buttons with just text changes ("Please wait...") aren't always visible enough.
+**Action:** Pair disabled state with an explicit visual loading indicator, such as `Loader2` from `lucide-react`, on interactive elements during async operations.

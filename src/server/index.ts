@@ -1625,14 +1625,14 @@ export default {
 						return new Response(JSON.stringify({ error: "space_id is required" }), { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
 					}
 
-				await env.DB.prepare(`INSERT OR REPLACE INTO tasks (id, space_id, title, description, status, assignee, due_date, start_date, priority, custom) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`)
-					.bind(id, space_id, title, description, status, assignee, due_date, start_date, priority, custom)
-						.run();
-
 					// Log daily activity for Daily Check automation and space-level automations
 					const activityUser = assignee || 'unassigned';
 
-					const todayStr = new Date().toISOString().split('T')[0];
+					// Format current IST time to YYYY-MM-DD for logging daily activity
+					const utcNow = new Date();
+					const istOffset = 5.5 * 60 * 60 * 1000; // IST is UTC +5:30
+					const istNow = new Date(utcNow.getTime() + istOffset);
+					const todayStr = istNow.toISOString().split('T')[0];
 
 					let isNewTask = !body.id;
 					let statusChanged = false;
@@ -1648,6 +1648,10 @@ export default {
 							isNewTask = true;
 						}
 					}
+
+					await env.DB.prepare(`INSERT OR REPLACE INTO tasks (id, space_id, title, description, status, assignee, due_date, start_date, priority, custom) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`)
+						.bind(id, space_id, title, description, status, assignee, due_date, start_date, priority, custom)
+						.run();
 
 					if (isNewTask) {
 						// It's a new task

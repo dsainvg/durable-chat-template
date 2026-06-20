@@ -414,18 +414,28 @@ function describeConditions(
 	let promptMessage = "";
 	if (hasInactivity) {
 		promptMessage = `
-		<div style="background-color: #fffbeb; border-radius: 12px; padding: 20px; border: 1px solid #fef3c7; margin-bottom: 24px;">
-			<span style="font-size: 24px; display: block; margin-bottom: 8px; text-align: center;">💡 Action Required</span>
-			<p style="margin: 0; font-size: 14px; color: #92400e; line-height: 1.6; text-align: center; font-weight: 500;">
-				It looks like there hasn't been much activity in your <strong>${spaceName}</strong> space. To keep the project moving forward, please log in and update your tasks or create new ones!
+		<div style="background-color: #fffbeb; border-radius: 12px; padding: 16px; border: 1px solid #fef3c7; margin-bottom: 20px; text-align: left;">
+			<div style="font-size: 18px; font-weight: 700; color: #b45309; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+				<span>⚠️</span> Action Required
+			</div>
+			<p style="margin: 0 0 12px 0; font-size: 13px; color: #78350f; line-height: 1.5;">
+				It looks like there has been no recent activity in the <strong>${spaceName}</strong> space. Please take the following steps to get things back on track:
 			</p>
+			<ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #78350f; line-height: 1.6;">
+				<li style="margin-bottom: 4px;"><strong>Create New Tasks</strong>: Add any new tasks or ideas to keep project momentum active.</li>
+				<li style="margin-bottom: 4px;"><strong>Update Progress</strong>: Move any finished tasks to "Done" or active tasks to "Doing".</li>
+				<li style="margin-bottom: 4px;"><strong>Assign Owners</strong>: Ensure tasks have clear assignees so everyone knows their next steps.</li>
+				<li style="margin-bottom: 4px;"><strong>Review Due Dates</strong>: Set realistic timelines for pending issues.</li>
+			</ul>
 		</div>`;
 	} else {
 		promptMessage = `
-		<div style="background-color: #f0fdf4; border-radius: 12px; padding: 20px; border: 1px solid #bbf7d0; margin-bottom: 24px;">
-			<span style="font-size: 24px; display: block; margin-bottom: 8px; text-align: center;">✅ Criteria Matched</span>
-			<p style="margin: 0; font-size: 14px; color: #166534; line-height: 1.6; text-align: center; font-weight: 500;">
-				The specified rules and filters configured for Space <strong>${spaceName}</strong> have been successfully triggered.
+		<div style="background-color: #f0fdf4; border-radius: 12px; padding: 16px; border: 1px solid #bbf7d0; margin-bottom: 20px; text-align: left;">
+			<div style="font-size: 18px; font-weight: 700; color: #166534; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+				<span>✅</span> Automation Triggered
+			</div>
+			<p style="margin: 0; font-size: 13px; color: #15803d; line-height: 1.5;">
+				The specified rules and filters configured for the space <strong>${spaceName}</strong> have been met.
 			</p>
 		</div>`;
 	}
@@ -907,8 +917,8 @@ export default {
 										const customObj = JSON.parse(tCustomStr);
 										if (Object.keys(customObj).length > 0) {
 											customFieldsText = "\nCustom Fields:\n";
-											customFieldsHtml = `<h4 style="color: #4f46e5; margin-bottom: 8px; margin-top: 24px; font-size: 16px; font-weight: 700;">Custom Fields</h4>
-											<table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background-color: #f8fafc;">`;
+											customFieldsHtml = `<h4 style="color: #4f46e5; margin-bottom: 8px; margin-top: 20px; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Custom Fields</h4>
+											<table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 13px;">`;
 											for (const [key, value] of Object.entries(customObj)) {
 												const valStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
 												const fieldDef = spaceCustomFields.find((f: any) => f.id === key);
@@ -916,8 +926,8 @@ export default {
 												customFieldsText += `- ${displayName}: ${valStr}\n`;
 												customFieldsHtml += `
 												<tr>
-													<td style="padding: 10px 16px; color: #64748b; width: 150px; border-bottom: 1px solid #e2e8f0; font-weight: 500; background-color: #f8fafc;">${displayName}</td>
-													<td style="padding: 10px 16px; color: #1e293b; font-weight: 600; border-bottom: 1px solid #e2e8f0; background-color: #ffffff;">${valStr}</td>
+													<td style="padding: 8px 0; color: #64748b; width: 90px; border-bottom: 1px solid #f1f5f9; font-weight: 500; vertical-align: top;">${displayName}:</td>
+													<td style="padding: 8px 0; color: #1e293b; font-weight: 600; border-bottom: 1px solid #f1f5f9; vertical-align: top;">${valStr}</td>
 												</tr>`;
 											}
 											customFieldsHtml += `</table>`;
@@ -941,60 +951,60 @@ export default {
 									`This is an automated notification from SyncDuo. Please do not reply directly to this email.`;
 
 								emailHtml = `
-								<div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; padding: 40px 20px; text-align: center;">
-									<div style="max-width: 580px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px -10px rgba(79, 70, 229, 0.1), 0 1px 3px rgba(0, 0, 0, 0.05); text-align: left; border: 1px solid #e2e8f0;">
-										<div style="background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%); padding: 35px 40px; color: #ffffff; position: relative; overflow: hidden;">
-											<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-												<span style="font-size: 24px; vertical-align: middle;">⚡</span>
-												<span style="font-weight: 800; font-size: 11px; text-transform: uppercase; letter-spacing: 0.15em; color: #ddd6fe;">SyncDuo Automation Alert</span>
+								<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; padding: 16px 8px; text-align: center;">
+									<div style="max-width: 460px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); text-align: left; border: 1px solid #e2e8f0; width: 100%;">
+										<div style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); padding: 20px 16px; color: #ffffff; text-align: left;">
+											<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+												<span style="font-size: 18px; vertical-align: middle;">⚡</span>
+												<span style="font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: #e0e7ff;">SyncDuo Task Update</span>
 											</div>
-											<h1 style="margin: 0; font-size: 24px; font-weight: 800; color: #ffffff; line-height: 1.25;">Task Automation Triggered</h1>
+											<h1 style="margin: 0; font-size: 20px; font-weight: 800; color: #ffffff; line-height: 1.25;">Automation Alert</h1>
 										</div>
-										<div style="padding: 40px; color: #334155; line-height: 1.6;">
-											<p style="margin-top: 0; font-size: 16px; color: #475569; font-weight: 500;">Hello,</p>
-											<p style="font-size: 15px; color: #64748b; margin-bottom: 24px;">An automation was triggered for a task in your space <strong>${spaceName}</strong>.</p>
+										<div style="padding: 20px 16px; color: #334155; line-height: 1.5;">
+											<p style="margin-top: 0; font-size: 14px; color: #475569; font-weight: 500;">Hello,</p>
+											<p style="font-size: 13px; color: #64748b; margin-bottom: 20px;">An automation was triggered for a task in your space <strong>${spaceName}</strong>.</p>
 											
-											<div style="background-color: #f8fafc; border-radius: 12px; padding: 24px; border: 1px solid #f1f5f9; margin-bottom: 24px;">
-												<h3 style="margin-top: 0; margin-bottom: 12px; font-size: 15px; font-weight: 700; color: #1e293b;">Conditions Met</h3>
+											<div style="background-color: #f8fafc; border-radius: 12px; padding: 16px; border: 1px solid #f1f5f9; margin-bottom: 20px;">
+												<h3 style="margin-top: 0; margin-bottom: 8px; font-size: 14px; font-weight: 700; color: #1e293b;">Conditions Met</h3>
 												${htmlList}
 											</div>
 
-											<h3 style="color: #4f46e5; margin-top: 24px; margin-bottom: 12px; font-size: 16px; font-weight: 700;">Task Details</h3>
-											<table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+											<h3 style="color: #4f46e5; margin-top: 20px; margin-bottom: 8px; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Task Details</h3>
+											<table style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
 												<tr>
-													<td style="padding: 10px 0; font-weight: 600; width: 120px; color: #64748b; font-size: 14px; border-bottom: 1px solid #f1f5f9;">Title:</td>
-													<td style="padding: 10px 0; font-weight: 700; color: #1e293b; font-size: 15px; border-bottom: 1px solid #f1f5f9;">${tTitle}</td>
+													<td style="padding: 8px 0; font-weight: 600; width: 90px; color: #64748b; font-size: 13px; border-bottom: 1px solid #f1f5f9; vertical-align: top;">Title:</td>
+													<td style="padding: 8px 0; font-weight: 700; color: #1e293b; font-size: 13px; border-bottom: 1px solid #f1f5f9; vertical-align: top;">${tTitle}</td>
 												</tr>
 												<tr>
-													<td style="padding: 10px 0; color: #64748b; font-size: 14px; border-bottom: 1px solid #f1f5f9;">Description:</td>
-													<td style="padding: 10px 0; color: #475569; font-size: 14px; border-bottom: 1px solid #f1f5f9; white-space: pre-wrap;">${tDesc}</td>
+													<td style="padding: 8px 0; color: #64748b; font-size: 13px; border-bottom: 1px solid #f1f5f9; vertical-align: top;">Description:</td>
+													<td style="padding: 8px 0; color: #475569; font-size: 13px; border-bottom: 1px solid #f1f5f9; white-space: pre-wrap; vertical-align: top;">${tDesc}</td>
 												</tr>
 												<tr>
-													<td style="padding: 10px 0; color: #64748b; font-size: 14px; border-bottom: 1px solid #f1f5f9;">Status:</td>
-													<td style="padding: 10px 0; border-bottom: 1px solid #f1f5f9;">${tStatusBadge}</td>
+													<td style="padding: 8px 0; color: #64748b; font-size: 13px; border-bottom: 1px solid #f1f5f9; vertical-align: middle;">Status:</td>
+													<td style="padding: 8px 0; border-bottom: 1px solid #f1f5f9; vertical-align: middle;">${tStatusBadge}</td>
 												</tr>
 												<tr>
-													<td style="padding: 10px 0; color: #64748b; font-size: 14px; border-bottom: 1px solid #f1f5f9;">Priority:</td>
-													<td style="padding: 10px 0; border-bottom: 1px solid #f1f5f9;">${tPriorityBadge}</td>
+													<td style="padding: 8px 0; color: #64748b; font-size: 13px; border-bottom: 1px solid #f1f5f9; vertical-align: middle;">Priority:</td>
+													<td style="padding: 8px 0; border-bottom: 1px solid #f1f5f9; vertical-align: middle;">${tPriorityBadge}</td>
 												</tr>
 												<tr>
-													<td style="padding: 10px 0; color: #64748b; font-size: 14px; border-bottom: 1px solid #f1f5f9;">Assignee:</td>
-													<td style="padding: 10px 0; color: #475569; font-size: 14px; border-bottom: 1px solid #f1f5f9;">${tAssignee}</td>
+													<td style="padding: 8px 0; color: #64748b; font-size: 13px; border-bottom: 1px solid #f1f5f9; vertical-align: top;">Assignee:</td>
+													<td style="padding: 8px 0; color: #475569; font-size: 13px; border-bottom: 1px solid #f1f5f9; vertical-align: top;">${tAssignee}</td>
 												</tr>
 												<tr>
-													<td style="padding: 10px 0; color: #64748b; font-size: 14px; border-bottom: 1px solid #f1f5f9;">Due Date:</td>
-													<td style="padding: 10px 0; color: #475569; font-size: 14px; border-bottom: 1px solid #f1f5f9; font-weight: 600;">${tDueDate}</td>
+													<td style="padding: 8px 0; color: #64748b; font-size: 13px; border-bottom: 1px solid #f1f5f9; vertical-align: top;">Due Date:</td>
+													<td style="padding: 8px 0; color: #475569; font-size: 13px; border-bottom: 1px solid #f1f5f9; font-weight: 600; vertical-align: top;">${tDueDate}</td>
 												</tr>
 											</table>
 											
 											${customFieldsHtml}
 											
-											<div style="margin: 32px 0 24px; text-align: center;">
-												<a href="https://syncduo.app" style="display: inline-block; background-color: #4f46e5; color: #ffffff; font-weight: 600; font-size: 14px; text-decoration: none; padding: 12px 32px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);">Open SyncDuo</a>
+											<div style="margin: 20px 0 16px; text-align: center;">
+												<a href="https://syncduo.app" style="display: block; background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); color: #ffffff; font-weight: 700; font-size: 14px; text-decoration: none; padding: 12px 24px; border-radius: 10px; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2); text-align: center;">Open SyncDuo</a>
 											</div>
 											
-											<hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 32px 0 24px;" />
-											<p style="font-size: 12px; color: #94a3b8; text-align: center; margin-bottom: 0;">This is an automated notification from SyncDuo. Please do not reply directly to this email.</p>
+											<hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 24px 0 16px;" />
+											<p style="font-size: 11px; color: #94a3b8; text-align: center; margin-bottom: 0;">This is an automated notification from SyncDuo. Please do not reply directly to this email.</p>
 										</div>
 									</div>
 								</div>`;
@@ -1008,32 +1018,32 @@ export default {
 								descriptions.map((d, i) => `${i+1}. ${d}`).join('\n') + `\n\n` +
 								`This is an automated notification from SyncDuo. Please do not reply directly to this email.`;
 							emailHtml = `
-							<div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; padding: 40px 20px; text-align: center;">
-								<div style="max-width: 580px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px -10px rgba(79, 70, 229, 0.1), 0 1px 3px rgba(0, 0, 0, 0.05); text-align: left; border: 1px solid #e2e8f0;">
-									<div style="background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%); padding: 35px 40px; color: #ffffff; position: relative; overflow: hidden;">
-										<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-											<span style="font-size: 24px; vertical-align: middle;">⚡</span>
-											<span style="font-weight: 800; font-size: 11px; text-transform: uppercase; letter-spacing: 0.15em; color: #ddd6fe;">SyncDuo Space Alert</span>
+							<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; padding: 16px 8px; text-align: center;">
+								<div style="max-width: 460px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); text-align: left; border: 1px solid #e2e8f0; width: 100%;">
+									<div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 20px 16px; color: #ffffff; text-align: left;">
+										<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+											<span style="font-size: 18px; vertical-align: middle;">⚡</span>
+											<span style="font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: #d1fae5;">SyncDuo Space Alert</span>
 										</div>
-										<h1 style="margin: 0; font-size: 24px; font-weight: 800; color: #ffffff; line-height: 1.25;">Space Automation Triggered</h1>
+										<h1 style="margin: 0; font-size: 20px; font-weight: 800; color: #ffffff; line-height: 1.25;">Space Automation</h1>
 									</div>
-									<div style="padding: 40px; color: #334155; line-height: 1.6;">
-										<p style="margin-top: 0; font-size: 16px; color: #475569; font-weight: 500;">Hello,</p>
-										<p style="font-size: 15px; color: #64748b; margin-bottom: 24px;">An automation alert was triggered for space <strong>${spaceName}</strong>.</p>
+									<div style="padding: 20px 16px; color: #334155; line-height: 1.5;">
+										<p style="margin-top: 0; font-size: 14px; color: #475569; font-weight: 500;">Hello,</p>
+										<p style="font-size: 13px; color: #64748b; margin-bottom: 20px;">An automation alert was triggered for space <strong>${spaceName}</strong>.</p>
 										
 										${promptMessage}
 
-										<div style="background-color: #f8fafc; border-radius: 12px; padding: 24px; border: 1px solid #f1f5f9; margin-bottom: 24px;">
-											<h3 style="margin-top: 0; margin-bottom: 12px; font-size: 15px; font-weight: 700; color: #1e293b;">Conditions Met</h3>
+										<div style="background-color: #f8fafc; border-radius: 12px; padding: 16px; border: 1px solid #f1f5f9; margin-bottom: 20px;">
+											<h3 style="margin-top: 0; margin-bottom: 12px; font-size: 14px; font-weight: 700; color: #1e293b;">Conditions Met</h3>
 											${htmlList}
 										</div>
 										
-										<div style="margin: 32px 0 24px; text-align: center;">
-											<a href="https://syncduo.app" style="display: inline-block; background-color: #4f46e5; color: #ffffff; font-weight: 600; font-size: 14px; text-decoration: none; padding: 12px 32px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);">Open Space</a>
+										<div style="margin: 20px 0 16px; text-align: center;">
+											<a href="https://syncduo.app" style="display: block; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #ffffff; font-weight: 700; font-size: 14px; text-decoration: none; padding: 12px 24px; border-radius: 10px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2); text-align: center;">Open Space</a>
 										</div>
 										
-										<hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 32px 0 24px;" />
-										<p style="font-size: 12px; color: #94a3b8; text-align: center; margin-bottom: 0;">This is an automated notification from SyncDuo. Please do not reply directly to this email.</p>
+										<hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 24px 0 16px;" />
+										<p style="font-size: 11px; color: #94a3b8; text-align: center; margin-bottom: 0;">This is an automated notification from SyncDuo. Please do not reply directly to this email.</p>
 									</div>
 								</div>
 							</div>`;

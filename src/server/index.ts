@@ -306,6 +306,133 @@ async function evaluateConditions(
 	return allMatches;
 }
 
+function describeConditions(
+	conditions: any[],
+	userMap: Map<string, string>,
+	statusMap: Map<string, string>,
+	priorityMap: Map<string, string>,
+	spaceCustomFields: any[],
+	spaceName: string
+): { descriptions: string[]; htmlList: string; promptMessage: string } {
+	const descriptions: string[] = [];
+	let hasInactivity = false;
+
+	for (const cond of conditions) {
+		if (cond.type === 'no_new_tasks_created') {
+			descriptions.push(`No new tasks were created yesterday in Space "${spaceName}".`);
+			hasInactivity = true;
+		} else if (cond.type === 'no_new_tasks_in_status') {
+			const statusName = statusMap.get(cond.config?.status) || cond.config?.status || "unknown";
+			descriptions.push(`No new tasks were moved to status "${statusName}" yesterday in Space "${spaceName}".`);
+			hasInactivity = true;
+		} else if (cond.type === 'no_new_tasks_by_user_in_status') {
+			const statusName = statusMap.get(cond.config?.status) || cond.config?.status || "unknown";
+			const userName = userMap.get(cond.config?.user_id) || cond.config?.user_id || "unknown";
+			descriptions.push(`No new tasks were moved to status "${statusName}" yesterday by user "${userName}" in Space "${spaceName}".`);
+			hasInactivity = true;
+		} else if (cond.type === 'no_new_tasks_in_priority') {
+			const priorityName = priorityMap.get(cond.config?.priority) || cond.config?.priority || "unknown";
+			descriptions.push(`No new tasks were set to priority "${priorityName}" yesterday in Space "${spaceName}".`);
+			hasInactivity = true;
+		} else if (cond.type === 'no_new_tasks_by_user_in_priority') {
+			const priorityName = priorityMap.get(cond.config?.priority) || cond.config?.priority || "unknown";
+			const userName = userMap.get(cond.config?.user_id) || cond.config?.user_id || "unknown";
+			descriptions.push(`No new tasks were set to priority "${priorityName}" yesterday by user "${userName}" in Space "${spaceName}".`);
+			hasInactivity = true;
+		} else if (cond.type === 'space_activity') {
+			const { event, user, value } = cond.config || {};
+			const userName = user === 'any' ? 'any user' : (userMap.get(user) || user);
+			let desc = "";
+			if (event === "no_created") {
+				desc = `No tasks were created yesterday by ${userName} in Space "${spaceName}".`;
+			} else if (event === "no_status") {
+				const statusName = statusMap.get(value) || value;
+				desc = `No tasks were moved to status "${statusName}" yesterday by ${userName} in Space "${spaceName}".`;
+			} else if (event === "no_priority") {
+				const priorityName = priorityMap.get(value) || value;
+				desc = `No tasks were set to priority "${priorityName}" yesterday by ${userName} in Space "${spaceName}".`;
+			} else {
+				desc = `No recent activity matching the configured filters was detected in Space "${spaceName}".`;
+			}
+			descriptions.push(desc);
+			hasInactivity = true;
+		} else if (cond.type === 'due_today') {
+			descriptions.push("The task is due today or is currently overdue.");
+		} else if (cond.type === 'has_assignee') {
+			descriptions.push("The task has an assignee.");
+		} else if (cond.type === 'no_assignee') {
+			descriptions.push("The task does not have any assignee.");
+		} else if (cond.type === 'status_equals') {
+			const statusName = statusMap.get(cond.config?.status) || cond.config?.status;
+			descriptions.push(`Task status equals "${statusName}".`);
+		} else if (cond.type === 'status_not_equals') {
+			const statusName = statusMap.get(cond.config?.status) || cond.config?.status;
+			descriptions.push(`Task status does not equal "${statusName}".`);
+		} else if (cond.type === 'priority_equals') {
+			const priorityName = priorityMap.get(cond.config?.priority) || cond.config?.priority;
+			descriptions.push(`Task priority equals "${priorityName}".`);
+		} else if (cond.type === 'priority_not_equals') {
+			const priorityName = priorityMap.get(cond.config?.priority) || cond.config?.priority;
+			descriptions.push(`Task priority does not equal "${priorityName}".`);
+		} else if (cond.type === 'due_date_equals') {
+			descriptions.push(`Task due date equals "${cond.config?.dueDate}".`);
+		} else if (cond.type === 'assignee_equals') {
+			const userName = userMap.get(cond.config?.assignee) || cond.config?.assignee;
+			descriptions.push(`Task assignee is "${userName}".`);
+		} else if (cond.type === 'task_field') {
+			const { field, operator, value } = cond.config || {};
+			let fieldLabel = field;
+			if (field === "status") fieldLabel = "Status";
+			else if (field === "priority") fieldLabel = "Priority";
+			else if (field === "assignee") fieldLabel = "Assignee";
+			else if (field === "due_date") fieldLabel = "Due Date";
+			else if (field?.startsWith("custom_")) {
+				const customKey = field.replace("custom_", "");
+				const fieldDef = spaceCustomFields.find((f: any) => f.id === customKey);
+				fieldLabel = `Custom Field "${fieldDef ? fieldDef.name : customKey}"`;
+			}
+
+			let opLabel = operator;
+			if (operator === "equals") opLabel = "equals";
+			else if (operator === "not_equals") opLabel = "does not equal";
+			else if (operator === "is_empty") opLabel = "is empty";
+			else if (operator === "not_empty") opLabel = "is not empty";
+			else if (operator === "is_today") opLabel = "is today";
+			else if (operator === "is_overdue") opLabel = "is overdue";
+
+			const valStr = value !== undefined && value !== null && value !== "" ? ` "${value}"` : "";
+			descriptions.push(`Task property "${fieldLabel}" ${opLabel}${valStr}.`);
+		} else {
+			descriptions.push("The configured rule conditions were met.");
+		}
+	}
+
+	const htmlList = `<ul style="margin: 0; padding-left: 20px; font-size: 14px; color: #475569; line-height: 1.6;">` +
+		descriptions.map(d => `<li style="margin-bottom: 6px;">${d}</li>`).join('') +
+		`</ul>`;
+
+	let promptMessage = "";
+	if (hasInactivity) {
+		promptMessage = `
+		<div style="background-color: #fffbeb; border-radius: 12px; padding: 20px; border: 1px solid #fef3c7; margin-bottom: 24px;">
+			<span style="font-size: 24px; display: block; margin-bottom: 8px; text-align: center;">💡 Action Required</span>
+			<p style="margin: 0; font-size: 14px; color: #92400e; line-height: 1.6; text-align: center; font-weight: 500;">
+				It looks like there hasn't been much activity in your <strong>${spaceName}</strong> space. To keep the project moving forward, please log in and update your tasks or create new ones!
+			</p>
+		</div>`;
+	} else {
+		promptMessage = `
+		<div style="background-color: #f0fdf4; border-radius: 12px; padding: 20px; border: 1px solid #bbf7d0; margin-bottom: 24px;">
+			<span style="font-size: 24px; display: block; margin-bottom: 8px; text-align: center;">✅ Criteria Matched</span>
+			<p style="margin: 0; font-size: 14px; color: #166534; line-height: 1.6; text-align: center; font-weight: 500;">
+				The specified rules and filters configured for Space <strong>${spaceName}</strong> have been successfully triggered.
+			</p>
+		</div>`;
+	}
+
+	return { descriptions, htmlList, promptMessage };
+}
+
 export default {
 	async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext) {
 		await initDb(env.DB);
@@ -712,6 +839,25 @@ export default {
 							const spaceFieldsJson = spaceRecord.length > 0 ? spaceRecord[0].customFields as string : "[]";
 							const spaceCustomFields = spaceFieldsJson ? JSON.parse(spaceFieldsJson) : [];
 
+							// Fetch all users to map user IDs to real names
+							const { results: allUsers } = await env.DB.prepare("SELECT id, name FROM users").all();
+							const userMap = new Map(allUsers.map((u: any) => [u.id, u.name]));
+
+							const statusMap = new Map([
+								["todo", "To Do"],
+								["doing", "Doing"],
+								["done", "Done"]
+							]);
+							const priorityMap = new Map([
+								["low", "Low"],
+								["medium", "Medium"],
+								["high", "High"],
+								["none", "None"]
+							]);
+
+							const conditions = JSON.parse(auto.conditions as string) as { type: string; config?: any }[];
+							const { descriptions, htmlList, promptMessage } = describeConditions(conditions, userMap, statusMap, priorityMap, spaceCustomFields, spaceName);
+
 							// Construct realistic contextually tailored email
 							let emailSubject = `SyncDuo Automation Alert`;
 							let emailText = `Automation triggered in space ${spaceName}.`;
@@ -725,7 +871,8 @@ export default {
 								const tDesc = t.description as string || "No description provided.";
 								const tStatus = t.status as string;
 								const tPriority = t.priority as string || "None";
-								const tAssignee = t.assignee as string || "Unassigned";
+								const tAssigneeId = t.assignee as string || "";
+								const tAssignee = tAssigneeId ? (userMap.get(tAssigneeId) || tAssigneeId) : "Unassigned";
 								const tDueDate = t.due_date as string || "None";
 								const tCustomStr = t.custom as string;
 
@@ -781,6 +928,8 @@ export default {
 								}
 
 								emailText = `Hello! An automation was triggered for task "${tTitle}" in your space "${spaceName}".\n\n` +
+									`Conditions Met:\n` +
+									descriptions.map((d, i) => `${i+1}. ${d}`).join('\n') + `\n\n` +
 									`Task Details:\n` +
 									`- Title: ${tTitle}\n` +
 									`- Description: ${tDesc}\n` +
@@ -805,7 +954,12 @@ export default {
 											<p style="margin-top: 0; font-size: 16px; color: #475569; font-weight: 500;">Hello,</p>
 											<p style="font-size: 15px; color: #64748b; margin-bottom: 24px;">An automation was triggered for a task in your space <strong>${spaceName}</strong>.</p>
 											
-											<h3 style="color: #4f46e5; margin-top: 0; margin-bottom: 12px; font-size: 16px; font-weight: 700;">Task Details</h3>
+											<div style="background-color: #f8fafc; border-radius: 12px; padding: 24px; border: 1px solid #f1f5f9; margin-bottom: 24px;">
+												<h3 style="margin-top: 0; margin-bottom: 12px; font-size: 15px; font-weight: 700; color: #1e293b;">Conditions Met</h3>
+												${htmlList}
+											</div>
+
+											<h3 style="color: #4f46e5; margin-top: 24px; margin-bottom: 12px; font-size: 16px; font-weight: 700;">Task Details</h3>
 											<table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
 												<tr>
 													<td style="padding: 10px 0; font-weight: 600; width: 120px; color: #64748b; font-size: 14px; border-bottom: 1px solid #f1f5f9;">Title:</td>
@@ -850,7 +1004,8 @@ export default {
 						if (!emailHtml) {
 							emailSubject = `Space Automation Alert: ${spaceName}`;
 							emailText = `Hello! A space-level automation alert was triggered for space "${spaceName}".\n\n` +
-								`All space-level conditions have been met successfully.\n\n` +
+								`Conditions Met:\n` +
+								descriptions.map((d, i) => `${i+1}. ${d}`).join('\n') + `\n\n` +
 								`This is an automated notification from SyncDuo. Please do not reply directly to this email.`;
 							emailHtml = `
 							<div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; padding: 40px 20px; text-align: center;">
@@ -860,20 +1015,21 @@ export default {
 											<span style="font-size: 24px; vertical-align: middle;">⚡</span>
 											<span style="font-weight: 800; font-size: 11px; text-transform: uppercase; letter-spacing: 0.15em; color: #ddd6fe;">SyncDuo Space Alert</span>
 										</div>
-										<h1 style="margin: 0; font-size: 24px; font-weight: 800; color: #ffffff; line-height: 1.25;">Space-Level Triggered</h1>
+										<h1 style="margin: 0; font-size: 24px; font-weight: 800; color: #ffffff; line-height: 1.25;">Space Automation Triggered</h1>
 									</div>
 									<div style="padding: 40px; color: #334155; line-height: 1.6;">
 										<p style="margin-top: 0; font-size: 16px; color: #475569; font-weight: 500;">Hello,</p>
-										<p style="font-size: 15px; color: #64748b; margin-bottom: 24px;">A space-level automation alert was triggered for your space <strong>${spaceName}</strong>.</p>
+										<p style="font-size: 15px; color: #64748b; margin-bottom: 24px;">An automation alert was triggered for space <strong>${spaceName}</strong>.</p>
 										
+										${promptMessage}
+
 										<div style="background-color: #f8fafc; border-radius: 12px; padding: 24px; border: 1px solid #f1f5f9; margin-bottom: 24px;">
-											<span style="font-size: 32px; display: block; margin-bottom: 12px; text-align: center;">⚙️</span>
-											<h3 style="margin-top: 0; margin-bottom: 8px; font-size: 16px; font-weight: 700; color: #1e293b; text-align: center;">Conditions Met</h3>
-											<p style="margin: 0; font-size: 14px; color: #475569; line-height: 1.6; text-align: center;">All criteria specified in your space automation rules have been satisfied successfully.</p>
+											<h3 style="margin-top: 0; margin-bottom: 12px; font-size: 15px; font-weight: 700; color: #1e293b;">Conditions Met</h3>
+											${htmlList}
 										</div>
 										
 										<div style="margin: 32px 0 24px; text-align: center;">
-											<a href="https://syncduo.app" style="display: inline-block; background-color: #4f46e5; color: #ffffff; font-weight: 600; font-size: 14px; text-decoration: none; padding: 12px 32px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);">Open Space Settings</a>
+											<a href="https://syncduo.app" style="display: inline-block; background-color: #4f46e5; color: #ffffff; font-weight: 600; font-size: 14px; text-decoration: none; padding: 12px 32px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);">Open Space</a>
 										</div>
 										
 										<hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 32px 0 24px;" />

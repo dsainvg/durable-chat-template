@@ -3,6 +3,7 @@ import { useStore, type User } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 
 const API_URL = "";
 
@@ -24,6 +25,7 @@ export function LoginDialog({
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [step, setStep] = useState<"select" | "password" | "create">("select");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -33,6 +35,7 @@ export function LoginDialog({
       setSelectedUser(null);
       setStep("select");
       setPassword("");
+      setShowPassword(false);
       setError("");
       setUsers(HARDCODED_USERS);
       update(s => ({ ...s, users: HARDCODED_USERS }));
@@ -160,17 +163,32 @@ export function LoginDialog({
             <form onSubmit={handleSubmit} className="space-y-4 px-4 mt-2">
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-xs">Password</Label>
-                <input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={step === "create" ? "Create a secure password" : "Enter your password"}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  autoFocus
-                  required
-                  disabled={isLoading}
-                />
+                <div className="relative">
+                  <input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={step === "create" ? "Create a secure password" : "Enter your password"}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    autoFocus
+                    required
+                    disabled={isLoading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-r-md disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={isLoading || !password}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" aria-hidden="true" />
+                    ) : (
+                      <Eye className="h-4 w-4" aria-hidden="true" />
+                    )}
+                  </button>
+                </div>
               </div>
               <div className="flex gap-2 justify-end pt-4">
                 <Button
@@ -182,7 +200,16 @@ export function LoginDialog({
                   Back
                 </Button>
                 <Button type="submit" disabled={isLoading || !password}>
-                  {isLoading ? "Please wait..." : step === "create" ? "Set Password & Login" : "Sign In"}
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Please wait...
+                    </>
+                  ) : step === "create" ? (
+                    "Set Password & Login"
+                  ) : (
+                    "Sign In"
+                  )}
                 </Button>
               </div>
             </form>

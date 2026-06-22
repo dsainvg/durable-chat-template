@@ -110,6 +110,7 @@ export function CalendarView({ space, viewId, onOpen, onMove }: { space: Space; 
                 {list.slice(0, 3).map((t) => (
                   <button
                     key={t.id}
+                    aria-label={`Task: ${t.title}`}
                     draggable={!!onMove}
                     onDragStart={(e) => {
                       e.stopPropagation();

@@ -68,6 +68,7 @@ export function GanttView({ space, onOpen, onUpdate }: { space: Space; onOpen: (
             return (
               <button
                 key={t.id}
+                aria-label={`Task: ${t.title}`}
                 onClick={(e) => {
                   if (isResizing) {
                     e.preventDefault();

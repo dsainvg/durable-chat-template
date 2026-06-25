@@ -109,6 +109,7 @@ export function CalendarView({ space, viewId, onOpen, onMove }: { space: Space; 
               <div className="space-y-0.5 overflow-hidden">
                 {list.slice(0, 3).map((t) => (
                   <button
+                    type="button"
                     key={t.id}
                     draggable={!!onMove}
                     onDragStart={(e) => {
@@ -116,6 +117,7 @@ export function CalendarView({ space, viewId, onOpen, onMove }: { space: Space; 
                       setDragId(t.id);
                     }}
                     onClick={() => onOpen(t)}
+                    aria-label={"Task: " + t.title}
                     className="w-full flex items-center gap-1 text-left text-[10px] truncate px-1.5 py-0.5 rounded bg-primary/15 text-foreground hover:bg-primary/25 cursor-pointer active:cursor-grabbing focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                     {!hiddenFields["priority"] && space.columns.includes("priority") && (

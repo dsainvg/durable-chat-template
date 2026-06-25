@@ -52,7 +52,15 @@ export function TableView({ space, viewId, onOpen }: { space: Space; viewId?: st
                   <tr
                     key={t.id}
                     onClick={() => onOpen(t)}
-                    className="hover:bg-accent/40 transition-colors cursor-pointer group"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onOpen(t);
+                      }
+                    }}
+                    tabIndex={0}
+                    aria-label={"Task: " + t.title}
+                    className="hover:bg-accent/40 transition-colors cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">

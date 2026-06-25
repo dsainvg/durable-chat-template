@@ -79,12 +79,14 @@ export function KanbanView({
             </div>
             <div className="flex-1 space-y-3 min-h-32">
               {tasks.map((t) => (
-                <div
+                <button
+                  type="button"
                   key={t.id}
                   draggable
                   onDragStart={() => setDragId(t.id)}
                   onClick={() => onOpen(t)}
-                  className={`bg-card p-3 rounded-lg ring-1 ring-border space-y-3 cursor-grab active:cursor-grabbing hover:ring-primary/30 transition-all ${
+                  aria-label={"Task: " + t.title}
+                  className={`bg-card p-3 rounded-lg ring-1 ring-border space-y-3 cursor-grab active:cursor-grabbing hover:ring-primary/30 transition-all text-left w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                     space.columns.includes("priority")
                       ? (t.priority === "high" ? "border-l-2 border-l-destructive" : t.priority === "medium" ? "border-l-2 border-l-primary" : "")
                       : ""
@@ -117,7 +119,7 @@ export function KanbanView({
                       </div>
                     )}
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           </div>

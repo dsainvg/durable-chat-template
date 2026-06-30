@@ -76,7 +76,7 @@ export function GanttView({ space, onOpen, onUpdate }: { space: Space; onOpen: (
                   }
                   onOpen(t);
                 }}
-                className="w-full flex border-b border-border hover:bg-accent/30 transition-colors text-left"
+                className="w-full flex border-b border-border hover:bg-accent/30 transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <div className="w-[260px] flex-shrink-0 px-3 py-2.5 text-xs truncate">{t.title}</div>
                 <div className="relative flex-1 h-10">

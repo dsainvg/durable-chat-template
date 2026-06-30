@@ -133,12 +133,12 @@ export function ListView({ space, viewId, onOpen, onMove }: { space: Space; view
                 };
 
                 return (
-                  <div
+                  <button
                     key={t.id}
                     draggable={!!onMove}
                     onDragStart={() => setDragId(t.id)}
                     onClick={() => onOpen(t)}
-                    className="w-full px-4 py-3 flex items-center gap-4 hover:bg-accent/40 transition-colors text-left cursor-pointer active:cursor-grabbing border-b border-border last:border-0"
+                    className="w-full px-4 py-3 flex items-center gap-4 hover:bg-accent/40 transition-colors text-left cursor-pointer active:cursor-grabbing border-b border-border last:border-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                     {leftSideFields.map((id: string) => renderField(id))}
 
@@ -157,7 +157,7 @@ export function ListView({ space, viewId, onOpen, onMove }: { space: Space; view
                     <div className="flex items-center gap-4">
                       {rightSideFields.map((id: string) => renderField(id))}
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>

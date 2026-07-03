@@ -1,6 +1,7 @@
 import * as React from "react";
 import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Dialog,
   DialogContent,
@@ -674,6 +675,7 @@ export function ExcelImportDialog({
                     </div>
                     <div></div>
 
+                    <TooltipProvider>
                     {constantMappings.map((c, idx) => {
                       const isDate =
                         c.field === "dueDate" ||
@@ -852,21 +854,29 @@ export function ExcelImportDialog({
                             );
                           })()}
 
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label="Remove constant mapping"
-                            onClick={() => {
-                              setConstantMappings((prev) =>
-                                prev.filter((m) => m.id !== c.id),
-                              );
-                            }}
-                          >
-                            <X className="size-4" />
-                          </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  aria-label="Remove constant mapping"
+                                  onClick={() => {
+                                    setConstantMappings((prev) =>
+                                      prev.filter((m) => m.id !== c.id),
+                                    );
+                                  }}
+                                >
+                                  <X className="size-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Remove constant mapping</p>
+                              </TooltipContent>
+                            </Tooltip>
                         </React.Fragment>
                       );
                     })}
+                    </TooltipProvider>
                   </div>
                 )}
               </div>

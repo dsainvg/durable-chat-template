@@ -2,3 +2,6 @@
 ## 2026-06-14 - Enhanced Login Dialog Accessibility and Feedback
 **Learning:** Adding a password visibility toggle greatly improves UX, especially when creating or verifying secure passwords. Ensuring the toggle uses an `aria-label` allows screen readers to provide context for the action, while updating the label based on the state ("Show password" / "Hide password") offers dynamic feedback. Using a `Loader2` spinner with `"Please wait..."` keeps the user informed and prevents redundant submissions during async operations.
 **Action:** Always include an accessible (aria-labeled) visibility toggle in password inputs and pair disabled loading buttons with a clear visual indicator (like a spinner) and informative text.
+## 2026-06-14 - Visual Feedback for Interactive Profile Elements
+**Learning:** During profile selection in the login flow, simply disabling the buttons during the async API call wasn't enough. Users needed visual feedback indicating *which* profile was loading. Replacing the static user initials with a spinner (`Loader2`) on the selected profile provides immediate, localized feedback.
+**Action:** When implementing loading states for interactive lists or grids (like profile cards), replace the static icon or text with a loading indicator on the specific element being interacted with, rather than just disabling the entire container or list.

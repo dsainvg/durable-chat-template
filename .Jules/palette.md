@@ -2,3 +2,6 @@
 ## 2026-06-14 - Enhanced Login Dialog Accessibility and Feedback
 **Learning:** Adding a password visibility toggle greatly improves UX, especially when creating or verifying secure passwords. Ensuring the toggle uses an `aria-label` allows screen readers to provide context for the action, while updating the label based on the state ("Show password" / "Hide password") offers dynamic feedback. Using a `Loader2` spinner with `"Please wait..."` keeps the user informed and prevents redundant submissions during async operations.
 **Action:** Always include an accessible (aria-labeled) visibility toggle in password inputs and pair disabled loading buttons with a clear visual indicator (like a spinner) and informative text.
+## 2024-07-05 - Localized Loading Feedback
+**Learning:** In list or grid structures where items are individually interactive (like a profile selection screen), applying a global `isLoading` state to disable all items without visual indication on the *selected* item can make the app feel unresponsive. Users might click an item, see it disabled, but not realize their specific click is being processed.
+**Action:** Always condition visual loading indicators (like a spinner replacing the item's main icon/initials) on both the global loading state and the specific item's identifier (e.g., `isLoading && selectedItem?.id === item.id`).

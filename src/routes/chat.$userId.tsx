@@ -4,6 +4,7 @@ import { useStore, uid } from "@/lib/store";
 import usePartySocket from "partysocket/react";
 import { Send } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
 
@@ -121,16 +122,26 @@ function ChatPage() {
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") send(); }}
             placeholder={`Message ${other.name}…`}
+            aria-label={`Message ${other.name}`}
             className="flex-1 bg-transparent py-3 text-sm outline-none"
           />
-          <button
-            onClick={send}
-            disabled={!text.trim()}
-            aria-label="Send message"
-            className="text-primary hover:text-primary/80 p-1 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-          >
-            <Send className="size-4" />
-          </button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={send}
+                  disabled={!text.trim()}
+                  aria-label="Send message"
+                  className="text-primary hover:text-primary/80 p-1 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                >
+                  <Send className="size-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Send message</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </div>
     </>
